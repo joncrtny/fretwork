@@ -104,6 +104,7 @@ const TUNINGS = [
 ];
 
 /* roman numeral -> [semitones above the key root, chord id] */
+const MINOR_STARTS = new Set(["i", "iv", "v", "i7", "iv7", "v7", "ii\u00b0", "ii\u00f8"]);
 const ROMAN = {
   I: [0, "maj"], ii: [2, "min"], iii: [4, "min"], IV: [5, "maj"], V: [7, "maj"], vi: [9, "min"], "vii°": [11, "dim"],
   i: [0, "min"], "ii°": [2, "dim"], III: [3, "maj"], iv: [5, "min"], v: [7, "min"], VI: [8, "maj"], VII: [10, "maj"],
@@ -1656,6 +1657,9 @@ export default function App() {
   const [progRoot, setProgRoot] = useState(0);
   const [progId, setProgId] = useState("p1564");
   const [progIdx, setProgIdx] = useState(0);
+  const [progPlaying, setProgPlaying] = useState(false);
+  const [customProgs, setCustomProgs] = useState([]);
+  const [builder, setBuilder] = useState({ bars: [], name: "" });
 
   const [bank, setBank] = useState([]);
   const [metroOn, setMetroOn] = useState(false);
@@ -1789,7 +1793,7 @@ export default function App() {
     (async () => {
       const { data, error } = await supabase
         .from("user_data")
-        .select("bank,changes")
+        .select("bank,changes,custom_progs")
         .eq("user_id", authUser.id)
         .maybeSingle();
       if (cancelled) return;
@@ -1806,11 +1810,15 @@ export default function App() {
           setChgRecords(data.changes);
           store.set("fretboard:changes", JSON.stringify(data.changes)).catch(() => {});
         }
+        if (Array.isArray(data.custom_progs)) {
+          setCustomProgs(data.custom_progs);
+          store.set("fretboard:customprogs", JSON.stringify(data.custom_progs)).catch(() => {});
+        }
         setToast("Synced");
       } else {
         const { error: insErr } = await supabase
           .from("user_data")
-          .upsert({ user_id: authUser.id, bank, changes: chgRecords });
+          .upsert({ user_id: authUser.id, bank, changes: chgRecords, custom_progs: customProgs });
         setToast(insErr ? "Sync failed, saved locally" : "Account ready, this device's saves are now synced");
       }
     })();
@@ -1978,6 +1986,15 @@ export default function App() {
         /* no stats yet */
       }
       try {
+        const r = await store.get("fretboard:customprogs");
+        if (!cancelled && r && r.value) {
+          const v = JSON.parse(r.value);
+          if (Array.isArray(v)) setCustomProgs(v);
+        }
+      } catch (e) {
+        /* none yet */
+      }
+      try {
         const r = await store.get("fretboard:changes");
         if (!cancelled && r && r.value) {
           const v = JSON.parse(r.value);
@@ -2072,7 +2089,23 @@ export default function App() {
 
   const activeVoicing = shownVoicings[Math.min(voiceIdx, Math.max(0, shownVoicings.length - 1))] || null;
 
-  const progDef = PROGRESSIONS.find((p) => p.id === progId) || PROGRESSIONS[0];
+  const progDef = useMemo(() => {
+    const preset = PROGRESSIONS.find((p) => p.id === progId);
+    if (preset) return preset;
+    const saved = customProgs.find((p) => p.id === progId);
+    if (saved) return saved;
+    if (progId === "custom") {
+      const minorish = MINOR_STARTS.has(builder.bars[0]);
+      return { id: "custom", name: builder.name.trim() || "Custom", note: "Build your own", tonality: minorish ? "minor" : "major", bars: builder.bars };
+    }
+    return PROGRESSIONS[0];
+  }, [progId, customProgs, builder]);
+
+  const saveCustomProgs = useCallback((next) => {
+    setCustomProgs(next);
+    store.set("fretboard:customprogs", JSON.stringify(next)).catch(() => {});
+    syncField("custom_progs", next);
+  }, [syncField]);
 
   const progChords = useMemo(
     () =>
@@ -2333,6 +2366,7 @@ export default function App() {
     playTimers.current.forEach(clearTimeout);
     playTimers.current = [];
     setPlaying(null);
+    setProgPlaying(false);
   }, []);
 
   const playScale = useCallback(() => {
@@ -2350,7 +2384,10 @@ export default function App() {
 
   const playProgression = useCallback(() => {
     stopPlayback();
+    if (!progChords.length) return;
+    setProgPlaying(true);
     const barSec = (60 / settings.bpm) * settings.beats;
+    playTimers.current.push(setTimeout(() => setProgPlaying(false), progChords.length * barSec * 1000));
     progChords.forEach((c, i) => {
       const v = progVoicings[i];
       if (v) {
@@ -2958,11 +2995,13 @@ export default function App() {
               <p className="empty">No playable shapes for this progression in the current tuning.</p>
             )}
 
-            <div className="row wrap">
-              <button className="btn" onClick={playProgression}>Preview</button>
-              <button className="btn ghost" onClick={stopPlayback}>Stop</button>
+            <div className="row wrap actions">
+              <button className={`btn primary ${progPlaying ? "live" : ""}`} onClick={progPlaying ? stopPlayback : playProgression} disabled={!progChords.length}>
+                {progPlaying ? "Stop" : "Preview"}
+              </button>
+              <span className="actspacer" aria-hidden="true" />
               <button
-                className="btn ghost"
+                className="btn ghost iconbtn"
                 onClick={() => {
                   saveBank([
                     { id: `b${Date.now()}`, kind: "prog", root: progRoot, progId, label: `${nameOf(progRoot, effFlats)} \u00b7 ${progDef.name}` },
@@ -2972,10 +3011,11 @@ export default function App() {
                   setToast("Saved to bank");
                 }}
               >
+                <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true"><path d="M4 2h8v12l-4-3-4 3z" /></svg>
                 Save to bank
               </button>
               <button
-                className="btn ghost"
+                className="btn ghost iconbtn"
                 onClick={() => {
                   const c = progChords[progIdx];
                   if (!c) return;
@@ -2984,6 +3024,7 @@ export default function App() {
                   setMode("chord");
                 }}
               >
+                <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 3h7v7M13 3L7 9M6 13H3V3" /></svg>
                 Open in chords
               </button>
             </div>
@@ -2995,15 +3036,103 @@ export default function App() {
                 value={progId}
                 onChange={setProgId}
                 label="Progression"
-                groups={["major", "minor"].map((t) => ({
-                  label: t === "major" ? "Major keys" : "Minor keys",
-                  items: simpleList(PROGRESSIONS, SIMPLE_PROGS, settings.simple, progId)
-                    .filter((x) => x.tonality === t)
-                    .map((x) => ({ id: x.id, name: x.name, sub: x.note })),
-                }))}
+                groups={[
+                  ...["major", "minor"].map((t) => ({
+                    label: t === "major" ? "Major keys" : "Minor keys",
+                    items: simpleList(PROGRESSIONS, SIMPLE_PROGS, settings.simple, progId)
+                      .filter((x) => x.tonality === t)
+                      .map((x) => ({ id: x.id, name: x.name, sub: x.note })),
+                  })),
+                  ...(customProgs.length
+                    ? [{ label: "Your progressions", items: customProgs.map((x) => ({ id: x.id, name: x.name, sub: `${x.bars.length} bars` })) }]
+                    : []),
+                  { label: "Build", items: [{ id: "custom", name: "Custom progression", sub: "Choose your own chords, bar by bar" }] },
+                ]}
               />
               </Field>
             </div>
+
+            {progId === "custom" && (
+              <div className="builderbox">
+                <Field label={`Bars \u00b7 ${builder.bars.length}`}>
+                  <div className="barstrip">
+                    {builder.bars.length === 0 && (
+                      <span className="note">Tap chords below to add bars. The same chord can repeat as many times as the song needs.</span>
+                    )}
+                    {builder.bars.map((b, i) => (
+                      <button
+                        key={i}
+                        className="barchip"
+                        onClick={() => setBuilder((bl) => ({ ...bl, bars: bl.bars.filter((_, j) => j !== i) }))}
+                        aria-label={`Remove bar ${i + 1}, ${b}`}
+                      >
+                        {b}
+                        <span aria-hidden="true">{"\u00d7"}</span>
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+                <Field label="Add chords, as roman numerals in the chosen key">
+                  <div className="romangrid">
+                    {Object.keys(ROMAN).map((rn) => (
+                      <button key={rn} className="key" onClick={() => setBuilder((bl) => ({ ...bl, bars: [...bl.bars, rn] }))}>
+                        {rn}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+                <div className="row wrap">
+                  <Field id="progname" label="Name">
+                    <input
+                      id="progname"
+                      type="text"
+                      value={builder.name}
+                      maxLength={40}
+                      placeholder="My song"
+                      onChange={(e) => setBuilder((bl) => ({ ...bl, name: e.target.value }))}
+                    />
+                  </Field>
+                  <button
+                    className="btn primary"
+                    disabled={!builder.bars.length || !builder.name.trim()}
+                    onClick={() => {
+                      const def = {
+                        id: `c${Date.now()}`,
+                        name: builder.name.trim(),
+                        note: "Custom",
+                        tonality: MINOR_STARTS.has(builder.bars[0]) ? "minor" : "major",
+                        bars: builder.bars,
+                      };
+                      saveCustomProgs([...customProgs, def]);
+                      setProgId(def.id);
+                      setBuilder({ bars: [], name: "" });
+                      track("custom_prog_save", { bars: def.bars.length });
+                      setToast("Progression saved");
+                    }}
+                  >
+                    Save progression
+                  </button>
+                  <button className="btn ghost" disabled={!builder.bars.length} onClick={() => setBuilder((bl) => ({ ...bl, bars: [] }))}>
+                    Clear
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {customProgs.some((p) => p.id === progId) && (
+              <div className="row">
+                <button
+                  className="btn ghost danger"
+                  onClick={() => {
+                    saveCustomProgs(customProgs.filter((p) => p.id !== progId));
+                    setProgId("p1564");
+                    setToast("Progression deleted");
+                  }}
+                >
+                  Delete this progression
+                </button>
+              </div>
+            )}
 
             <p className="note">Preview follows the metronome tempo, one bar per chord.</p>
           </div>
@@ -4008,7 +4137,7 @@ const CSS = `
 .chip{
   display:inline-flex; gap:6px; align-items:baseline; padding:5px 9px;
   border:1px solid var(--line); border-left-width:3px; border-radius:3px;
-  font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--ink); background:var(--card);
+  font-family:"IBM Plex Mono",monospace; font-size:12px; line-height:16px; color:var(--ink); background:var(--card);
 }
 .chip b{font-size:11px}
 
@@ -4020,9 +4149,9 @@ const CSS = `
 
 .ivgrid{display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:6px}
 .iv{background:var(--card); border:1px solid var(--line2); border-radius:4px; padding:8px 4px; cursor:pointer; color:var(--muted); display:grid; gap:2px}
-.iv b{font-family:"IBM Plex Mono",monospace; font-size:13px}
-.iv em{font-style:normal; font-size:10px; opacity:.8}
-.iv.on.low{border-width:2px}
+.iv b{font-family:"IBM Plex Mono",monospace; font-size:13px; line-height:17px}
+.iv em{font-style:normal; font-size:10px; opacity:.8; line-height:13px}
+.iv.on.low{box-shadow:inset 0 0 0 1px currentColor}
 .iv:hover{background:var(--paper)}
 
 .scoreboard{display:grid; grid-template-columns:repeat(auto-fit,minmax(78px,1fr)); gap:8px}
@@ -4152,6 +4281,28 @@ const CSS = `
 .donatelink{color:var(--ink); border-bottom:1px solid var(--gold); text-decoration:none; font-weight:600}
 .donatebox{min-height:52px}
 .srlive{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0}
+
+/* progression actions + builder */
+.actions{align-items:flex-end}
+.actspacer{flex:1 1 auto}
+.iconbtn{display:inline-flex; align-items:center; gap:7px}
+.btn.primary.live{background:var(--teal); border-color:var(--teal)}
+.builderbox{display:grid; gap:14px; border:1px solid var(--line); border-radius:8px; padding:14px; background:var(--card)}
+.barstrip{display:flex; flex-wrap:wrap; gap:6px; min-height:38px; align-items:center}
+.barchip{
+  display:inline-flex; align-items:center; gap:7px; padding:7px 10px;
+  background:var(--paper); border:1px solid var(--line2); border-radius:4px; cursor:pointer;
+  font-family:"IBM Plex Mono",monospace; font-size:13px; font-weight:600; color:var(--ink);
+}
+.barchip span{color:var(--muted); font-weight:400}
+.barchip:hover{border-color:var(--red)}
+.barchip:hover span{color:var(--red)}
+.romangrid{display:flex; flex-wrap:wrap; gap:4px}
+.romangrid .key{flex:0 0 auto; min-width:52px; padding:8px 10px}
+.builderbox input{
+  background:var(--paper); color:var(--ink); border:1px solid var(--line2); border-radius:5px;
+  padding:9px 11px; font-size:14px; font-family:inherit; width:100%; max-width:260px;
+}
 
 /* account */
 .warnbox{
