@@ -1047,13 +1047,13 @@ function Seg({ options, value, onChange, small, responsive = true, ariaLabel }) 
   );
 }
 
-function Field({ label, children, id }) {
+function Field({ label, children, id, tip }) {
   return (
     <div className="field">
       {id ? (
-        <label className="flabel" htmlFor={id}>{label}</label>
+        <label className="flabel" htmlFor={id} data-tip={tip}>{label}</label>
       ) : (
-        <span className="flabel">{label}</span>
+        <span className="flabel" data-tip={tip}>{label}</span>
       )}
       {children}
     </div>
@@ -3798,7 +3798,7 @@ export default function App() {
         {mode === "settings" && (
           <div className="pane">
           <div className="grid">
-            <Field label="Frets">
+            <Field label="Frets" tip="How many frets the neck shows">
               <input
                 type="range" min="7" max="27" value={settings.fretCount}
                 onChange={(e) => setSettings((s) => ({ ...s, fretCount: +e.target.value }))}
@@ -3808,47 +3808,47 @@ export default function App() {
           </div>
 
           <div className="toggles">
-            <Field label="Note names">
+            <Field label="Note names" tip="Auto spells notes from the current key, so C minor reads Eb rather than D sharp">
               <Seg small options={[{ v: "auto", l: "Auto" }, { v: "sharps", l: "Sharps" }, { v: "flats", l: "Flats" }]}
                 value={settings.noteNames} onChange={(v) => setSettings((s) => ({ ...s, noteNames: v }))} />
             </Field>
-            <Field label="Dot labels">
+            <Field label="Dot labels" tip="What the dots on the neck display by default">
               <Seg small options={[{ v: "name", l: "Names" }, { v: "degree", l: "Degrees" }, { v: "none", l: "Blank" }]}
                 value={settings.labelMode} onChange={(v) => setSettings((s) => ({ ...s, labelMode: v }))} />
             </Field>
-            <Field label="Colour">
+            <Field label="Colour" tip="Colour dots by their interval from the root, by root only, or keep them plain">
               <Seg small options={[{ v: "root", l: "Root" }, { v: "interval", l: "By interval" }, { v: "mono", l: "Mono" }]}
                 value={settings.colourMode} onChange={(v) => setSettings((s) => ({ ...s, colourMode: v }))} />
             </Field>
-            <Field label="String order">
+            <Field label="String order" tip="High on top reads like tab; low on top matches looking down at a guitar">
               <Seg small options={[{ v: true, l: "High on top" }, { v: false, l: "Low on top" }]}
                 value={settings.highOnTop} onChange={(v) => setSettings((s) => ({ ...s, highOnTop: v }))} />
             </Field>
-            <Field label="Handed">
+            <Field label="Handed" tip="Flips the neck for left-handed players">
               <Seg small options={[{ v: false, l: "Right" }, { v: true, l: "Left" }]}
                 value={settings.leftHanded} onChange={(v) => setSettings((s) => ({ ...s, leftHanded: v }))} />
             </Field>
-            <Field label="Chord stretch">
+            <Field label="Chord stretch" tip="The widest fret span a suggested chord shape may use">
               <Seg small options={[{ v: 3, l: "3 frets" }, { v: 4, l: "4" }, { v: 5, l: "5" }]}
                 value={settings.span} onChange={(v) => setSettings((s2) => ({ ...s2, span: v }))} />
             </Field>
-            <Field label="Inversions">
+            <Field label="Inversions" tip="Allow shapes whose lowest note is not the root">
               <Seg small options={[{ v: false, l: "Root bass" }, { v: true, l: "Allow" }]}
                 value={settings.inversions} onChange={(v) => setSettings((s2) => ({ ...s2, inversions: v }))} />
             </Field>
-            <Field label="Barres">
+            <Field label="Barres" tip="Allow shapes that lay one finger across several strings">
               <Seg small options={[{ v: true, l: "Allow" }, { v: false, l: "Avoid" }]}
                 value={settings.barres} onChange={(v) => setSettings((s2) => ({ ...s2, barres: v }))} />
             </Field>
-            <Field label="Theme">
+            <Field label="Theme" tip="Light or dark appearance">
               <Seg small options={[{ v: false, l: "Light" }, { v: true, l: "Dark" }]}
                 value={settings.dark} onChange={(v) => { track("theme_set", { dark: v }); setSettings((s2) => ({ ...s2, dark: v })); }} />
             </Field>
-            <Field label="Options shown">
+            <Field label="Options shown" tip="Simple keeps only the scales, chords and controls a beginner needs">
               <Seg small options={[{ v: true, l: "Simple" }, { v: false, l: "Everything" }]}
                 value={settings.simple} onChange={(v) => setSettings((s2) => ({ ...s2, simple: v }))} />
             </Field>
-            <Field label="Sound">
+            <Field label="Sound" tip="Note and click playback throughout the app">
               <Seg small options={[{ v: true, l: "On" }, { v: false, l: "Off" }]}
                 value={settings.sound} onChange={(v) => setSettings((s) => ({ ...s, sound: v }))} />
             </Field>
@@ -3856,15 +3856,15 @@ export default function App() {
 
           <h3 className="sheetsec">Accessibility</h3>
           <div className="toggles">
-            <Field label="High contrast">
+            <Field label="High contrast" tip="Stronger borders and darker labels for readability">
               <Seg small options={[{ v: false, l: "Off" }, { v: true, l: "On" }]}
                 value={settings.highContrast} onChange={(v) => { track("a11y_contrast", { on: v }); setSettings((s) => ({ ...s, highContrast: v })); }} />
             </Field>
-            <Field label="Animation">
+            <Field label="Animation" tip="Reduced switches off movement effects; the system preference is always respected">
               <Seg small options={[{ v: false, l: "Full" }, { v: true, l: "Reduced" }]}
                 value={settings.lowMotion} onChange={(v) => { track("a11y_motion", { reduced: v }); setSettings((s) => ({ ...s, lowMotion: v })); }} />
             </Field>
-            <Field label="Zoom">
+            <Field label="Zoom" tip="Scales the whole fretboard up for larger targets">
               <input
                 type="range" min="0.7" max="2.2" step="0.1" value={settings.zoom}
                 aria-label="Fretboard zoom"
@@ -4126,6 +4126,7 @@ const CSS = `
 .setup .grid,.pane .grid,.toggles{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px}
 .field{display:flex; flex-direction:column; gap:6px; min-width:0}
 .flabel{font-family:"Antonio",sans-serif; font-size:12px; letter-spacing:.15em; text-transform:uppercase; color:var(--muted)}
+.flabel[data-tip]{cursor:help; text-decoration:underline dotted; text-decoration-color:var(--line2); text-underline-offset:3px; width:fit-content}
 .field output{font-family:"IBM Plex Mono",monospace; font-size:12px; color:#B07C12}
 
 .tuner{display:grid; gap:8px}
