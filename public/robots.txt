@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://fretwork-practice.app/sitemap.xml
+Sitemap: https://www.fretwork-practice.app/sitemap.xml
