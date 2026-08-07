@@ -18,3 +18,5 @@ Project: `wibxytuvqcihbczlwjqq` (https://wibxytuvqcihbczlwjqq.supabase.co), link
 ## PayPal donations
 
 Hosted donate button `YTQGVLV25V94A`, rendered on the About page by injecting PayPal's donate SDK on demand. Managed from the PayPal dashboard; no repo changes needed to alter the amount or currency.
+
+**Currently hidden**: `SHOW_DONATE = false` in `App.jsx` (Jonathan's call, 2026-08-07: no point asking without an audience). Flip to `true` to bring the Support section back.

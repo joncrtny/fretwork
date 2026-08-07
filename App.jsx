@@ -524,6 +524,8 @@ function Fretboard({
 }) {
   const svgRef = useRef(null);
   const [dragging, setDragging] = useState(false);
+  const [kb, setKb] = useState(null); // keyboard cursor {r, f}, shown while the neck has focus
+  const [announce, setAnnounce] = useState("");
   const stringCount = midis.length;
   const {
     totalW, totalH, boardX, boardW, top, bot, cy, gap,
@@ -566,14 +568,43 @@ function Fretboard({
   const capoBarX = capo > 0 ? fretX(capo) - Math.min(9, cellW(capo) * 0.22) : 0;
 
   return (
+    <>
     <svg
       ref={svgRef}
       className="fretboard"
       viewBox={`0 0 ${totalW} ${totalH}`}
       width={totalW}
       height={totalH}
-      role="img"
-      aria-label="Guitar neck"
+      role="application"
+      aria-label="Guitar neck. Press the arrow keys to move between strings and frets, Enter to play or answer, Home and End to jump."
+      tabIndex={0}
+      onKeyDown={(e) => {
+        /* the capo handles its own keys; do not let them also drive the cursor */
+        if (e.target !== e.currentTarget) return;
+        const cur = kb || { r: 0, f: capo || 0 };
+        let { r, f } = cur;
+        if (e.key === "ArrowRight") f += 1;
+        else if (e.key === "ArrowLeft") f -= 1;
+        else if (e.key === "ArrowDown") r += 1;
+        else if (e.key === "ArrowUp") r -= 1;
+        else if (e.key === "Home") f = 0;
+        else if (e.key === "End") f = fretCount;
+        else if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          const s = rowToString(cur.r);
+          if (onCell) onCell(s, cur.f, midis[s] + cur.f);
+          setAnnounce(`Played ${nameOf((midis[s] + cur.f) % 12, flats)}, string ${s + 1}, fret ${cur.f}`);
+          setKb(cur);
+          return;
+        } else return;
+        e.preventDefault();
+        r = Math.max(0, Math.min(stringCount - 1, r));
+        f = Math.max(0, Math.min(fretCount, f));
+        const s2 = rowToString(r);
+        setAnnounce(`${nameOf((midis[s2] + f) % 12, flats)}, string ${s2 + 1}, fret ${f}`);
+        setKb({ r, f });
+      }}
+      onBlur={() => setKb(null)}
     >
       {/* capo track */}
       <g>
@@ -782,7 +813,24 @@ function Fretboard({
           );
         });
       })}
+
+      {/* keyboard cursor, visible while the neck has focus */}
+      {kb && (
+        <rect
+          x={rectX(cellX(kb.f) - cellW(kb.f) / 2, cellW(kb.f))}
+          y={yRow(kb.r) - Math.min(15, gap * 0.5)}
+          width={cellW(kb.f)}
+          height={Math.min(30, gap)}
+          rx="6"
+          fill="none"
+          stroke="var(--gold)"
+          strokeWidth="2.5"
+          pointerEvents="none"
+        />
+      )}
     </svg>
+    <div className="srlive" aria-live="polite" role="status">{announce}</div>
+    </>
   );
 }
 
@@ -1034,15 +1082,31 @@ function IntervalGrid({ root, on, onToggle, flats }) {
 
 function KeyPicker({ value, onChange, flats, tip }) {
   const [open, setOpen] = useState(false);
+  const boxRef = useRef(null);
+  const btnRef = useRef(null);
   useEffect(() => {
     if (!open) return;
-    const close = () => setOpen(false);
+    /* close on any pointerdown outside this picker, including on another picker */
+    const close = (e) => {
+      if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        if (btnRef.current) btnRef.current.focus();
+      }
+    };
     window.addEventListener("pointerdown", close);
-    return () => window.removeEventListener("pointerdown", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", onKey);
+    };
   }, [open]);
   return (
-    <div className="picker" onPointerDown={(e) => e.stopPropagation()}>
+    <div className="picker" ref={boxRef}>
       <button
+        ref={btnRef}
         className={`pickbtn ${open ? "open" : ""}`}
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
@@ -1070,6 +1134,222 @@ function KeyPicker({ value, onChange, flats, tip }) {
   );
 }
 
+/* Categorized picker: the same compact pattern as KeyPicker, for entities
+   with families. One button, a multi-column panel grouped under headings. */
+function CatPicker({ value, groups, onChange, label, tip }) {
+  const [open, setOpen] = useState(false);
+  const [shift, setShift] = useState(0);
+  const boxRef = useRef(null);
+  const btnRef = useRef(null);
+  const menuRef = useRef(null);
+  const uid = useRef(`cp${Math.floor(performance.now() * 1000) % 1e9}`);
+  useEffect(() => {
+    if (!open) return;
+    /* keep the panel inside the viewport: shift left when it would overflow */
+    if (menuRef.current && btnRef.current) {
+      const b = btnRef.current.getBoundingClientRect();
+      const w = menuRef.current.getBoundingClientRect().width;
+      const overflow = b.left + w - (window.innerWidth - 16);
+      setShift(overflow > 0 ? -Math.min(overflow, b.left - 16) : 0);
+    }
+    const close = (e) => {
+      if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => {
+      const insidePicker =
+        boxRef.current && boxRef.current.contains(document.activeElement);
+      if (e.key === "Escape") {
+        setOpen(false);
+        if (btnRef.current) btnRef.current.focus();
+        return;
+      }
+      /* arrows drive the menu only while focus is actually in this picker */
+      if (!insidePicker) return;
+      if ((e.key === "ArrowDown" || e.key === "ArrowUp") && menuRef.current) {
+        const opts = [...menuRef.current.querySelectorAll("[role=option]")];
+        const i = opts.indexOf(document.activeElement);
+        const next = e.key === "ArrowDown" ? Math.min(opts.length - 1, i + 1) : Math.max(0, i - 1);
+        if (opts[next]) opts[next].focus();
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  const current = groups.flatMap((g) => g.items).find((x) => x.id === value);
+  return (
+    <div
+      className="picker"
+      ref={boxRef}
+      onBlur={(e) => {
+        /* keyboard users tabbing out should not leave the panel hanging open */
+        if (open && boxRef.current && !boxRef.current.contains(e.relatedTarget)) setOpen(false);
+      }}
+    >
+      <button
+        ref={btnRef}
+        className={`pickbtn txt ${open ? "open" : ""}`}
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        data-tip={tip}
+      >
+        <span>{current ? current.name : "Choose"}</span>
+        <i className="caret" aria-hidden="true" />
+      </button>
+      {open && (
+        <div
+          className="pickmenu catmenu"
+          role="listbox"
+          aria-label={label}
+          ref={menuRef}
+          style={shift ? { left: shift } : undefined}
+        >
+          {groups.filter((g) => g.items.length > 0).map((g, gi) => (
+            <div className="catgroup" role="group" aria-labelledby={`${uid.current}-g${gi}`} key={g.label}>
+              <p className="cathead" id={`${uid.current}-g${gi}`}>{g.label}</p>
+              <div className="catitems">
+                {g.items.map((it) => (
+                  <button
+                    key={it.id}
+                    role="option"
+                    aria-selected={it.id === value}
+                    className={it.id === value ? "catitem on" : "catitem"}
+                    onClick={() => {
+                      onChange(it.id);
+                      setOpen(false);
+                      if (btnRef.current) btnRef.current.focus();
+                    }}
+                  >
+                    {it.name}
+                    {it.sub && <em>{it.sub}</em>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* family groupings for the pickers */
+const CHORD_GROUPS = [
+  { label: "Triads", ids: ["maj", "min", "5", "dim", "aug", "sus2", "sus4"] },
+  { label: "Sixths", ids: ["6", "m6"] },
+  { label: "Sevenths", ids: ["7", "maj7", "m7", "m7b5", "dim7", "mmaj7", "7sus4"] },
+  { label: "Extended", ids: ["add9", "9", "maj9", "m9", "11", "13"] },
+  { label: "Altered", ids: ["7b9", "7s9", "7s5", "7b5"] },
+];
+const SCALE_GROUPS = [
+  { label: "Essentials", ids: ["major", "minor", "majpent", "minpent", "blues", "majblues"] },
+  { label: "Minor colours", ids: ["harmmin", "melmin"] },
+  { label: "Modes", ids: ["dorian", "phrygian", "lydian", "mixo", "locrian"] },
+  { label: "Jazz and exotic", ids: ["phrydom", "lydb7", "altered", "wholetone", "dimhw", "dimwh", "chromatic"] },
+];
+
+/* materialize groups from defs, respecting Simple mode like simpleList does */
+function groupItems(groups, defs, allow, simpleOn, keepId) {
+  return groups
+    .map((g) => ({
+      label: g.label,
+      items: g.ids
+        .map((id) => defs.find((d) => d.id === id))
+        .filter(Boolean)
+        .filter((d) => !simpleOn || allow.has(d.id) || d.id === keepId)
+        .map((d) => ({ id: d.id, name: d.name })),
+    }))
+    .filter((g) => g.items.length > 0);
+}
+
+/* One track, two draggers. Thumbs are buttons: draggable by pointer,
+   steppable by arrow keys, and announced as sliders. */
+function DualRange({ min, max, lo, hi, onChange }) {
+  const trackRef = useRef(null);
+  const dragRef = useRef(null); // "lo" | "hi" | null
+  const clamp = (v) => Math.min(max, Math.max(min, v));
+  const valFromX = (clientX) => {
+    const r = trackRef.current.getBoundingClientRect();
+    const t = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+    return Math.round(min + t * (max - min));
+  };
+  const move = (which, v) => {
+    v = clamp(v);
+    if (which === "lo") onChange([Math.min(v, hi - 1), hi]);
+    else onChange([lo, Math.max(v, lo + 1)]);
+  };
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!dragRef.current) return;
+      move(dragRef.current, valFromX(e.clientX));
+    };
+    const onUp = () => {
+      dragRef.current = null;
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lo, hi, min, max, onChange]);
+  const pct = (v) => ((v - min) / (max - min)) * 100;
+  const thumb = (which, v, lab) => (
+    <button
+      type="button"
+      className="drthumb"
+      style={{ left: `${pct(v)}%` }}
+      role="slider"
+      aria-label={lab}
+      aria-valuemin={which === "hi" ? lo + 1 : min}
+      aria-valuemax={which === "lo" ? hi - 1 : max}
+      aria-valuenow={v}
+      aria-valuetext={`fret ${v}`}
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        dragRef.current = which;
+        e.currentTarget.focus();
+        e.preventDefault();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowLeft" || e.key === "ArrowDown") { move(which, v - 1); e.preventDefault(); }
+        if (e.key === "ArrowRight" || e.key === "ArrowUp") { move(which, v + 1); e.preventDefault(); }
+        if (e.key === "Home") { move(which, which === "lo" ? min : lo + 1); e.preventDefault(); }
+        if (e.key === "End") { move(which, which === "lo" ? hi - 1 : max); e.preventDefault(); }
+      }}
+    >
+      {v}
+    </button>
+  );
+  return (
+    <div
+      className="dualrange"
+      ref={trackRef}
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        if (e.target.closest && e.target.closest(".drthumb")) return;
+        const v = valFromX(e.clientX);
+        const which = Math.abs(v - lo) <= Math.abs(v - hi) ? "lo" : "hi";
+        dragRef.current = which;
+        move(which, v);
+      }}
+    >
+      <div className="drtrack" aria-hidden="true" />
+      <div className="drfill" style={{ left: `${pct(lo)}%`, width: `${Math.max(0, pct(hi) - pct(lo))}%` }} aria-hidden="true" />
+      {thumb("lo", lo, "Lowest fret")}
+      {thumb("hi", hi, "Highest fret")}
+    </div>
+  );
+}
+
 /* ============================================================
    ABOUT: resources, feedback, donate
    ============================================================ */
@@ -1091,6 +1371,9 @@ const RESOURCES = [
 /* PayPal hosted donate button, injected only when About is open. If the SDK
    cannot load or render (offline, blocked scripts), fall back to a plain link. */
 const DONATE_URL = "https://www.paypal.com/donate/?hosted_button_id=YTQGVLV25V94A";
+/* hidden until there is an audience worth asking; flip to true to bring the
+   Support section back */
+const SHOW_DONATE = false;
 function DonateButton() {
   const boxRef = useRef(null);
   const [failed, setFailed] = useState(false);
@@ -1257,6 +1540,8 @@ const DEFAULT_SETTINGS = {
   subdiv: "1",
   dark: false,
   simple: false,
+  highContrast: false,
+  lowMotion: false,
   span: 4,
   inversions: false,
   barres: true,
@@ -1957,12 +2242,28 @@ export default function App() {
     setDrawer(false);
   };
 
-  /* Settings sheet is a real modal: focus moves in on open and back out on close,
-     Escape dismisses, and Tab stays inside while it is up. */
-  const sheetOpen = openPanel === "setup";
+  /* Escape closes the drawer and hands focus back to the burger */
   useEffect(() => {
-    if (!sheetOpen) return;
-    track("settings_open");
+    if (!drawer) return;
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      setDrawer(false);
+      if (burgerRef.current) burgerRef.current.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drawer]);
+
+  /* Full-screen sheets (Settings, Tuner) are real modals: focus moves in on
+     open and back out on close, Escape dismisses, Tab stays inside. */
+  const sheetKind = openPanel === "setup" || openPanel === "tuner" ? openPanel : null;
+  /* latch the last sheet so closing does not morph its content mid-fade */
+  const lastSheetRef = useRef("setup");
+  if (sheetKind) lastSheetRef.current = sheetKind;
+  const shownSheet = sheetKind || lastSheetRef.current;
+  useEffect(() => {
+    if (!sheetKind) return;
+    track(sheetKind === "tuner" ? "tuner_open" : "settings_open");
     sheetReturnRef.current = document.activeElement;
     /* deferred: the sheet must have finished flipping to visibility:visible before it can take focus */
     const focusTimer = setTimeout(() => {
@@ -1975,7 +2276,7 @@ export default function App() {
       }
       if (e.key !== "Tab" || !sheetRef.current) return;
       const focusables = sheetRef.current.querySelectorAll(
-        "button, select, input, [tabindex]:not([tabindex='-1'])"
+        "button:not(:disabled), select:not(:disabled), input:not(:disabled), [tabindex]:not([tabindex='-1'])"
       );
       if (!focusables.length) return;
       const first = focusables[0];
@@ -1999,10 +2300,10 @@ export default function App() {
       if (back && back.isConnected && typeof back.focus === "function") back.focus();
       if (document.activeElement === document.body && burgerRef.current) burgerRef.current.focus();
     };
-  }, [sheetOpen]);
+  }, [sheetKind]);
 
   return (
-    <div className={`app ${settings.dark ? "dark" : ""}`}>
+    <div className={`app ${settings.dark ? "dark" : ""} ${settings.highContrast ? "hc" : ""} ${settings.lowMotion ? "lowmotion" : ""}`}>
       <style>{CSS}</style>
 
       <aside className={`drawer ${drawer ? "open" : ""}`} aria-label="Main menu" inert={drawer ? undefined : ""}>
@@ -2027,14 +2328,26 @@ export default function App() {
             {metroOn && <span className="badge">{settings.bpm}</span>}
           </button>
           <button
+            className={`dnav ${openPanel === "tuner" ? "on" : ""}`}
+            onClick={() => { setOpenPanel("tuner"); closeNav(); }}
+          >
+            Tuner
+          </button>
+          <button
             className={`dnav ${openPanel === "setup" ? "on" : ""}`}
             onClick={() => { setOpenPanel("setup"); closeNav(); }}
           >
             Settings
           </button>
 
-          <p className="dhead">More</p>
-          {navItem("about", "About")}
+          <div className="dspacer" aria-hidden="true" />
+          <button
+            className={`dnav dark ${mode === "about" ? "on" : ""}`}
+            aria-current={mode === "about" ? "page" : undefined}
+            onClick={() => { setMode("about"); setOpenPanel(null); track("view_mode", { mode: "about" }); closeNav(); }}
+          >
+            About Fretwork
+          </button>
         </div>
       </aside>
       <div className={`scrim ${drawer ? "on" : ""}`} onClick={() => setDrawer(false)} aria-hidden="true" />
@@ -2082,13 +2395,13 @@ export default function App() {
               ))}
             </div>
             <div className="bpmbox">
-              <button className="mini" onClick={() => setSettings((s2) => ({ ...s2, bpm: Math.max(30, s2.bpm - 5) }))}>{"\u2212"}</button>
+              <button className="mini" aria-label="Slower by five beats per minute" onClick={() => setSettings((s2) => ({ ...s2, bpm: Math.max(30, s2.bpm - 5) }))}>{"\u2212"}</button>
               <input
                 type="range" min="30" max="240" value={settings.bpm}
                 aria-label="Tempo in beats per minute"
                 onChange={(e) => setSettings((s2) => ({ ...s2, bpm: +e.target.value }))}
               />
-              <button className="mini" onClick={() => setSettings((s2) => ({ ...s2, bpm: Math.min(240, s2.bpm + 5) }))}>+</button>
+              <button className="mini" aria-label="Faster by five beats per minute" onClick={() => setSettings((s2) => ({ ...s2, bpm: Math.min(240, s2.bpm + 5) }))}>+</button>
               <span className="bpmval">{settings.bpm} bpm</span>
             </div>
             <Field label="Time">
@@ -2126,25 +2439,23 @@ export default function App() {
 
       <div
         ref={sheetRef}
-        className={`sheet ${openPanel === "setup" ? "open" : ""}`}
+        className={`sheet ${sheetKind ? "open" : ""}`}
         role="dialog"
         aria-modal="true"
-        aria-label="Settings"
-        inert={openPanel === "setup" ? undefined : ""}
+        aria-label={shownSheet === "tuner" ? "Tuner" : "Settings"}
+        inert={sheetKind ? undefined : ""}
       >
         <div className="sheethead">
-          <h2 className="sheettitle">Settings</h2>
-          <button ref={sheetCloseRef} className="sheetx" onClick={() => setOpenPanel(null)} aria-label="Close settings">{"✕"}</button>
+          <h2 className="sheettitle">{shownSheet === "tuner" ? "Tuner" : "Settings"}</h2>
+          <button ref={sheetCloseRef} className="sheetx" onClick={() => setOpenPanel(null)} aria-label={shownSheet === "tuner" ? "Close tuner" : "Close settings"}>{"✕"}</button>
         </div>
+        {shownSheet === "tuner" ? (
         <div className="sheetbody">
+          <p className="note">
+            Set each string, or pick a preset tuning. A microphone tuner that listens to your guitar is
+            planned to live here too.
+          </p>
           <div className="grid">
-            <Field label="Frets">
-              <input
-                type="range" min="7" max="27" value={settings.fretCount}
-                onChange={(e) => setSettings((s) => ({ ...s, fretCount: +e.target.value }))}
-              />
-              <output>{settings.fretCount}</output>
-            </Field>
             <Field label="Tuning">
               <select value={settings.tuningId} onChange={(e) => setTuning(e.target.value)}>
                 {TUNINGS.map((t) => (
@@ -2152,13 +2463,6 @@ export default function App() {
                 ))}
                 {settings.tuningId === "custom" && <option value="custom">Custom</option>}
               </select>
-            </Field>
-            <Field label="Zoom">
-              <input
-                type="range" min="0.7" max="2.2" step="0.1" value={settings.zoom}
-                onChange={(e) => setSettings((s) => ({ ...s, zoom: +e.target.value }))}
-              />
-              <output>{settings.zoom.toFixed(1)}×</output>
             </Field>
           </div>
 
@@ -2184,7 +2488,7 @@ export default function App() {
                       <option key={o} value={o}>{o}</option>
                     ))}
                   </select>
-                  <button className="mini" onClick={() => playNote(mv)}>▸</button>
+                  <button className="mini" aria-label={`Play string ${i + 1}`} onClick={() => playNote(mv)}>▸</button>
                 </div>
               ))}
             </div>
@@ -2204,6 +2508,18 @@ export default function App() {
                 Remove low string
               </button>
             </div>
+          </div>
+        </div>
+        ) : (
+        <div className="sheetbody">
+          <div className="grid">
+            <Field label="Frets">
+              <input
+                type="range" min="7" max="27" value={settings.fretCount}
+                onChange={(e) => setSettings((s) => ({ ...s, fretCount: +e.target.value }))}
+              />
+              <output>{settings.fretCount}</output>
+            </Field>
           </div>
 
           <div className="toggles">
@@ -2252,7 +2568,31 @@ export default function App() {
                 value={settings.sound} onChange={(v) => setSettings((s) => ({ ...s, sound: v }))} />
             </Field>
           </div>
+
+          <h3 className="sheetsec">Accessibility</h3>
+          <div className="toggles">
+            <Field label="High contrast">
+              <Seg small options={[{ v: false, l: "Off" }, { v: true, l: "On" }]}
+                value={settings.highContrast} onChange={(v) => { track("a11y_contrast", { on: v }); setSettings((s) => ({ ...s, highContrast: v })); }} />
+            </Field>
+            <Field label="Animation">
+              <Seg small options={[{ v: false, l: "Full" }, { v: true, l: "Reduced" }]}
+                value={settings.lowMotion} onChange={(v) => { track("a11y_motion", { reduced: v }); setSettings((s) => ({ ...s, lowMotion: v })); }} />
+            </Field>
+            <Field label="Zoom">
+              <input
+                type="range" min="0.7" max="2.2" step="0.1" value={settings.zoom}
+                aria-label="Fretboard zoom"
+                onChange={(e) => setSettings((s) => ({ ...s, zoom: +e.target.value }))}
+              />
+              <output>{settings.zoom.toFixed(1)}×</output>
+            </Field>
+          </div>
+          <p className="note">
+            The system reduced-motion preference is always respected. These controls apply on top of it.
+          </p>
         </div>
+        )}
       </div>
 
       {mode !== "changes" && mode !== "about" && (
@@ -2297,13 +2637,14 @@ export default function App() {
             <Field label="Key"><KeyPicker value={scaleRoot} onChange={setScaleRoot} flats={effFlats} /></Field>
             <div className="row">
               <Field label="Scale">
-                <select value={scaleId} onChange={(e) => setScaleId(e.target.value)}>
-                  {simpleList(SCALES, SIMPLE_SCALES, settings.simple, scaleId).map((x) => (
-                    <option key={x.id} value={x.id}>{x.name}</option>
-                  ))}
-                </select>
+                <CatPicker
+                  value={scaleId}
+                  onChange={setScaleId}
+                  label="Scale"
+                  groups={groupItems(SCALE_GROUPS, SCALES, SIMPLE_SCALES, settings.simple, scaleId)}
+                />
               </Field>
-              <button className="btn" onClick={() => { track("hear_scale", { scale: scaleId }); playScale(); }} data-tip="Play the scale and light each note as it sounds">
+              <button className="btn primary" onClick={() => { track("hear_scale", { scale: scaleId }); playScale(); }} data-tip="Play the scale and light each note as it sounds">
                 {playing != null ? "Playing" : "Hear it"}
               </button>
             </div>
@@ -2418,13 +2759,14 @@ export default function App() {
             <Field label="Root"><KeyPicker value={chordRoot} onChange={setChordRoot} flats={effFlats} /></Field>
             <div className="row">
               <Field label="Chord">
-                <select value={chordId} onChange={(e) => setChordId(e.target.value)}>
-                  {simpleList(CHORDS, SIMPLE_CHORDS, settings.simple, chordId).map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                <CatPicker
+                  value={chordId}
+                  onChange={setChordId}
+                  label="Chord type"
+                  groups={groupItems(CHORD_GROUPS, CHORDS, SIMPLE_CHORDS, settings.simple, chordId)}
+                />
               </Field>
-              <button className="btn" onClick={() => { track("strum_chord", { chord: chordId }); strumVoicing(); }} disabled={!activeVoicing} data-tip="Hear the selected shape">Strum</button>
+              <button className="btn primary" onClick={() => { track("strum_chord", { chord: chordId }); strumVoicing(); }} disabled={!activeVoicing} data-tip="Hear the selected shape">Strum</button>
               <button
                 className="btn ghost"
                 disabled={!activeVoicing}
@@ -2539,18 +2881,17 @@ export default function App() {
             <Field label="Key"><KeyPicker value={progRoot} onChange={setProgRoot} flats={effFlats} /></Field>
 
             <Field label="Progression">
-              <select value={progId} onChange={(e) => setProgId(e.target.value)}>
-                <optgroup label="Major">
-                  {simpleList(PROGRESSIONS, SIMPLE_PROGS, settings.simple, progId).filter((x) => x.tonality === "major").map((x) => (
-                    <option key={x.id} value={x.id}>{`${x.name} \u00b7 ${x.note}`}</option>
-                  ))}
-                </optgroup>
-                <optgroup label="Minor">
-                  {simpleList(PROGRESSIONS, SIMPLE_PROGS, settings.simple, progId).filter((x) => x.tonality === "minor").map((x) => (
-                    <option key={x.id} value={x.id}>{`${x.name} \u00b7 ${x.note}`}</option>
-                  ))}
-                </optgroup>
-              </select>
+              <CatPicker
+                value={progId}
+                onChange={setProgId}
+                label="Progression"
+                groups={["major", "minor"].map((t) => ({
+                  label: t === "major" ? "Major keys" : "Minor keys",
+                  items: simpleList(PROGRESSIONS, SIMPLE_PROGS, settings.simple, progId)
+                    .filter((x) => x.tonality === t)
+                    .map((x) => ({ id: x.id, name: x.name, sub: x.note })),
+                }))}
+              />
             </Field>
 
             <p className="note">Preview follows the metronome tempo, one bar per chord.</p>
@@ -2681,20 +3022,22 @@ export default function App() {
               </Field>
               {quiz.source === "scale" && (
                 <Field label="Scale">
-                  <select value={scaleId} onChange={(e) => setScaleId(e.target.value)}>
-                    {simpleList(SCALES, SIMPLE_SCALES, settings.simple, scaleId).map((x) => (
-                      <option key={x.id} value={x.id}>{x.name}</option>
-                    ))}
-                  </select>
+                  <CatPicker
+                    value={scaleId}
+                    onChange={setScaleId}
+                    label="Scale"
+                    groups={groupItems(SCALE_GROUPS, SCALES, SIMPLE_SCALES, settings.simple, scaleId)}
+                  />
                 </Field>
               )}
               {quiz.source === "chord" && (
                 <Field label="Chord">
-                  <select value={chordId} onChange={(e) => setChordId(e.target.value)}>
-                    {simpleList(CHORDS, SIMPLE_CHORDS, settings.simple, chordId).map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                  <CatPicker
+                    value={chordId}
+                    onChange={setChordId}
+                    label="Chord type"
+                    groups={groupItems(CHORD_GROUPS, CHORDS, SIMPLE_CHORDS, settings.simple, chordId)}
+                  />
                 </Field>
               )}
             </div>
@@ -2723,39 +3066,41 @@ export default function App() {
               </Field>
             </div>
 
-            <div className="row">
-              <Field label={`Frets ${quiz.range[0]} to ${quiz.range[1]}`}>
-                <div className="rangepair">
-                  <input
-                    type="range" min="0" max={fretCount} value={quiz.range[0]}
-                    onChange={(e) => setQuiz((q) => ({ ...q, range: [Math.min(+e.target.value, q.range[1] - 1), q.range[1]] }))}
-                  />
-                  <input
-                    type="range" min="0" max={fretCount} value={quiz.range[1]}
-                    onChange={(e) => setQuiz((q) => ({ ...q, range: [q.range[0], Math.max(+e.target.value, q.range[0] + 1)] }))}
-                  />
-                </div>
-              </Field>
-              <button className="btn" onClick={() => { track("quiz_new_round", { source: quiz.source }); newRound(); }}>New round</button>
-            </div>
+            <Field label={`Frets ${quiz.range[0]} to ${quiz.range[1]}`}>
+              <DualRange
+                min={0}
+                max={fretCount}
+                lo={quiz.range[0]}
+                hi={quiz.range[1]}
+                onChange={(r) => setQuiz((q) => ({ ...q, range: r }))}
+              />
+            </Field>
 
-            {quiz.source === "interval" && ivOn.size === 0 ? (
-              <p className="empty">Pick at least one interval to be tested on.</p>
-            ) : quiz.done ? (
-              <p className="done">Round complete. {quiz.hidden ? quiz.hidden.size : 0} found, streak of {quiz.streak}.</p>
-            ) : (
-              <p className="note">Tap every hidden position on the neck. Wrong taps count against you.</p>
-            )}
-            <button
-              className="btn ghost"
-              onClick={() => {
-                const cleared = { ...quiz, correct: 0, wrong: 0, streak: 0, best: 0, rounds: 0 };
-                setQuiz(cleared);
-                saveStats(cleared);
-              }}
+            <p
+              role="status"
+              aria-live="polite"
+              className={quiz.source === "interval" && ivOn.size === 0 ? "empty" : quiz.done ? "done" : "note"}
             >
-              Reset score
-            </button>
+              {quiz.source === "interval" && ivOn.size === 0
+                ? "Pick at least one interval to be tested on."
+                : quiz.done
+                ? `Round complete. ${quiz.hidden ? quiz.hidden.size : 0} found, streak of ${quiz.streak}.`
+                : "Tap every hidden position on the neck. Wrong taps count against you."}
+            </p>
+
+            <div className="row actionbar">
+              <button className="btn primary" onClick={() => { track("quiz_new_round", { source: quiz.source }); newRound(); }}>New round</button>
+              <button
+                className="btn ghost danger"
+                onClick={() => {
+                  const cleared = { ...quiz, correct: 0, wrong: 0, streak: 0, best: 0, rounds: 0 };
+                  setQuiz(cleared);
+                  saveStats(cleared);
+                }}
+              >
+                Reset score
+              </button>
+            </div>
           </div>
         )}
 
@@ -2827,11 +3172,12 @@ export default function App() {
                       <div className="chgslot" key={i}>
                         <KeyPicker value={c.root} onChange={(v) => setChgChord(i, { root: v })} flats={effFlats} />
                         <div className="chgslotbtm">
-                          <select value={c.id} onChange={(e) => setChgChord(i, { id: e.target.value })}>
-                            {simpleList(CHORDS, SIMPLE_CHORDS, settings.simple, c.id).map((x) => (
-                              <option key={x.id} value={x.id}>{x.name}</option>
-                            ))}
-                          </select>
+                          <CatPicker
+                            value={c.id}
+                            onChange={(v) => setChgChord(i, { id: v })}
+                            label="Chord type"
+                            groups={groupItems(CHORD_GROUPS, CHORDS, SIMPLE_CHORDS, settings.simple, c.id)}
+                          />
                           <button
                             className="mini"
                             onClick={() => removeChgChord(i)}
@@ -2927,18 +3273,38 @@ export default function App() {
             </section>
 
             <section className="aboutblock">
+              <h2 className="abouthead">Accessibility</h2>
+              <p className="note">
+                Music should be for everyone, and Fretwork aims to be usable by everyone. What works today:
+                the whole app can be driven from a keyboard alone, including moving around the fretboard with
+                the arrow keys; menus and dialogs manage focus properly and close with Escape; controls carry
+                screen-reader labels and important changes are announced; and Settings offers high contrast,
+                reduced animation and zoom, alongside the system reduced-motion preference, which is always
+                respected.
+              </p>
+              <p className="note">
+                Known gaps, honestly: chord diagrams are visual and their per-string fingerings are not yet
+                described to screen readers; some audio feedback has no visual equivalent yet; and the app has
+                not had a formal WCAG audit. If something gets in your way, please say so in the form below,
+                and it will be treated as a bug, not a nice-to-have.
+              </p>
+            </section>
+
+            <section className="aboutblock">
               <h2 className="abouthead">Suggest a feature</h2>
               <FeedbackForm />
             </section>
 
-            <section className="aboutblock">
-              <h2 className="abouthead">Support Fretwork</h2>
-              <p className="note">
-                This web app is a personal project created by Jonathan Courtney. Donate £2 to help with
-                hosting costs if you enjoy it.
-              </p>
-              <DonateButton />
-            </section>
+            {SHOW_DONATE && (
+              <section className="aboutblock">
+                <h2 className="abouthead">Support Fretwork</h2>
+                <p className="note">
+                  This web app is a personal project created by Jonathan Courtney. Donate £2 to help with
+                  hosting costs if you enjoy it.
+                </p>
+                <DonateButton />
+              </section>
+            )}
           </div>
         )}
       </main>
@@ -3059,7 +3425,6 @@ const CSS = `
 }
 .app input[type=range]{width:100%; max-width:340px; accent-color:var(--ink)}
 .bpmbox input[type=range]{max-width:240px}
-.rangepair{display:grid; gap:4px}
 
 .mini{background:var(--card); color:var(--ink); border:1px solid var(--line2); border-radius:4px; padding:5px 9px; font-size:12px; cursor:pointer; font-family:inherit}
 .mini:hover{background:var(--paper)}
@@ -3275,7 +3640,7 @@ const CSS = `
 .dot{animation:fadein .22s ease}
 @keyframes fadein{from{opacity:0}to{opacity:1}}
 
-.app button:focus-visible, .app select:focus-visible, .app input:focus-visible{outline:2px solid var(--ink); outline-offset:2px}
+.app button:focus-visible, .app select:focus-visible, .app input:focus-visible, .app .fretboard:focus-visible{outline:2px solid var(--ink); outline-offset:2px}
 
 /* full-screen sheet (Settings) */
 .sheet{
@@ -3372,7 +3737,8 @@ const CSS = `
   padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--card);
 }
 .chgslotbtm{display:flex; align-items:center; gap:8px}
-.chgslotbtm select{flex:1 1 auto; min-width:0}
+.chgslotbtm .picker{flex:1 1 auto; min-width:0}
+.chgslotbtm .pickbtn{width:100%}
 .chgslots > .btn.wide{flex:1 1 160px; align-self:stretch}
 .row > .transport{align-self:flex-end}
 .chgstatus{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0}
@@ -3409,4 +3775,67 @@ const CSS = `
 .feedback input.trap[type=text]{position:absolute; left:-9999px; width:1px; height:1px; padding:0; opacity:0}
 .donatelink{color:var(--ink); border-bottom:1px solid var(--gold); text-decoration:none; font-weight:600}
 .donatebox{min-height:52px}
+.srlive{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0}
+
+/* button hierarchy */
+.btn.primary{background:var(--ink); color:var(--onink); border-color:var(--ink)}
+.btn.primary:hover{background:var(--ink); opacity:.88}
+.btn.danger{color:var(--red); border-color:var(--red)}
+.btn.ghost.danger{border-color:var(--line2)}
+.btn.ghost.danger:hover{border-color:var(--red)}
+.actionbar{margin-top:4px; padding-top:14px; border-top:1px solid var(--line)}
+
+/* categorized picker */
+.pickbtn.txt{font-family:"IBM Plex Sans",sans-serif; font-weight:600; font-size:14px; min-width:150px}
+.catmenu{
+  grid-template-columns:none; display:block; width:min(560px, calc(100vw - 32px));
+  max-height:min(430px, 62vh); overflow-y:auto; padding:10px; -webkit-overflow-scrolling:touch;
+}
+.cathead{margin:10px 4px 6px; font-family:"Antonio",sans-serif; font-size:10.5px; letter-spacing:.15em; text-transform:uppercase; color:var(--muted)}
+.catgroup:first-child .cathead{margin-top:0}
+.catitems{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:4px}
+.catitem{
+  background:var(--card); border:1px solid var(--line); border-radius:4px; padding:8px 10px;
+  cursor:pointer; color:var(--ink); font-family:inherit; font-size:13px; text-align:left;
+  transition:background .12s ease, border-color .12s ease;
+}
+.catitem:hover{background:var(--paper); border-color:var(--line2)}
+.catitem.on{background:var(--ink); color:var(--onink); border-color:var(--ink)}
+.catitem em{display:block; font-style:normal; font-size:10.5px; color:var(--muted); margin-top:1px}
+.catitem.on em{color:var(--onink); opacity:.7}
+
+/* dual-thumb range */
+.dualrange{position:relative; height:36px; max-width:380px; touch-action:none; cursor:pointer}
+.drtrack{position:absolute; left:0; right:0; top:50%; height:4px; transform:translateY(-50%); background:var(--line2); border-radius:2px}
+.drfill{position:absolute; top:50%; height:4px; transform:translateY(-50%); background:var(--ink); border-radius:2px}
+.drthumb{
+  position:absolute; top:50%; transform:translate(-50%,-50%); width:28px; height:28px; border-radius:50%;
+  background:var(--card); border:2px solid var(--ink); color:var(--ink); padding:0;
+  font-family:"IBM Plex Mono",monospace; font-size:11px; font-weight:600; cursor:grab; touch-action:none;
+}
+.drthumb:active{cursor:grabbing}
+
+/* sheet section heading */
+.sheetsec{
+  margin:8px 0 0; font-family:"Antonio",sans-serif; font-weight:600; font-size:14px;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--muted);
+  padding-top:16px; border-top:1px solid var(--line);
+}
+
+/* nav: spacer pushes About Fretwork to the bottom of the visible column */
+.dinner{display:flex; flex-direction:column; height:100dvh; overflow-y:auto}
+.dspacer{flex:1 1 auto; min-height:18px}
+.dnav.dark{background:var(--ink); color:var(--onink); margin-top:8px; flex:none}
+.dnav.dark:hover{background:var(--ink); opacity:.88}
+.dnav.dark.on{box-shadow:inset 3px 0 0 var(--gold)}
+
+/* high contrast: stronger borders, darker secondary text, thicker focus */
+.app.hc{--line:#97A5AB; --line2:#4C5B63; --muted:#39474E; --red:#B03A35}
+.app.hc.dark{--line:#4E5E67; --line2:#8FA0AA; --muted:#C2CFD6; --red:#F07A75}
+.app.hc button:focus-visible, .app.hc select:focus-visible, .app.hc input:focus-visible, .app.hc .fretboard:focus-visible{outline-width:3px; outline-offset:3px}
+
+/* in-app reduced animation, independent of the OS preference */
+.app.lowmotion .ping,.app.lowmotion .pop,.app.lowmotion .dot,.app.lowmotion .toast{animation:none}
+.app.lowmotion .panel{animation:none}
+.app.lowmotion *{transition-duration:.001ms !important; animation-duration:.001ms !important}
 `;
