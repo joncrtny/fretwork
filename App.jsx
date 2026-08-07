@@ -104,6 +104,19 @@ const TUNINGS = [
 ];
 
 /* roman numeral -> [semitones above the key root, chord id] */
+/* ear training pools */
+const EAR_INTERVALS = [
+  { v: 1, l: "Minor 2nd" }, { v: 2, l: "Major 2nd" }, { v: 3, l: "Minor 3rd" }, { v: 4, l: "Major 3rd" },
+  { v: 5, l: "Perfect 4th" }, { v: 6, l: "Tritone" }, { v: 7, l: "Perfect 5th" }, { v: 8, l: "Minor 6th" },
+  { v: 9, l: "Major 6th" }, { v: 10, l: "Minor 7th" }, { v: 11, l: "Major 7th" }, { v: 12, l: "Octave" },
+];
+const EAR_INTERVALS_SIMPLE = new Set([2, 4, 5, 7, 12]);
+const EAR_CHORDS = [
+  { v: "maj", l: "Major" }, { v: "min", l: "Minor" }, { v: "dim", l: "Diminished" }, { v: "aug", l: "Augmented" },
+  { v: "7", l: "Dominant 7th" }, { v: "maj7", l: "Major 7th" }, { v: "m7", l: "Minor 7th" },
+];
+const EAR_CHORDS_SIMPLE = new Set(["maj", "min"]);
+
 const MINOR_STARTS = new Set(["i", "iv", "v", "i7", "iv7", "v7", "ii\u00b0", "ii\u00f8"]);
 const ROMAN = {
   I: [0, "maj"], ii: [2, "min"], iii: [4, "min"], IV: [5, "maj"], V: [7, "maj"], vi: [9, "min"], "vii°": [11, "dim"],
@@ -1667,6 +1680,17 @@ export default function App() {
   const [melPlayIdx, setMelPlayIdx] = useState(null);
   const [melRate, setMelRate] = useState(2); // notes per beat
 
+  const [ear, setEar] = useState({
+    source: "interval", // interval | chord
+    dir: "quiz", // quiz | explore
+    level: "simple", // simple | all
+    current: null, // { root, answer }
+    picked: null,
+    correct: 0,
+    wrong: 0,
+    streak: 0,
+  });
+
   const [bank, setBank] = useState([]);
   const [metroOn, setMetroOn] = useState(false);
   const [beat, setBeat] = useState(-1);
@@ -2480,6 +2504,67 @@ export default function App() {
     playTimers.current.push(setTimeout(() => { setMelPlayIdx(null); setFlash(null); }, melSteps.length * stepSec * 1000));
   }, [stopPlayback, melSteps, settings.bpm, settings.midis, melRate, playNote]);
 
+  /* ---- ear training ---- */
+  const earPool = useMemo(
+    () =>
+      ear.source === "interval"
+        ? EAR_INTERVALS.filter((x) => ear.level === "all" || EAR_INTERVALS_SIMPLE.has(x.v))
+        : EAR_CHORDS.filter((x) => ear.level === "all" || EAR_CHORDS_SIMPLE.has(x.v)),
+    [ear.source, ear.level]
+  );
+
+  const earPlay = useCallback(
+    (root, answer) => {
+      if (ear.source === "interval") {
+        pluck(root, 0, 0.5);
+        pluck(root + answer, 0.55, 0.5);
+        pluck(root, 1.15, 0.4);
+        pluck(root + answer, 1.15, 0.4);
+      } else {
+        const def = CHORDS.find((c) => c.id === answer);
+        (def ? def.iv : [0, 4, 7]).forEach((i, j) => pluck(root + i, j * 0.08, 0.45));
+      }
+    },
+    [ear.source]
+  );
+
+  const earNext = useCallback(() => {
+    const pool = earPool;
+    const item = pool[Math.floor(Math.random() * pool.length)];
+    const root = 45 + Math.floor(Math.random() * 15); // A2 to B3, guitar-friendly
+    const cur = { root, answer: item.v };
+    setEar((e) => ({ ...e, current: cur, picked: null }));
+    earPlay(root, item.v);
+  }, [earPool, earPlay]);
+
+  const earAnswer = useCallback(
+    (v) => {
+      setEar((e) => {
+        if (!e.current || e.picked != null) return e;
+        const right = v === e.current.answer;
+        track("ear_answer", { source: e.source, right });
+        if (settings.sound) blip(right);
+        return {
+          ...e,
+          picked: v,
+          correct: e.correct + (right ? 1 : 0),
+          wrong: e.wrong + (right ? 0 : 1),
+          streak: right ? e.streak + 1 : 0,
+        };
+      });
+    },
+    [settings.sound]
+  );
+
+  /* fresh question when the pool changes or after an answer settles */
+  useEffect(() => {
+    if (mode !== "ear" || ear.dir !== "quiz") return;
+    if (ear.picked == null && ear.current) return;
+    const t = setTimeout(() => earNext(), ear.picked != null ? 1100 : 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, ear.dir, ear.picked, ear.source, ear.level]);
+
 
   /* metronome: schedule ahead of the audio clock rather than trusting setInterval */
   const nextClick = useRef(0);
@@ -2627,6 +2712,8 @@ export default function App() {
       return `Chord changes · ${chgLabel}`;
     if (mode === "about") return "About Fretwork";
     if (mode === "melody") return `Melody \u00b7 ${melSteps.length} ${melSteps.length === 1 ? "note" : "notes"}`;
+    if (mode === "ear")
+      return `Ear training \u00b7 ${ear.correct + ear.wrong ? Math.round((ear.correct / (ear.correct + ear.wrong)) * 100) + "%" : "ready"}`;
     if (mode === "settings") return "Settings";
     if (mode === "tuner") {
       const t = TUNINGS.find((x) => x.id === settings.tuningId);
@@ -2640,7 +2727,7 @@ export default function App() {
         ? `${nameOf(ivRoot, effFlats)} · ${[...ivOn].sort((a, b) => a - b).map((i) => DEG[i]).join(" ")}`
         : `${nameOf(chordRoot, effFlats)}${chordDef.suffix || ""}`;
     return `Quiz · ${src} · ${quiz.hidden ? quiz.hidden.size - quiz.found.size : 0} to find`;
-  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, effFlats, quiz, progRoot, progDef, bank.length, chgLabel, authUser, uname, settings.tuningId, melSteps.length]);
+  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, effFlats, quiz, progRoot, progDef, bank.length, chgLabel, authUser, uname, settings.tuningId, melSteps.length, ear.correct, ear.wrong]);
 
   const total = quiz.correct + quiz.wrong;
   const accuracy = total ? Math.round((quiz.correct / total) * 100) : 0;
@@ -2709,6 +2796,7 @@ export default function App() {
           {navItem("quiz", "Quiz")}
           {navItem("changes", "Chord changes")}
           {navItem("melody", "Melodies", melodies.length > 0 ? <span className="badge">{melodies.length}</span> : null)}
+          {navItem("ear", "Ear training")}
 
           <p className="dhead"><HeadIcon kind="profile" />Profile</p>
           {navItem("account", authUser ? "Account" : "Create account", authUser ? <span className="badge">{uname}</span> : null)}
@@ -2822,7 +2910,7 @@ export default function App() {
         </section>
       )}
 
-      {!["changes", "about", "account", "settings", "tuner"].includes(mode) && (
+      {!["changes", "about", "account", "settings", "tuner", "ear"].includes(mode) && (
       <section className="neckwrap">
         <div className="neckscroll">
           <Fretboard
@@ -3732,6 +3820,97 @@ export default function App() {
           </div>
         )}
 
+        {mode === "ear" && (
+          <div className="pane">
+            <div className="scoreboard">
+              <div className="score"><b>{ear.correct}</b><span>correct</span></div>
+              <div className="score"><b className="bad">{ear.wrong}</b><span>wrong</span></div>
+              <div className="score"><b>{ear.streak}</b><span>streak</span></div>
+            </div>
+
+            <div className="row wrap">
+              <Field label="Direction" tip="Identify what you hear, or choose a sound and listen to it">
+                <Seg small ariaLabel="Ear training direction"
+                  options={[{ v: "quiz", l: "Hear and identify" }, { v: "explore", l: "Choose and hear" }]}
+                  value={ear.dir} onChange={(v) => setEar((e) => ({ ...e, dir: v, current: null, picked: null }))} />
+              </Field>
+              <Field label="Sounds">
+                <Seg small ariaLabel="Interval or chord sounds"
+                  options={[{ v: "interval", l: "Intervals" }, { v: "chord", l: "Chord types" }]}
+                  value={ear.source} onChange={(v) => setEar((e) => ({ ...e, source: v, current: null, picked: null }))} />
+              </Field>
+              <Field label="Range">
+                <Seg small ariaLabel="Difficulty"
+                  options={[{ v: "simple", l: "Common" }, { v: "all", l: "Everything" }]}
+                  value={ear.level} onChange={(v) => setEar((e) => ({ ...e, level: v, current: null, picked: null }))} />
+              </Field>
+            </div>
+
+            {ear.dir === "quiz" ? (
+              <>
+                <div className="row">
+                  <button
+                    className="btn primary"
+                    onClick={() => (ear.current ? earPlay(ear.current.root, ear.current.answer) : earNext())}
+                  >
+                    {ear.current ? "Play again" : "Start"}
+                  </button>
+                </div>
+                <div className="earopts">
+                  {earPool.map((o) => {
+                    const answered = ear.picked != null;
+                    const isPick = ear.picked === o.v;
+                    const isRight = answered && ear.current && o.v === ear.current.answer;
+                    return (
+                      <button
+                        key={String(o.v)}
+                        className={`earopt ${isRight ? "right" : isPick ? "wrongpick" : ""}`}
+                        disabled={!ear.current || answered}
+                        onClick={() => earAnswer(o.v)}
+                      >
+                        {o.l}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="note" role="status" aria-live="polite">
+                  {ear.picked != null && ear.current
+                    ? ear.picked === ear.current.answer
+                      ? "Right. Next one coming up."
+                      : `It was ${earPool.find((o) => o.v === ear.current.answer)?.l}. Next one coming up.`
+                    : ear.current
+                    ? "What did you hear?"
+                    : "Press Start and identify what you hear."}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="note">Tap a sound to hear it from a random root. Learn the colour, then flip to Hear and identify.</p>
+                <div className="earopts">
+                  {earPool.map((o) => (
+                    <button
+                      key={String(o.v)}
+                      className="earopt"
+                      onClick={() => {
+                        const root = 45 + Math.floor(Math.random() * 15);
+                        earPlay(root, o.v);
+                      }}
+                    >
+                      {o.l}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className="row">
+              <button className="btn ghost danger" onClick={() => setEar((e) => ({ ...e, correct: 0, wrong: 0, streak: 0 }))} disabled={!ear.correct && !ear.wrong}>
+                Reset score
+              </button>
+            </div>
+          </div>
+        )}
+
         {mode === "tuner" && (
           <div className="pane">
           <p className="note">
@@ -4049,6 +4228,7 @@ const CSS = `
 .drawer{
   flex:0 0 0; width:0; overflow:hidden; background:var(--card);
   border-right:1px solid var(--line);
+  position:sticky; top:0; height:100dvh; align-self:flex-start;
   transition:flex-basis .24s cubic-bezier(.22,1,.36,1), width .24s cubic-bezier(.22,1,.36,1);
 }
 .drawer.open{flex:0 0 244px; width:244px}
@@ -4489,6 +4669,18 @@ const CSS = `
   padding:9px 11px; font-size:14px; font-family:inherit; width:100%; max-width:260px;
 }
 
+/* ear training */
+.earopts{display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:6px}
+.earopt{
+  background:var(--card); border:1px solid var(--line2); border-radius:5px; padding:11px 8px;
+  cursor:pointer; color:var(--ink); font-family:inherit; font-size:13px;
+  transition:background .12s ease, border-color .12s ease;
+}
+.earopt:hover:not(:disabled){background:var(--paper)}
+.earopt:disabled{cursor:default; opacity:.85}
+.earopt.right{background:var(--teal); border-color:var(--teal); color:#FFFFFF; opacity:1}
+.earopt.wrongpick{background:var(--red); border-color:var(--red); color:#FFFFFF; opacity:1}
+
 /* melodies */
 .barchip.hot{background:var(--gold); border-color:var(--gold); color:#1A2429}
 .barchip em{font-style:normal; font-size:10px; color:var(--muted)}
@@ -4563,7 +4755,7 @@ const CSS = `
 }
 
 /* nav: spacer pushes About Fretwork to the bottom of the visible column */
-.dinner{display:flex; flex-direction:column; height:100dvh; overflow-y:auto}
+.dinner{display:flex; flex-direction:column; height:100%; overflow-y:auto; position:static}
 .dspacer{flex:1 1 auto; min-height:18px}
 .dnav.dark{background:var(--ink); color:var(--onink); margin-top:8px; flex:none}
 .dnav.dark:hover{background:var(--ink); opacity:.88}
