@@ -34,6 +34,16 @@ Subtle and premium, never showy. Standard easing is `cubic-bezier(.22,1,.36,1)` 
 - Buttons press down 1px on `:active`; cards (voicings, prochords) lift on hover.
 - Everything collapses to near-instant under `prefers-reduced-motion`.
 
+## Accessibility
+
+**Music should be for everyone.** Accessibility is a product value, not a compliance checkbox.
+
+- Settings carries an Accessibility group: **High contrast** (`.app.hc` remaps the theme tokens: stronger borders, darker muted text, thicker focus rings), **Low animation** (`.app.lowmotion` applies the reduced-motion rules regardless of OS setting; the OS `prefers-reduced-motion` is always honoured too), and **Zoom** (it lives here because larger targets are an accessibility feature).
+- **Everything operable without a pointer.** People with restricted movement must be able to drive the whole app from a keyboard (or switch device). Concretely: the fretboard is a roving-tabindex grid (one Tab stop; arrow keys move a visible cursor across strings and frets, Enter or Space activates, Home and End jump), the capo moves with arrow keys, every picker opens and navigates with arrows and closes with Escape returning focus, and range controls are focusable thumbs with arrow-key steps and `aria-value*` semantics.
+- Modals trap focus, restore it on close, and close on Escape. Hidden regions are `inert`, never focus-reachable.
+- Every icon-only control has an `aria-label`. Segmented controls expose radio semantics. State changes that matter (quiz results, drill completion) are announced through live regions.
+- New features inherit all of the above by default; a feature that cannot be driven by keyboard is not done.
+
 ## Navigation and layout (app-like)
 
 - Left drawer holds the menu, grouped **Learn / Practice / Tools**. Global settings live inside Tools, Settings (a full-screen sheet), not in the nav.

@@ -10,6 +10,25 @@ const DEG = ["R", "♭2", "2", "♭3", "3", "4", "♭5", "5", "♭6", "6", "♭7
 
 const nameOf = (pc, flats) => (flats ? FLAT : SHARP)[((pc % 12) + 12) % 12];
 
+/* Key-aware accidental spelling. Proper diatonic spelling uses each letter
+   once, so pick the accidental direction that covers more distinct letters
+   over the actual notes (A Phrygian: flats give A Bb C D E F G, seven
+   letters; sharps repeat A). Ties fall back to the key-signature rule:
+   minor-ish keys borrow their relative major, and the flat-side majors
+   (F, Bb, Eb, Ab, Db) spell flat. So C minor reads Eb, not D#. */
+const FLAT_MAJORS = new Set([5, 10, 3, 8, 1]);
+function keyPrefersFlats(rootPc, intervals) {
+  const iv = intervals ? [...intervals] : [];
+  const pcs = iv.map((i) => (((rootPc + i) % 12) + 12) % 12);
+  const letters = (names) => new Set(pcs.map((pc) => names[pc][0])).size;
+  const sharpLetters = letters(SHARP);
+  const flatLetters = letters(FLAT);
+  if (flatLetters !== sharpLetters) return flatLetters > sharpLetters;
+  const minorish = iv.includes(3) && !iv.includes(4);
+  const majorPc = minorish ? (rootPc + 3) % 12 : rootPc;
+  return FLAT_MAJORS.has(((majorPc % 12) + 12) % 12);
+}
+
 const SCALES = [
   { id: "major", name: "Major (Ionian)", iv: [0, 2, 4, 5, 7, 9, 11] },
   { id: "minor", name: "Natural minor (Aeolian)", iv: [0, 2, 3, 5, 7, 8, 10] },
@@ -203,12 +222,12 @@ function noise() {
   return noiseBuf;
 }
 
-function playClick(kind, at, accent, level = 0.7) {
+function playClick(kind, at, accent, level = 0.7, dest = null) {
   const ac = ctx();
   if (!ac) return;
   const t = Math.max(at, ac.currentTime);
   const g = ac.createGain();
-  g.connect(ac.destination);
+  g.connect(dest || ac.destination);
   const amp = level * (accent ? 1 : 0.55);
 
   if (kind === "beep" || kind === "woodblock") {
@@ -1052,6 +1071,170 @@ function KeyPicker({ value, onChange, flats, tip }) {
 }
 
 /* ============================================================
+   ABOUT: resources, feedback, donate
+   ============================================================ */
+
+/* Supabase endpoint. The publishable key is a public client key by design;
+   env vars override it in other environments. */
+const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || "https://wibxytuvqcihbczlwjqq.supabase.co";
+const SUPA_KEY = import.meta.env.VITE_SUPABASE_KEY || "sb_publishable_lqSKKddY4wNxxe2cpbLq3Q_aD_aF92x";
+
+const RESOURCES = [
+  { name: "JustinGuitar", url: "https://www.justinguitar.com/", blurb: "The most recommended free beginner course, structured from the very first lesson." },
+  { name: "FaChords", url: "https://www.fachords.com/", blurb: "Interactive chord and scale tools, ear training and theory references." },
+  { name: "Andy Guitar", url: "https://www.andyguitar.co.uk/", blurb: "Gentle, song-first beginner lessons and courses." },
+  { name: "Marty Music", url: "https://www.martymusic.com/", blurb: "Song tutorials and riffs, taught slowly and clearly." },
+  { name: "musictheory.net", url: "https://www.musictheory.net/", blurb: "Plain, focused theory lessons and trainers." },
+  { name: "Ultimate Guitar", url: "https://www.ultimate-guitar.com/", blurb: "The biggest tab library for the songs you want to play." },
+];
+
+/* PayPal hosted donate button, injected only when About is open. If the SDK
+   cannot load or render (offline, blocked scripts), fall back to a plain link. */
+const DONATE_URL = "https://www.paypal.com/donate/?hosted_button_id=YTQGVLV25V94A";
+function DonateButton() {
+  const boxRef = useRef(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const fail = () => {
+      if (!cancelled) setFailed(true);
+    };
+    const render = () => {
+      if (cancelled || !boxRef.current) return;
+      const D = window.PayPal && window.PayPal.Donation;
+      if (!D) return fail();
+      try {
+        boxRef.current.innerHTML = "";
+        /* the donate SDK resolves a selector string, not a DOM node; it also
+           copies the id onto its injected img, so the container id must differ */
+        D.Button({
+          env: "production",
+          hosted_button_id: "YTQGVLV25V94A",
+          image: {
+            src: "https://www.paypalobjects.com/en_GB/i/btn/btn_donate_LG.gif",
+            alt: "Donate with PayPal button",
+            title: "PayPal - The safer, easier way to pay online!",
+          },
+        }).render("#donate-box");
+        track("donate_shown");
+      } catch (e) {
+        fail();
+      }
+    };
+    if (window.PayPal) {
+      render();
+      return () => {
+        cancelled = true;
+      };
+    }
+    let s = document.getElementById("paypal-donate-sdk");
+    if (!s) {
+      s = document.createElement("script");
+      s.id = "paypal-donate-sdk";
+      s.src = "https://www.paypalobjects.com/donate/sdk/donate-sdk.js";
+      s.charset = "UTF-8";
+      document.head.appendChild(s);
+    }
+    s.addEventListener("load", render);
+    s.addEventListener("error", fail);
+    const slow = setTimeout(() => {
+      if (!window.PayPal) fail();
+    }, 6000);
+    return () => {
+      cancelled = true;
+      clearTimeout(slow);
+      s.removeEventListener("load", render);
+      s.removeEventListener("error", fail);
+    };
+  }, []);
+  if (failed)
+    return (
+      <p className="note">
+        <a className="donatelink" href={DONATE_URL} target="_blank" rel="noopener noreferrer">
+          Donate with PayPal
+        </a>
+      </p>
+    );
+  return <div id="donate-box" className="donatebox" ref={boxRef} />;
+}
+
+/* Feedback form posting straight to the Supabase feedback table */
+function FeedbackForm() {
+  const [name, setName] = useState("");
+  const [message, setMessage] = useState("");
+  const [state, setState] = useState("idle"); // idle | sending | sent | error
+  const [trap, setTrap] = useState(""); // honeypot; bots fill it, people never see it
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (trap || !message.trim() || state === "sending") return;
+    setState("sending");
+    try {
+      const res = await fetch(`${SUPA_URL}/rest/v1/feedback`, {
+        method: "POST",
+        headers: {
+          apikey: SUPA_KEY,
+          Authorization: `Bearer ${SUPA_KEY}`,
+          "Content-Type": "application/json",
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({ name: name.trim() || null, message: message.trim() }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      track("feedback_submit");
+      setState("sent");
+      setName("");
+      setMessage("");
+    } catch (err) {
+      setState("error");
+    }
+  };
+
+  if (state === "sent")
+    return (
+      <div className="feedback">
+        <p className="done" role="status">Thank you. Your feedback has been sent.</p>
+        <button className="btn ghost" type="button" onClick={() => setState("idle")}>Send another</button>
+      </div>
+    );
+
+  return (
+    <form className="feedback" onSubmit={submit}>
+      <Field label="Name (optional)">
+        <input type="text" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
+      </Field>
+      <Field label="Suggestion or feedback">
+        <textarea
+          value={message}
+          required
+          maxLength={2000}
+          rows={4}
+          placeholder="A feature you would like, or something that is not working for you"
+          onChange={(e) => setMessage(e.target.value)}
+        />
+      </Field>
+      <input
+        type="text"
+        value={trap}
+        onChange={(e) => setTrap(e.target.value)}
+        className="trap"
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+      />
+      <div className="row">
+        <button className="btn" type="submit" disabled={state === "sending" || !message.trim()}>
+          {state === "sending" ? "Sending" : "Send feedback"}
+        </button>
+        <p className="empty" role="status" aria-live="polite">
+          {state === "error" ? "That did not send. Please try again in a minute." : ""}
+        </p>
+      </div>
+    </form>
+  );
+}
+
+/* ============================================================
    APP
    ============================================================ */
 
@@ -1060,6 +1243,7 @@ const DEFAULT_SETTINGS = {
   tuningId: "std",
   midis: TUNINGS[0].midi,
   flats: false,
+  noteNames: "auto",
   leftHanded: false,
   highOnTop: true,
   labelMode: "name",
@@ -1070,6 +1254,7 @@ const DEFAULT_SETTINGS = {
   beats: 4,
   clickSound: "click",
   accent: "down",
+  subdiv: "1",
   dark: false,
   simple: false,
   span: 4,
@@ -1168,6 +1353,9 @@ export default function App() {
         const r = await store.get("fretboard:settings");
         if (!cancelled && r && r.value) {
           const v = JSON.parse(r.value);
+          /* migrate the old sharps/flats toggle: an explicit Flats choice is kept,
+             everyone else moves to key-aware Auto */
+          if (!v.noteNames && v.flats === true) v.noteNames = "flats";
           setSettings((s) => ({ ...s, ...v }));
         }
       } catch (e) {
@@ -1313,6 +1501,46 @@ export default function App() {
   useEffect(() => { setProgIdx(0); }, [progId, progRoot]);
 
   const activeProg = progChords[Math.min(progIdx, progChords.length - 1)] || null;
+
+  /* collapse runs of identical bars, so a 12-bar blues reads as three charts
+     with bar counts rather than twelve repeats */
+  const progGroups = useMemo(() => {
+    const out = [];
+    progChords.forEach((c, i) => {
+      const last = out[out.length - 1];
+      if (last && progChords[last.start].roman === c.roman) last.count += 1;
+      else out.push({ start: i, count: 1 });
+    });
+    return out;
+  }, [progChords]);
+
+  /* effective accidental spelling: Auto follows the key of whatever is on screen */
+  const effFlats = useMemo(() => {
+    if (settings.noteNames === "sharps") return false;
+    if (settings.noteNames === "flats") return true;
+    if (mode === "scale") return keyPrefersFlats(scaleRoot, scaleDef.iv);
+    if (mode === "chord" || mode === "bank") return keyPrefersFlats(chordRoot, chordDef.iv);
+    if (mode === "prog") return keyPrefersFlats(progRoot, progDef.tonality === "minor" ? [3] : [4]);
+    if (mode === "interval") return keyPrefersFlats(ivRoot, ivOn);
+    if (mode === "changes") {
+      const c0 = chg.chords[0];
+      const d0 = c0 ? CHORDS.find((x) => x.id === c0.id) : null;
+      return c0 ? keyPrefersFlats(c0.root, d0 ? d0.iv : [4]) : false;
+    }
+    if (mode === "quiz")
+      return quiz.source === "scale"
+        ? keyPrefersFlats(scaleRoot, scaleDef.iv)
+        : quiz.source === "chord"
+        ? keyPrefersFlats(chordRoot, chordDef.iv)
+        : keyPrefersFlats(ivRoot, ivOn);
+    return false;
+  }, [settings.noteNames, mode, scaleRoot, scaleDef, chordRoot, chordDef, progRoot, progDef, ivRoot, ivOn, chg.chords, quiz.source]);
+
+  /* per-item spelling for saved things rendered outside their own key context */
+  const flatsFor = useCallback(
+    (rootPc, iv) => (settings.noteNames === "auto" ? keyPrefersFlats(rootPc, iv) : settings.noteNames === "flats"),
+    [settings.noteNames]
+  );
   const activeProgVoicing = progVoicings[Math.min(progIdx, progVoicings.length - 1)] || null;
 
   const playNote = useCallback(
@@ -1551,6 +1779,15 @@ export default function App() {
     if (!ac) return;
     nextClick.current = ac.currentTime + 0.08;
     beatCount.current = 0;
+    /* all clicks for this run route through one gain bus, so stopping or
+       retuning the metronome silences anything already scheduled ahead */
+    const bus = ac.createGain();
+    bus.connect(ac.destination);
+    /* quieter clicks inside each beat; swing pushes the off-beat to the back
+       of the beat. Simple mode plays plain quarters: its panel hides the
+       subdivision control, so the setting must not act invisibly. */
+    const SUBS = { "2": [0.5], swing: [2 / 3], "3": [1 / 3, 2 / 3], "4": [0.25, 0.5, 0.75] };
+    const subs = settings.simple ? [] : SUBS[settings.subdiv] || [];
     const id = setInterval(() => {
       const now = ctx();
       if (!now) return;
@@ -1558,19 +1795,24 @@ export default function App() {
         const b = beatCount.current;
         const isAccent =
           settings.accent === "down" ? b === 0 : settings.accent === "back" ? b % 2 === 1 : false;
-        playClick(settings.clickSound, nextClick.current, isAccent);
+        playClick(settings.clickSound, nextClick.current, isAccent, 0.7, bus);
+        const beatSec = 60 / settings.bpm;
+        for (const f of subs) playClick(settings.clickSound, nextClick.current + f * beatSec, false, 0.32, bus);
         const lead = Math.max(0, (nextClick.current - now.currentTime) * 1000);
         setTimeout(() => setBeat(b), lead);
-        nextClick.current += 60 / settings.bpm;
+        nextClick.current += beatSec;
         beatCount.current = (b + 1) % settings.beats;
       }
     }, 25);
-    return () => clearInterval(id);
-  }, [metroOn, settings.bpm, settings.beats, settings.clickSound, settings.accent]);
+    return () => {
+      clearInterval(id);
+      bus.disconnect();
+    };
+  }, [metroOn, settings.bpm, settings.beats, settings.clickSound, settings.accent, settings.subdiv, settings.simple]);
 
   /* ---- one-minute chord change trainer ---- */
   const chgKey = (chords) => chords.map((c) => `${c.root}:${c.id}`).sort().join(">");
-  const chordName = (c) => `${nameOf(c.root, settings.flats)}${(CHORDS.find((x) => x.id === c.id) || {}).suffix || ""}`;
+  const chordName = (c) => `${nameOf(c.root, effFlats)}${(CHORDS.find((x) => x.id === c.id) || {}).suffix || ""}`;
   const chgLabel = chg.chords.map(chordName).join("  ·  ");
   const chgRecord = chgRecords[chgKey(chg.chords)] || { best: 0, last: 0, tries: 0 };
 
@@ -1658,24 +1900,25 @@ export default function App() {
   /* ---- readout ---- */
   const readout = useMemo(() => {
     if (mode === "scale")
-      return `${nameOf(scaleRoot, settings.flats)} ${scaleDef.name} · ${scaleDef.iv.length} notes`;
+      return `${nameOf(scaleRoot, effFlats)} ${scaleDef.name} · ${scaleDef.iv.length} notes`;
     if (mode === "chord")
-      return `${nameOf(chordRoot, settings.flats)}${chordDef.suffix || ""} · ${shownVoicings.length} voicings`;
+      return `${nameOf(chordRoot, effFlats)}${chordDef.suffix || ""} · ${shownVoicings.length} voicings`;
     if (mode === "prog")
-      return `${nameOf(progRoot, settings.flats)} \u00b7 ${progDef.name} \u00b7 ${progDef.bars.length} bars`;
+      return `${nameOf(progRoot, effFlats)} \u00b7 ${progDef.name} \u00b7 ${progDef.bars.length} bars`;
     if (mode === "bank") return `Bank \u00b7 ${bank.length} saved`;
     if (mode === "interval")
-      return `${nameOf(ivRoot, settings.flats)} root · ${[...ivOn].sort((a, b) => a - b).map((i) => DEG[i]).join(" ")}`;
+      return `${nameOf(ivRoot, effFlats)} root · ${[...ivOn].sort((a, b) => a - b).map((i) => DEG[i]).join(" ")}`;
     if (mode === "changes")
       return `Chord changes · ${chgLabel}`;
+    if (mode === "about") return "About Fretwork";
     const src =
       quiz.source === "scale"
-        ? `${nameOf(scaleRoot, settings.flats)} ${scaleDef.name}`
+        ? `${nameOf(scaleRoot, effFlats)} ${scaleDef.name}`
         : quiz.source === "interval"
-        ? `${nameOf(ivRoot, settings.flats)} · ${[...ivOn].sort((a, b) => a - b).map((i) => DEG[i]).join(" ")}`
-        : `${nameOf(chordRoot, settings.flats)}${chordDef.suffix || ""}`;
+        ? `${nameOf(ivRoot, effFlats)} · ${[...ivOn].sort((a, b) => a - b).map((i) => DEG[i]).join(" ")}`
+        : `${nameOf(chordRoot, effFlats)}${chordDef.suffix || ""}`;
     return `Quiz · ${src} · ${quiz.hidden ? quiz.hidden.size - quiz.found.size : 0} to find`;
-  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, settings.flats, quiz, progRoot, progDef, bank.length, chgLabel]);
+  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, effFlats, quiz, progRoot, progDef, bank.length, chgLabel]);
 
   const total = quiz.correct + quiz.wrong;
   const accuracy = total ? Math.round((quiz.correct / total) * 100) : 0;
@@ -1764,11 +2007,6 @@ export default function App() {
 
       <aside className={`drawer ${drawer ? "open" : ""}`} aria-label="Main menu" inert={drawer ? undefined : ""}>
         <div className="dinner">
-          <div className="dtop">
-            <span className="dtoplabel">Menu</span>
-            <button className="dclose" onClick={() => setDrawer(false)} aria-label="Close menu">{"✕"}</button>
-          </div>
-
           <p className="dhead">Learn</p>
           {navItem("scale", "Scales")}
           {navItem("chord", "Chords")}
@@ -1794,6 +2032,9 @@ export default function App() {
           >
             Settings
           </button>
+
+          <p className="dhead">More</p>
+          {navItem("about", "About")}
         </div>
       </aside>
       <div className={`scrim ${drawer ? "on" : ""}`} onClick={() => setDrawer(false)} aria-hidden="true" />
@@ -1869,6 +2110,16 @@ export default function App() {
                 options={[{ v: "down", l: "Downbeat" }, { v: "back", l: "Backbeat" }, { v: "none", l: "Even" }]}
                 value={settings.accent} onChange={(v) => setSettings((s2) => ({ ...s2, accent: v }))} />
             </Field>
+            {!settings.simple && (
+              <Field label="Subdivision">
+                <Seg small
+                  options={[
+                    { v: "1", l: "Quarter" }, { v: "2", l: "Eighth" }, { v: "swing", l: "Swing" },
+                    { v: "3", l: "Triplet" }, { v: "4", l: "16th" },
+                  ]}
+                  value={settings.subdiv} onChange={(v) => { track("metronome_subdiv", { subdiv: v }); setSettings((s2) => ({ ...s2, subdiv: v })); }} />
+              </Field>
+            )}
           </div>
         </section>
       )}
@@ -1922,7 +2173,7 @@ export default function App() {
                     onChange={(e) => setStringNote(i, Math.floor(mv / 12) * 12 + +e.target.value)}
                   >
                     {Array.from({ length: 12 }, (_, pc) => (
-                      <option key={pc} value={pc}>{nameOf(pc, settings.flats)}</option>
+                      <option key={pc} value={pc}>{nameOf(pc, effFlats)}</option>
                     ))}
                   </select>
                   <select
@@ -1957,8 +2208,8 @@ export default function App() {
 
           <div className="toggles">
             <Field label="Note names">
-              <Seg small options={[{ v: false, l: "Sharps" }, { v: true, l: "Flats" }]}
-                value={settings.flats} onChange={(v) => setSettings((s) => ({ ...s, flats: v }))} />
+              <Seg small options={[{ v: "auto", l: "Auto" }, { v: "sharps", l: "Sharps" }, { v: "flats", l: "Flats" }]}
+                value={settings.noteNames} onChange={(v) => setSettings((s) => ({ ...s, noteNames: v }))} />
             </Field>
             <Field label="Dot labels">
               <Seg small options={[{ v: "name", l: "Names" }, { v: "degree", l: "Degrees" }, { v: "none", l: "Blank" }]}
@@ -2004,7 +2255,7 @@ export default function App() {
         </div>
       </div>
 
-      {mode !== "changes" && (
+      {mode !== "changes" && mode !== "about" && (
       <section className="neckwrap">
         <div className="neckscroll">
           <Fretboard
@@ -2016,7 +2267,7 @@ export default function App() {
             capo={capo}
             onCapo={setCapo}
             onCell={onCell}
-            flats={settings.flats}
+            flats={effFlats}
             labelMode={mode === "chord" || mode === "prog" ? chordLabel : mode === "scale" ? scaleLabel : settings.labelMode}
             colourMode={mode === "interval" ? "interval" : settings.colourMode}
             barre={(() => {
@@ -2043,7 +2294,7 @@ export default function App() {
       <main className="panel" key={mode}>
         {mode === "scale" && (
           <div className="pane">
-            <Field label="Key"><KeyPicker value={scaleRoot} onChange={setScaleRoot} flats={settings.flats} /></Field>
+            <Field label="Key"><KeyPicker value={scaleRoot} onChange={setScaleRoot} flats={effFlats} /></Field>
             <div className="row">
               <Field label="Scale">
                 <select value={scaleId} onChange={(e) => setScaleId(e.target.value)}>
@@ -2092,7 +2343,7 @@ export default function App() {
               {scaleDef.iv.map((iv) => (
                 <span key={iv} className="chip" style={{ borderColor: FUNC_COLOUR[iv % 12] }}>
                   <b style={{ color: FUNC_COLOUR[iv % 12] }}>{DEG[iv % 12]}</b>
-                  {nameOf(scaleRoot + iv, settings.flats)}
+                  {nameOf(scaleRoot + iv, effFlats)}
                 </span>
               ))}
             </div>
@@ -2103,7 +2354,7 @@ export default function App() {
           <div className="pane">
             {shownVoicings.length === 0 ? (
               <p className="empty">
-                No playable shape for {nameOf(chordRoot, settings.flats)}{chordDef.suffix} in this tuning at this
+                No playable shape for {nameOf(chordRoot, effFlats)}{chordDef.suffix} in this tuning at this
                 stretch. Widen the stretch in Setup, or allow inversions.
               </p>
             ) : (
@@ -2115,7 +2366,7 @@ export default function App() {
                     midis={midis}
                     rootPc={chordRoot}
                     capo={capo}
-                    flats={settings.flats}
+                    flats={effFlats}
                     showDegrees={settings.labelMode === "degree"}
                     selected={i === Math.min(voiceIdx, shownVoicings.length - 1)}
                     onSelect={() => {
@@ -2164,7 +2415,7 @@ export default function App() {
               finger lies flat across those strings.
             </p>
 
-            <Field label="Root"><KeyPicker value={chordRoot} onChange={setChordRoot} flats={settings.flats} /></Field>
+            <Field label="Root"><KeyPicker value={chordRoot} onChange={setChordRoot} flats={effFlats} /></Field>
             <div className="row">
               <Field label="Chord">
                 <select value={chordId} onChange={(e) => setChordId(e.target.value)}>
@@ -2188,7 +2439,7 @@ export default function App() {
                       voicing: activeVoicing,
                       midis,
                       capo,
-                      label: `${nameOf(chordRoot, settings.flats)}${chordDef.suffix}`,
+                      label: `${nameOf(chordRoot, effFlats)}${chordDef.suffix}`,
                     },
                     ...bank,
                   ]);
@@ -2219,19 +2470,21 @@ export default function App() {
           <div className="pane">
             {progVoicings.some(Boolean) ? (
               <div className="voicings">
-                {progChords.map((c, i) =>
-                  progVoicings[i] ? (
+                {progGroups.map((g) => {
+                  const i = g.start;
+                  const c = progChords[i];
+                  return progVoicings[i] ? (
                     <ChordDiagram
                       key={i}
                       voicing={progVoicings[i]}
                       midis={midis}
                       rootPc={c.rootPc}
                       capo={capo}
-                      flats={settings.flats}
+                      flats={effFlats}
                       showDegrees={false}
-                      selected={i === progIdx}
-                      title={`${nameOf(c.rootPc, settings.flats)}${c.def.suffix}`}
-                      caption={c.roman}
+                      selected={progIdx >= i && progIdx < i + g.count}
+                      title={`${nameOf(c.rootPc, effFlats)}${c.def.suffix}`}
+                      caption={g.count > 1 ? `${c.roman} · ${g.count} bars` : c.roman}
                       onSelect={() => {
                         setProgIdx(i);
                         const v = progVoicings[i];
@@ -2246,8 +2499,8 @@ export default function App() {
                         }
                       }}
                     />
-                  ) : null
-                )}
+                  ) : null;
+                })}
               </div>
             ) : (
               <p className="empty">No playable shapes for this progression in the current tuning.</p>
@@ -2260,7 +2513,7 @@ export default function App() {
                 className="btn ghost"
                 onClick={() => {
                   saveBank([
-                    { id: `b${Date.now()}`, kind: "prog", root: progRoot, progId, label: `${nameOf(progRoot, settings.flats)} \u00b7 ${progDef.name}` },
+                    { id: `b${Date.now()}`, kind: "prog", root: progRoot, progId, label: `${nameOf(progRoot, effFlats)} \u00b7 ${progDef.name}` },
                     ...bank,
                   ]);
                   track("bank_save", { kind: "prog" });
@@ -2283,7 +2536,7 @@ export default function App() {
               </button>
             </div>
 
-            <Field label="Key"><KeyPicker value={progRoot} onChange={setProgRoot} flats={settings.flats} /></Field>
+            <Field label="Key"><KeyPicker value={progRoot} onChange={setProgRoot} flats={effFlats} /></Field>
 
             <Field label="Progression">
               <select value={progId} onChange={(e) => setProgId(e.target.value)}>
@@ -2321,7 +2574,7 @@ export default function App() {
                         midis={item.midis || midis}
                         rootPc={item.root}
                         capo={item.capo || 0}
-                        flats={settings.flats}
+                        flats={flatsFor(item.root, (CHORDS.find((c) => c.id === item.chordId) || CHORDS[0]).iv)}
                         showDegrees={false}
                         selected={false}
                         onSelect={() => {
@@ -2364,7 +2617,7 @@ export default function App() {
 
         {mode === "interval" && (
           <div className="pane">
-            <Field label="Root"><KeyPicker value={ivRoot} onChange={setIvRoot} flats={settings.flats} /></Field>
+            <Field label="Root"><KeyPicker value={ivRoot} onChange={setIvRoot} flats={effFlats} /></Field>
             {settings.simple ? (
               <Field label="Show">
                 <div className="posrow">
@@ -2384,7 +2637,7 @@ export default function App() {
               </Field>
             ) : (
               <Field label="Intervals from the root">
-                <IntervalGrid root={ivRoot} on={ivOn} onToggle={toggleIv} flats={settings.flats} />
+                <IntervalGrid root={ivRoot} on={ivOn} onToggle={toggleIv} flats={effFlats} />
               </Field>
             )}
 
@@ -2392,7 +2645,7 @@ export default function App() {
               {[...ivOn].sort((a, b) => a - b).map((i) => (
                 <span key={i} className="chip" style={{ borderLeftColor: FUNC_COLOUR[i] }}>
                   <b style={{ color: FUNC_COLOUR[i] }}>{DEG[i]}</b>
-                  {nameOf(ivRoot + i, settings.flats)}
+                  {nameOf(ivRoot + i, effFlats)}
                 </span>
               ))}
             </div>
@@ -2450,13 +2703,13 @@ export default function App() {
               <KeyPicker
                 value={quiz.source === "scale" ? scaleRoot : quiz.source === "interval" ? ivRoot : chordRoot}
                 onChange={quiz.source === "scale" ? setScaleRoot : quiz.source === "interval" ? setIvRoot : setChordRoot}
-                flats={settings.flats}
+                flats={effFlats}
               />
             </Field>
 
             {quiz.source === "interval" && (
               <Field label="Intervals to find">
-                <IntervalGrid root={ivRoot} on={ivOn} onToggle={toggleIv} flats={settings.flats} />
+                <IntervalGrid root={ivRoot} on={ivOn} onToggle={toggleIv} flats={effFlats} />
               </Field>
             )}
 
@@ -2543,7 +2796,7 @@ export default function App() {
                       midis={midis}
                       rootPc={c.root}
                       capo={0}
-                      flats={settings.flats}
+                      flats={effFlats}
                       showDegrees={false}
                       title={chordName(c)}
                       onSelect={() => {
@@ -2572,7 +2825,7 @@ export default function App() {
                   <div className="chgslots">
                     {chg.chords.map((c, i) => (
                       <div className="chgslot" key={i}>
-                        <KeyPicker value={c.root} onChange={(v) => setChgChord(i, { root: v })} flats={settings.flats} />
+                        <KeyPicker value={c.root} onChange={(v) => setChgChord(i, { root: v })} flats={effFlats} />
                         <div className="chgslotbtm">
                           <select value={c.id} onChange={(e) => setChgChord(i, { id: e.target.value })}>
                             {simpleList(CHORDS, SIMPLE_CHORDS, settings.simple, c.id).map((x) => (
@@ -2639,6 +2892,53 @@ export default function App() {
                 <button className="btn ghost" onClick={stopRun}>Discard</button>
               </div>
             )}
+          </div>
+        )}
+
+        {mode === "about" && (
+          <div className="pane about">
+            <section className="aboutblock">
+              <h2 className="abouthead">About Fretwork</h2>
+              <p className="note">
+                Fretwork is a free, interactive guitar fretboard for learning the neck: scales, chords with
+                fingerings, intervals, progressions, and practice drills with a metronome. It works offline
+                and you can install it on your home screen.
+              </p>
+              <p className="note">
+                Fretwork uses Google Analytics, Vercel Analytics and Amplitude to understand how the app is
+                used and improve it. There is no session recording. Feedback sent from this page is stored so
+                it can be acted on. No account or personal details are required to use the app.
+              </p>
+            </section>
+
+            <section className="aboutblock">
+              <h2 className="abouthead">Good places to learn</h2>
+              <p className="note">These are the resources most often recommended across the guitar-learning world. Fretwork sits alongside them as your reference and practice companion.</p>
+              <ul className="resources">
+                {RESOURCES.map((r) => (
+                  <li key={r.name}>
+                    <a href={r.url} target="_blank" rel="noopener noreferrer" onClick={() => track("resource_click", { site: r.name })}>
+                      {r.name}
+                    </a>
+                    <span>{r.blurb}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section className="aboutblock">
+              <h2 className="abouthead">Suggest a feature</h2>
+              <FeedbackForm />
+            </section>
+
+            <section className="aboutblock">
+              <h2 className="abouthead">Support Fretwork</h2>
+              <p className="note">
+                This web app is a personal project created by Jonathan Courtney. Donate £2 to help with
+                hosting costs if you enjoy it.
+              </p>
+              <DonateButton />
+            </section>
           </div>
         )}
       </main>
@@ -3004,17 +3304,6 @@ const CSS = `
 }
 .sheetbody > *{min-width:0}
 
-/* drawer header */
-.dtop{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:2px 6px 12px; margin-bottom:6px; border-bottom:1px solid var(--line)}
-.dtoplabel{font-family:"Antonio",sans-serif; font-size:12px; letter-spacing:.17em; text-transform:uppercase; color:var(--muted)}
-.dclose{
-  width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; flex:none;
-  background:transparent; border:1px solid var(--line2); border-radius:8px; cursor:pointer; color:var(--ink);
-  font-size:13px; transition:background .15s ease, border-color .15s ease, transform .09s ease;
-}
-.dclose:hover{background:var(--paper); border-color:var(--ink)}
-.dclose:active{transform:scale(.93)}
-
 /* view transition on mode change */
 @keyframes viewIn{from{opacity:0; transform:translateY(7px)} to{opacity:1; transform:none}}
 .panel{animation:viewIn .26s cubic-bezier(.22,1,.36,1)}
@@ -3037,7 +3326,9 @@ const CSS = `
   .drawer{position:fixed; left:0; top:0; height:100dvh; z-index:80; width:280px; max-width:85vw; flex:0 0 0;
     transform:translateX(-100%); transition:transform .28s cubic-bezier(.22,1,.36,1); overflow-y:auto}
   .drawer.open{transform:translateX(0); flex:0 0 0; width:280px; box-shadow:0 0 44px rgba(0,0,0,.4)}
-  .dinner{width:100%}
+  .dinner{width:100%; padding-top:70px}
+  .chassis{z-index:90}
+  .readout{min-width:0; flex:1 1 90px}
   .scrim{display:block}
   .chassis .modes{gap:6px}
   .chassis .modes .seg{flex:1 1 auto}
@@ -3092,4 +3383,30 @@ const CSS = `
   font-family:"IBM Plex Mono",monospace;
 }
 .transport:disabled{opacity:.4; cursor:not-allowed}
+
+/* about */
+.about{max-width:760px}
+.aboutblock{display:grid; gap:10px}
+.abouthead{
+  margin:0; font-family:"Antonio",sans-serif; font-weight:600; font-size:17px;
+  letter-spacing:.12em; text-transform:uppercase; color:var(--ink);
+  padding-top:14px; border-top:1px solid var(--line);
+}
+.aboutblock:first-child .abouthead{padding-top:0; border-top:0}
+.resources{list-style:none; margin:0; padding:0; display:grid; gap:10px}
+.resources li{display:grid; gap:2px}
+.resources a{
+  font-family:"IBM Plex Mono",monospace; font-size:14px; font-weight:600; color:var(--ink);
+  text-decoration:none; border-bottom:1px solid var(--gold); width:fit-content;
+}
+.resources a:hover{color:var(--goldtext)}
+.resources span{font-size:13px; color:var(--muted); line-height:1.5}
+.feedback{display:grid; gap:14px; max-width:520px}
+.feedback input[type=text], .feedback textarea{
+  background:var(--card); color:var(--ink); border:1px solid var(--line2); border-radius:5px;
+  padding:9px 11px; font-size:14px; font-family:inherit; width:100%; resize:vertical;
+}
+.feedback input.trap[type=text]{position:absolute; left:-9999px; width:1px; height:1px; padding:0; opacity:0}
+.donatelink{color:var(--ink); border-bottom:1px solid var(--gold); text-decoration:none; font-weight:600}
+.donatebox{min-height:52px}
 `;

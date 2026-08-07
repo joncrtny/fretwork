@@ -56,8 +56,9 @@
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-
-      gtag('config', 'G-VMNC1CJ595');
+      if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        gtag('config', 'G-VMNC1CJ595');
+      }
     </script>
 
     <script type="application/ld+json">
