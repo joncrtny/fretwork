@@ -12,7 +12,6 @@ import App from "./App.jsx";
 const AMPLITUDE_KEY = import.meta.env.VITE_AMPLITUDE_API_KEY || "8f37f29448f9a0f68dda4d423b89846c";
 if (import.meta.env.PROD && AMPLITUDE_KEY) {
   amplitude.init(AMPLITUDE_KEY, { autocapture: true });
-  amplitude.track("Viewed Home Page", { prompt_version: "BA400.4" }); // helps improve this setup flow; safe to remove once you have verified the event lands
 }
 
 createRoot(document.getElementById("root")).render(

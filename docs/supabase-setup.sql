@@ -20,7 +20,7 @@ drop policy if exists "anyone can send feedback" on public.feedback;
 create policy "anyone can send feedback"
   on public.feedback for insert
   to anon, authenticated
-  with check (true);
+  with check (user_id is null or auth.uid() = user_id);
 
 -- ============================================================
 -- Per-user synced data. One row per account. Columns already

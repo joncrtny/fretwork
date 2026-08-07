@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 /* ============================================================
    THEORY DATA
@@ -1012,13 +1013,14 @@ function useNarrow(bp = 700) {
   return narrow;
 }
 
-function Seg({ options, value, onChange, small, responsive = true }) {
+function Seg({ options, value, onChange, small, responsive = true, ariaLabel }) {
   const narrow = useNarrow();
   if (responsive && narrow) {
     const idx = options.findIndex((o) => o.v === value);
     return (
       <select
         className="segsel"
+        aria-label={ariaLabel}
         value={idx < 0 ? 0 : idx}
         onChange={(e) => onChange(options[+e.target.value].v)}
       >
@@ -1029,7 +1031,7 @@ function Seg({ options, value, onChange, small, responsive = true }) {
     );
   }
   return (
-    <div className={`seg ${small ? "sm" : ""}`} role="group">
+    <div className={`seg ${small ? "sm" : ""}`} role="group" aria-label={ariaLabel}>
       {options.map((o) => (
         <button
           key={String(o.v)}
@@ -1044,10 +1046,14 @@ function Seg({ options, value, onChange, small, responsive = true }) {
   );
 }
 
-function Field({ label, children }) {
+function Field({ label, children, id }) {
   return (
     <div className="field">
-      <span className="flabel">{label}</span>
+      {id ? (
+        <label className="flabel" htmlFor={id}>{label}</label>
+      ) : (
+        <span className="flabel">{label}</span>
+      )}
       {children}
     </div>
   );
@@ -1358,6 +1364,45 @@ function DualRange({ min, max, lo, hi, onChange }) {
    env vars override it in other environments. */
 const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || "https://wibxytuvqcihbczlwjqq.supabase.co";
 const SUPA_KEY = import.meta.env.VITE_SUPABASE_KEY || "sb_publishable_lqSKKddY4wNxxe2cpbLq3Q_aD_aF92x";
+const supabase = createClient(SUPA_URL, SUPA_KEY);
+
+/* ============================================================
+   ACCOUNTS: username-only auth over Supabase
+   ============================================================ */
+
+/* Supabase Auth requires an email field, so usernames get a synthesized
+   address at a domain we control. No mail is ever sent to it. */
+const FAKE_MAIL = "@u.fretwork-practice.app";
+const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+
+/* Obscene or hateful usernames are blocked. Normalisation catches leetspeak
+   and separators; the stems intentionally over-block edge cases. */
+const BLOCKED_STEMS = [
+  "fuck", "shit", "cunt", "bitch", "wank", "twat", "prick", "bollock",
+  "cock", "dick", "penis", "vagina", "boob", "tits", "jizz", "dildo",
+  "whore", "slut", "porn", "rape", "nonce", "pedo", "paedo",
+  "nigg", "fagg", "spic", "kike", "chink", "paki", "tranny", "retard",
+  "nazi", "hitler",
+];
+const LEET = { 4: "a", "@": "a", 8: "b", 3: "e", 6: "g", 9: "g", 1: "i", "!": "i", 0: "o", 5: "s", "$": "s", 7: "t", "+": "t", 2: "z" };
+function usernameProblem(u) {
+  if (!USERNAME_RE.test(u)) return "Usernames are 3 to 20 letters, numbers or underscores.";
+  const lower = u.toLowerCase();
+  const leeted = lower.split("").map((c) => LEET[c] || c).join("").replace(/[^a-z]/g, "");
+  const candidates = [
+    leeted,
+    leeted.replace(/(.)\1+/g, "$1"), // collapse doubled letters: fuuck
+    lower.replace(/[^a-z]/g, ""), // digits stripped entirely: f0o0ul words hiding behind separators
+  ];
+  if (BLOCKED_STEMS.some((stem) => candidates.some((c) => c.includes(stem))))
+    return "That username is not available.";
+  return null;
+}
+
+/* auth calls fail very differently offline; say so instead of blaming the password */
+function isNetErr(er) {
+  return !!er && (er.status === 0 || er.name === "AuthRetryableFetchError" || /fetch|network/i.test(er.message || ""));
+}
 
 const RESOURCES = [
   { name: "JustinGuitar", url: "https://www.justinguitar.com/", blurb: "The most recommended free beginner course, structured from the very first lesson." },
@@ -1453,15 +1498,26 @@ function FeedbackForm() {
     if (trap || !message.trim() || state === "sending") return;
     setState("sending");
     try {
+      let uid = null;
+      let bearer = SUPA_KEY;
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (data && data.session) {
+          uid = data.session.user.id;
+          bearer = data.session.access_token;
+        }
+      } catch (err) {
+        /* signed out */
+      }
       const res = await fetch(`${SUPA_URL}/rest/v1/feedback`, {
         method: "POST",
         headers: {
           apikey: SUPA_KEY,
-          Authorization: `Bearer ${SUPA_KEY}`,
+          Authorization: `Bearer ${bearer}`,
           "Content-Type": "application/json",
           Prefer: "return=minimal",
         },
-        body: JSON.stringify({ name: name.trim() || null, message: message.trim() }),
+        body: JSON.stringify({ name: name.trim() || null, message: message.trim(), user_id: uid }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       track("feedback_submit");
@@ -1517,6 +1573,21 @@ function FeedbackForm() {
   );
 }
 
+/* small decorative icons for the nav section headings */
+function HeadIcon({ kind }) {
+  const shapes = {
+    learn: <path d="M2 3.5c2-1.2 4-1.2 6 0v9c-2-1.2-4-1.2-6 0zM8 3.5c2-1.2 4-1.2 6 0v9c-2-1.2-4-1.2-6 0z" />,
+    practice: <><circle cx="8" cy="8" r="5.5" /><circle cx="8" cy="8" r="2" /></>,
+    profile: <><circle cx="8" cy="5" r="3" /><path d="M2.5 14c1-3 3-4.5 5.5-4.5s4.5 1.5 5.5 4.5" /></>,
+    tools: <><path d="M2 4.5h6M12.5 4.5H14M2 11.5h1.5M8 11.5h6" /><circle cx="10" cy="4.5" r="1.8" /><circle cx="5.5" cy="11.5" r="1.8" /></>,
+  };
+  return (
+    <svg className="dicon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {shapes[kind]}
+    </svg>
+  );
+}
+
 /* ============================================================
    APP
    ============================================================ */
@@ -1555,9 +1626,6 @@ export default function App() {
   const [openPanel, setOpenPanel] = useState(null);
   const [drawer, setDrawer] = useState(false);
   const burgerRef = useRef(null);
-  const sheetRef = useRef(null);
-  const sheetCloseRef = useRef(null);
-  const sheetReturnRef = useRef(null);
   const [scalePos, setScalePos] = useState(null);
   const [chordArea, setChordArea] = useState(null);
   const [toast, setToast] = useState("");
@@ -1617,6 +1685,251 @@ export default function App() {
   });
   const [chgRecords, setChgRecords] = useState({}); // key -> { best, last, tries }
   const [chgEntry, setChgEntry] = useState("");
+
+  /* ---- account ---- */
+  const [authUser, setAuthUser] = useState(null);
+  const [authMode, setAuthMode] = useState("create"); // signin | create
+  const [authName, setAuthName] = useState("");
+  const [authPass, setAuthPass] = useState("");
+  const [authErr, setAuthErr] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [linkEmail, setLinkEmail] = useState("");
+  const [linkState, setLinkState] = useState("idle"); // idle | busy | sent | err
+  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [newPass, setNewPass] = useState("");
+  const syncTimers = useRef({});
+  const authTokenRef = useRef(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      authTokenRef.current = data.session ? data.session.access_token : null;
+      setAuthUser(data.session ? data.session.user : null);
+    });
+    const { data } = supabase.auth.onAuthStateChange((evt, session) => {
+      authTokenRef.current = session ? session.access_token : null;
+      setAuthUser(session ? session.user : null);
+      if (evt === "PASSWORD_RECOVERY") {
+        setRecoveryMode(true);
+        setMode("account");
+      }
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  const uname = authUser ? authUser.user_metadata?.username || (authUser.email || "").split("@")[0] : null;
+  const linkedEmail = authUser && authUser.email && !authUser.email.endsWith(FAKE_MAIL) ? authUser.email : null;
+
+  /* push a field to the synced row, debounced; local storage stays the source
+     of truth when signed out */
+  const syncField = useCallback(
+    (field, value) => {
+      if (!authUser) return;
+      const prev = syncTimers.current[field];
+      if (prev) clearTimeout(prev.timer);
+      const entry = { value, uid: authUser.id };
+      entry.timer = setTimeout(() => {
+        delete syncTimers.current[field];
+        supabase
+          .from("user_data")
+          .upsert({ user_id: entry.uid, [field]: value, updated_at: new Date().toISOString() })
+          .then(({ error }) => {
+            if (error && authTokenRef.current) setToast("Sync failed, saved locally");
+          });
+      }, 700);
+      syncTimers.current[field] = entry;
+    },
+    [authUser]
+  );
+
+  /* run any pending debounced syncs immediately (sign-out, page hide) */
+  const flushSync = useCallback(async () => {
+    const entries = Object.entries(syncTimers.current);
+    syncTimers.current = {};
+    await Promise.all(
+      entries.map(([field, entry]) => {
+        clearTimeout(entry.timer);
+        return supabase
+          .from("user_data")
+          .upsert({ user_id: entry.uid, [field]: entry.value, updated_at: new Date().toISOString() });
+      })
+    );
+  }, []);
+
+  /* on page hide, push pending syncs with keepalive requests that outlive the tab */
+  useEffect(() => {
+    const onHide = () => {
+      const token = authTokenRef.current;
+      const entries = Object.entries(syncTimers.current);
+      syncTimers.current = {};
+      if (!token) return;
+      for (const [field, entry] of entries) {
+        clearTimeout(entry.timer);
+        fetch(`${SUPA_URL}/rest/v1/user_data?on_conflict=user_id`, {
+          method: "POST",
+          keepalive: true,
+          headers: {
+            apikey: SUPA_KEY,
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Prefer: "resolution=merge-duplicates",
+          },
+          body: JSON.stringify({ user_id: entry.uid, [field]: entry.value, updated_at: new Date().toISOString() }),
+        }).catch(() => {});
+      }
+    };
+    window.addEventListener("pagehide", onHide);
+    return () => window.removeEventListener("pagehide", onHide);
+  }, []);
+
+  /* on sign-in, the account's data wins; a brand-new account adopts what is
+     already on this device so nothing is lost by signing up */
+  useEffect(() => {
+    if (!authUser || !loaded) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("user_data")
+        .select("bank,changes")
+        .eq("user_id", authUser.id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error) {
+        setToast("Could not load synced data");
+        return;
+      }
+      if (data) {
+        if (Array.isArray(data.bank)) {
+          setBank(data.bank);
+          store.set("fretboard:bank", JSON.stringify(data.bank)).catch(() => {});
+        }
+        if (data.changes && typeof data.changes === "object") {
+          setChgRecords(data.changes);
+          store.set("fretboard:changes", JSON.stringify(data.changes)).catch(() => {});
+        }
+        setToast("Synced");
+      } else {
+        const { error: insErr } = await supabase
+          .from("user_data")
+          .upsert({ user_id: authUser.id, bank, changes: chgRecords });
+        setToast(insErr ? "Sync failed, saved locally" : "Account ready, this device's saves are now synced");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUser && authUser.id, loaded]);
+
+  const doAuth = async (e) => {
+    e.preventDefault();
+    setAuthErr("");
+    const name = authName.trim();
+    if (authMode === "create") {
+      const prob = usernameProblem(name);
+      if (prob) return setAuthErr(prob);
+      if (authPass.length < 8) return setAuthErr("Password needs at least 8 characters.");
+      setAuthBusy(true);
+      const { error } = await supabase.auth.signUp({
+        email: name.toLowerCase() + FAKE_MAIL,
+        password: authPass,
+        options: { data: { username: name } },
+      });
+      setAuthBusy(false);
+      if (error)
+        return setAuthErr(
+          isNetErr(error)
+            ? "Could not reach the server. Check your connection and try again."
+            : /already|registered/i.test(error.message)
+            ? "That username is taken."
+            : error.message
+        );
+      track("sign_up");
+      setToast("Account created");
+    } else {
+      setAuthBusy(true);
+      const email = name.includes("@") ? name : name.toLowerCase() + FAKE_MAIL;
+      const { error } = await supabase.auth.signInWithPassword({ email, password: authPass });
+      setAuthBusy(false);
+      if (error)
+        return setAuthErr(
+          isNetErr(error)
+            ? "Could not reach the server. Check your connection and try again."
+            : "Wrong username or password."
+        );
+      track("sign_in");
+    }
+    setAuthName("");
+    setAuthPass("");
+  };
+
+  const doSignOut = async () => {
+    await flushSync();
+    await supabase.auth.signOut();
+    track("sign_out");
+    setAuthMode("signin");
+    setLinkEmail("");
+    setLinkState("idle");
+    setRecoveryMode(false);
+    setToast("Signed out");
+  };
+
+  const [linkErrMsg, setLinkErrMsg] = useState("");
+  const doLinkEmail = async (e) => {
+    e.preventDefault();
+    const em = linkEmail.trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(em) || em.endsWith(FAKE_MAIL)) {
+      setLinkErrMsg("That does not look like a usable email address.");
+      return setLinkState("err");
+    }
+    setLinkState("busy");
+    const { error } = await supabase.auth.updateUser({ email: em });
+    if (error) {
+      setLinkErrMsg(
+        isNetErr(error)
+          ? "Could not reach the server. Try again when you are online."
+          : /already|registered|exists/i.test(error.message)
+          ? "That address is already in use."
+          : "That did not work. Check the address and try again."
+      );
+      return setLinkState("err");
+    }
+    track("email_linked");
+    setLinkState("sent");
+  };
+
+  /* forgot password: needs a linked email, sends the Supabase recovery mail */
+  const doForgot = async () => {
+    const name = authName.trim();
+    if (!name.includes("@")) {
+      setAuthErr("Recovery needs a linked email. Enter that email address above, then press Forgot password.");
+      return;
+    }
+    setAuthBusy(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(name.toLowerCase(), {
+      redirectTo: window.location.origin,
+    });
+    setAuthBusy(false);
+    if (error && isNetErr(error)) {
+      setAuthErr("Could not reach the server. Check your connection and try again.");
+      return;
+    }
+    setAuthErr("");
+    setToast("If that address is linked to an account, a reset email is on its way");
+  };
+
+  /* recovery redirect lands signed in; the user sets a fresh password */
+  const doSetNewPassword = async (e) => {
+    e.preventDefault();
+    if (newPass.length < 8) return setAuthErr("Password needs at least 8 characters.");
+    setAuthBusy(true);
+    const { error } = await supabase.auth.updateUser({ password: newPass });
+    setAuthBusy(false);
+    if (error) return setAuthErr(error.message);
+    setAuthErr("");
+    setNewPass("");
+    setRecoveryMode(false);
+    setToast("Password updated");
+  };
 
   /* fonts */
   useEffect(() => {
@@ -1697,7 +2010,8 @@ export default function App() {
   const saveBank = useCallback((next) => {
     setBank(next);
     store.set("fretboard:bank", JSON.stringify(next)).catch(() => {});
-  }, []);
+    syncField("bank", next);
+  }, [syncField]);
 
   /* derived */
   const midis = settings.midis;
@@ -2160,11 +2474,12 @@ export default function App() {
     const next = { ...chgRecords, [key]: { best: Math.max(cur.best, count), last: count, tries: cur.tries + 1 } };
     setChgRecords(next);
     store.set("fretboard:changes", JSON.stringify(next)).catch(() => {});
+    syncField("changes", next);
     track("changes_save", { count, new_best: beat });
     setToast(beat && count > 0 ? `New best · ${count} changes` : `Saved · ${count} changes`);
     setChg((c) => ({ ...c, phase: "idle", remaining: c.duration }));
     setChgEntry("");
-  }, [chgEntry, chg.chords, chgRecords]);
+  }, [chgEntry, chg.chords, chgRecords, syncField]);
 
   const setChgChord = (i, patch) =>
     setChg((c) => ({ ...c, chords: c.chords.map((x, j) => (j === i ? { ...x, ...patch } : x)) }));
@@ -2196,6 +2511,12 @@ export default function App() {
     if (mode === "changes")
       return `Chord changes · ${chgLabel}`;
     if (mode === "about") return "About Fretwork";
+    if (mode === "settings") return "Settings";
+    if (mode === "tuner") {
+      const t = TUNINGS.find((x) => x.id === settings.tuningId);
+      return `Tuner \u00b7 ${t ? t.name : "Custom"}`;
+    }
+    if (mode === "account") return authUser ? `Account · ${uname}` : "Create an account";
     const src =
       quiz.source === "scale"
         ? `${nameOf(scaleRoot, effFlats)} ${scaleDef.name}`
@@ -2203,7 +2524,7 @@ export default function App() {
         ? `${nameOf(ivRoot, effFlats)} · ${[...ivOn].sort((a, b) => a - b).map((i) => DEG[i]).join(" ")}`
         : `${nameOf(chordRoot, effFlats)}${chordDef.suffix || ""}`;
     return `Quiz · ${src} · ${quiz.hidden ? quiz.hidden.size - quiz.found.size : 0} to find`;
-  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, effFlats, quiz, progRoot, progDef, bank.length, chgLabel]);
+  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, effFlats, quiz, progRoot, progDef, bank.length, chgLabel, authUser, uname, settings.tuningId]);
 
   const total = quiz.correct + quiz.wrong;
   const accuracy = total ? Math.round((quiz.correct / total) * 100) : 0;
@@ -2254,53 +2575,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [drawer]);
 
-  /* Full-screen sheets (Settings, Tuner) are real modals: focus moves in on
-     open and back out on close, Escape dismisses, Tab stays inside. */
-  const sheetKind = openPanel === "setup" || openPanel === "tuner" ? openPanel : null;
-  /* latch the last sheet so closing does not morph its content mid-fade */
-  const lastSheetRef = useRef("setup");
-  if (sheetKind) lastSheetRef.current = sheetKind;
-  const shownSheet = sheetKind || lastSheetRef.current;
-  useEffect(() => {
-    if (!sheetKind) return;
-    track(sheetKind === "tuner" ? "tuner_open" : "settings_open");
-    sheetReturnRef.current = document.activeElement;
-    /* deferred: the sheet must have finished flipping to visibility:visible before it can take focus */
-    const focusTimer = setTimeout(() => {
-      if (sheetCloseRef.current) sheetCloseRef.current.focus();
-    }, 40);
-    const onKey = (e) => {
-      if (e.key === "Escape") {
-        setOpenPanel(null);
-        return;
-      }
-      if (e.key !== "Tab" || !sheetRef.current) return;
-      const focusables = sheetRef.current.querySelectorAll(
-        "button:not(:disabled), select:not(:disabled), input:not(:disabled), [tabindex]:not([tabindex='-1'])"
-      );
-      if (!focusables.length) return;
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      } else if (!sheetRef.current.contains(document.activeElement)) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      clearTimeout(focusTimer);
-      window.removeEventListener("keydown", onKey);
-      const back = sheetReturnRef.current;
-      if (back && back.isConnected && typeof back.focus === "function") back.focus();
-      if (document.activeElement === document.body && burgerRef.current) burgerRef.current.focus();
-    };
-  }, [sheetKind]);
+
 
   return (
     <div className={`app ${settings.dark ? "dark" : ""} ${settings.highContrast ? "hc" : ""} ${settings.lowMotion ? "lowmotion" : ""}`}>
@@ -2308,18 +2583,22 @@ export default function App() {
 
       <aside className={`drawer ${drawer ? "open" : ""}`} aria-label="Main menu" inert={drawer ? undefined : ""}>
         <div className="dinner">
-          <p className="dhead">Learn</p>
+          <p className="dhead"><HeadIcon kind="learn" />Learn</p>
           {navItem("scale", "Scales")}
           {navItem("chord", "Chords")}
           {navItem("prog", "Progressions")}
           {navItem("interval", "Intervals")}
 
-          <p className="dhead">Practice</p>
+          <p className="dhead"><HeadIcon kind="practice" />Practice</p>
           {navItem("quiz", "Quiz")}
           {navItem("changes", "Chord changes")}
-          {navItem("bank", "Bank", bank.length > 0 ? <span className="badge">{bank.length}</span> : null)}
 
-          <p className="dhead">Tools</p>
+          <p className="dhead"><HeadIcon kind="profile" />Profile</p>
+          {navItem("account", authUser ? "Account" : "Create account", authUser ? <span className="badge">{uname}</span> : null)}
+          {navItem("bank", "Bank", bank.length > 0 ? <span className="badge">{bank.length}</span> : null)}
+          {navItem("settings", "Settings")}
+
+          <p className="dhead"><HeadIcon kind="tools" />Tools</p>
           <button
             className={`dnav ${openPanel === "metro" ? "on" : ""}`}
             onClick={() => { setOpenPanel((v) => (v === "metro" ? null : "metro")); closeNav(); }}
@@ -2327,18 +2606,7 @@ export default function App() {
             Metronome
             {metroOn && <span className="badge">{settings.bpm}</span>}
           </button>
-          <button
-            className={`dnav ${openPanel === "tuner" ? "on" : ""}`}
-            onClick={() => { setOpenPanel("tuner"); closeNav(); }}
-          >
-            Tuner
-          </button>
-          <button
-            className={`dnav ${openPanel === "setup" ? "on" : ""}`}
-            onClick={() => { setOpenPanel("setup"); closeNav(); }}
-          >
-            Settings
-          </button>
+          {navItem("tuner", "Tuner")}
 
           <div className="dspacer" aria-hidden="true" />
           <button
@@ -2437,165 +2705,7 @@ export default function App() {
         </section>
       )}
 
-      <div
-        ref={sheetRef}
-        className={`sheet ${sheetKind ? "open" : ""}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label={shownSheet === "tuner" ? "Tuner" : "Settings"}
-        inert={sheetKind ? undefined : ""}
-      >
-        <div className="sheethead">
-          <h2 className="sheettitle">{shownSheet === "tuner" ? "Tuner" : "Settings"}</h2>
-          <button ref={sheetCloseRef} className="sheetx" onClick={() => setOpenPanel(null)} aria-label={shownSheet === "tuner" ? "Close tuner" : "Close settings"}>{"✕"}</button>
-        </div>
-        {shownSheet === "tuner" ? (
-        <div className="sheetbody">
-          <p className="note">
-            Set each string, or pick a preset tuning. A microphone tuner that listens to your guitar is
-            planned to live here too.
-          </p>
-          <div className="grid">
-            <Field label="Tuning">
-              <select value={settings.tuningId} onChange={(e) => setTuning(e.target.value)}>
-                {TUNINGS.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-                {settings.tuningId === "custom" && <option value="custom">Custom</option>}
-              </select>
-            </Field>
-          </div>
-
-          <div className="tuner">
-            <span className="flabel">Strings, low to high</span>
-            <div className="strings">
-              {midis.map((mv, i) => (
-                <div className="stringrow" key={i}>
-                  <span className="sidx">{i + 1}</span>
-                  <select
-                    value={mv % 12}
-                    onChange={(e) => setStringNote(i, Math.floor(mv / 12) * 12 + +e.target.value)}
-                  >
-                    {Array.from({ length: 12 }, (_, pc) => (
-                      <option key={pc} value={pc}>{nameOf(pc, effFlats)}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={Math.floor(mv / 12) - 1}
-                    onChange={(e) => setStringNote(i, (mv % 12) + (+e.target.value + 1) * 12)}
-                  >
-                    {[0, 1, 2, 3, 4, 5].map((o) => (
-                      <option key={o} value={o}>{o}</option>
-                    ))}
-                  </select>
-                  <button className="mini" aria-label={`Play string ${i + 1}`} onClick={() => playNote(mv)}>▸</button>
-                </div>
-              ))}
-            </div>
-            <div className="stringbtns">
-              <button
-                className="mini wide"
-                onClick={() => setSettings((s) => ({ ...s, midis: [s.midis[0] - 5, ...s.midis], tuningId: "custom" }))}
-                disabled={n >= 9}
-              >
-                Add low string
-              </button>
-              <button
-                className="mini wide"
-                onClick={() => setSettings((s) => ({ ...s, midis: s.midis.slice(1), tuningId: "custom" }))}
-                disabled={n <= 3}
-              >
-                Remove low string
-              </button>
-            </div>
-          </div>
-        </div>
-        ) : (
-        <div className="sheetbody">
-          <div className="grid">
-            <Field label="Frets">
-              <input
-                type="range" min="7" max="27" value={settings.fretCount}
-                onChange={(e) => setSettings((s) => ({ ...s, fretCount: +e.target.value }))}
-              />
-              <output>{settings.fretCount}</output>
-            </Field>
-          </div>
-
-          <div className="toggles">
-            <Field label="Note names">
-              <Seg small options={[{ v: "auto", l: "Auto" }, { v: "sharps", l: "Sharps" }, { v: "flats", l: "Flats" }]}
-                value={settings.noteNames} onChange={(v) => setSettings((s) => ({ ...s, noteNames: v }))} />
-            </Field>
-            <Field label="Dot labels">
-              <Seg small options={[{ v: "name", l: "Names" }, { v: "degree", l: "Degrees" }, { v: "none", l: "Blank" }]}
-                value={settings.labelMode} onChange={(v) => setSettings((s) => ({ ...s, labelMode: v }))} />
-            </Field>
-            <Field label="Colour">
-              <Seg small options={[{ v: "root", l: "Root" }, { v: "interval", l: "By interval" }, { v: "mono", l: "Mono" }]}
-                value={settings.colourMode} onChange={(v) => setSettings((s) => ({ ...s, colourMode: v }))} />
-            </Field>
-            <Field label="String order">
-              <Seg small options={[{ v: true, l: "High on top" }, { v: false, l: "Low on top" }]}
-                value={settings.highOnTop} onChange={(v) => setSettings((s) => ({ ...s, highOnTop: v }))} />
-            </Field>
-            <Field label="Handed">
-              <Seg small options={[{ v: false, l: "Right" }, { v: true, l: "Left" }]}
-                value={settings.leftHanded} onChange={(v) => setSettings((s) => ({ ...s, leftHanded: v }))} />
-            </Field>
-            <Field label="Chord stretch">
-              <Seg small options={[{ v: 3, l: "3 frets" }, { v: 4, l: "4" }, { v: 5, l: "5" }]}
-                value={settings.span} onChange={(v) => setSettings((s2) => ({ ...s2, span: v }))} />
-            </Field>
-            <Field label="Inversions">
-              <Seg small options={[{ v: false, l: "Root bass" }, { v: true, l: "Allow" }]}
-                value={settings.inversions} onChange={(v) => setSettings((s2) => ({ ...s2, inversions: v }))} />
-            </Field>
-            <Field label="Barres">
-              <Seg small options={[{ v: true, l: "Allow" }, { v: false, l: "Avoid" }]}
-                value={settings.barres} onChange={(v) => setSettings((s2) => ({ ...s2, barres: v }))} />
-            </Field>
-            <Field label="Theme">
-              <Seg small options={[{ v: false, l: "Light" }, { v: true, l: "Dark" }]}
-                value={settings.dark} onChange={(v) => { track("theme_set", { dark: v }); setSettings((s2) => ({ ...s2, dark: v })); }} />
-            </Field>
-            <Field label="Options shown">
-              <Seg small options={[{ v: true, l: "Simple" }, { v: false, l: "Everything" }]}
-                value={settings.simple} onChange={(v) => setSettings((s2) => ({ ...s2, simple: v }))} />
-            </Field>
-            <Field label="Sound">
-              <Seg small options={[{ v: true, l: "On" }, { v: false, l: "Off" }]}
-                value={settings.sound} onChange={(v) => setSettings((s) => ({ ...s, sound: v }))} />
-            </Field>
-          </div>
-
-          <h3 className="sheetsec">Accessibility</h3>
-          <div className="toggles">
-            <Field label="High contrast">
-              <Seg small options={[{ v: false, l: "Off" }, { v: true, l: "On" }]}
-                value={settings.highContrast} onChange={(v) => { track("a11y_contrast", { on: v }); setSettings((s) => ({ ...s, highContrast: v })); }} />
-            </Field>
-            <Field label="Animation">
-              <Seg small options={[{ v: false, l: "Full" }, { v: true, l: "Reduced" }]}
-                value={settings.lowMotion} onChange={(v) => { track("a11y_motion", { reduced: v }); setSettings((s) => ({ ...s, lowMotion: v })); }} />
-            </Field>
-            <Field label="Zoom">
-              <input
-                type="range" min="0.7" max="2.2" step="0.1" value={settings.zoom}
-                aria-label="Fretboard zoom"
-                onChange={(e) => setSettings((s) => ({ ...s, zoom: +e.target.value }))}
-              />
-              <output>{settings.zoom.toFixed(1)}×</output>
-            </Field>
-          </div>
-          <p className="note">
-            The system reduced-motion preference is always respected. These controls apply on top of it.
-          </p>
-        </div>
-        )}
-      </div>
-
-      {mode !== "changes" && mode !== "about" && (
+      {!["changes", "about", "account", "settings", "tuner"].includes(mode) && (
       <section className="neckwrap">
         <div className="neckscroll">
           <Fretboard
@@ -2634,8 +2744,8 @@ export default function App() {
       <main className="panel" key={mode}>
         {mode === "scale" && (
           <div className="pane">
-            <Field label="Key"><KeyPicker value={scaleRoot} onChange={setScaleRoot} flats={effFlats} /></Field>
-            <div className="row">
+            <div className="row wrap">
+              <Field label="Key"><KeyPicker value={scaleRoot} onChange={setScaleRoot} flats={effFlats} /></Field>
               <Field label="Scale">
                 <CatPicker
                   value={scaleId}
@@ -2756,8 +2866,8 @@ export default function App() {
               finger lies flat across those strings.
             </p>
 
-            <Field label="Root"><KeyPicker value={chordRoot} onChange={setChordRoot} flats={effFlats} /></Field>
-            <div className="row">
+            <div className="row wrap">
+              <Field label="Root"><KeyPicker value={chordRoot} onChange={setChordRoot} flats={effFlats} /></Field>
               <Field label="Chord">
                 <CatPicker
                   value={chordId}
@@ -2878,9 +2988,9 @@ export default function App() {
               </button>
             </div>
 
-            <Field label="Key"><KeyPicker value={progRoot} onChange={setProgRoot} flats={effFlats} /></Field>
-
-            <Field label="Progression">
+            <div className="row wrap">
+              <Field label="Key"><KeyPicker value={progRoot} onChange={setProgRoot} flats={effFlats} /></Field>
+              <Field label="Progression">
               <CatPicker
                 value={progId}
                 onChange={setProgId}
@@ -2892,7 +3002,8 @@ export default function App() {
                     .map((x) => ({ id: x.id, name: x.name, sub: x.note })),
                 }))}
               />
-            </Field>
+              </Field>
+            </div>
 
             <p className="note">Preview follows the metronome tempo, one bar per chord.</p>
           </div>
@@ -3307,6 +3418,295 @@ export default function App() {
             )}
           </div>
         )}
+
+        {mode === "tuner" && (
+          <div className="pane">
+          <p className="note">
+            Set each string, or pick a preset tuning. A microphone tuner that listens to your guitar is
+            planned to live here too.
+          </p>
+          <div className="grid">
+            <Field label="Tuning">
+              <select value={settings.tuningId} onChange={(e) => setTuning(e.target.value)}>
+                {TUNINGS.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+                {settings.tuningId === "custom" && <option value="custom">Custom</option>}
+              </select>
+            </Field>
+          </div>
+
+          <div className="tuner">
+            <span className="flabel">Strings, low to high</span>
+            <div className="strings">
+              {midis.map((mv, i) => (
+                <div className="stringrow" key={i}>
+                  <span className="sidx">{i + 1}</span>
+                  <select
+                    value={mv % 12}
+                    onChange={(e) => setStringNote(i, Math.floor(mv / 12) * 12 + +e.target.value)}
+                  >
+                    {Array.from({ length: 12 }, (_, pc) => (
+                      <option key={pc} value={pc}>{nameOf(pc, effFlats)}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={Math.floor(mv / 12) - 1}
+                    onChange={(e) => setStringNote(i, (mv % 12) + (+e.target.value + 1) * 12)}
+                  >
+                    {[0, 1, 2, 3, 4, 5].map((o) => (
+                      <option key={o} value={o}>{o}</option>
+                    ))}
+                  </select>
+                  <button className="mini" aria-label={`Play string ${i + 1}`} onClick={() => playNote(mv)}>▸</button>
+                </div>
+              ))}
+            </div>
+            <div className="stringbtns">
+              <button
+                className="mini wide"
+                onClick={() => setSettings((s) => ({ ...s, midis: [s.midis[0] - 5, ...s.midis], tuningId: "custom" }))}
+                disabled={n >= 9}
+              >
+                Add low string
+              </button>
+              <button
+                className="mini wide"
+                onClick={() => setSettings((s) => ({ ...s, midis: s.midis.slice(1), tuningId: "custom" }))}
+                disabled={n <= 3}
+              >
+                Remove low string
+              </button>
+            </div>
+          </div>
+        </div>
+        )}
+
+        {mode === "settings" && (
+          <div className="pane">
+          <div className="grid">
+            <Field label="Frets">
+              <input
+                type="range" min="7" max="27" value={settings.fretCount}
+                onChange={(e) => setSettings((s) => ({ ...s, fretCount: +e.target.value }))}
+              />
+              <output>{settings.fretCount}</output>
+            </Field>
+          </div>
+
+          <div className="toggles">
+            <Field label="Note names">
+              <Seg small options={[{ v: "auto", l: "Auto" }, { v: "sharps", l: "Sharps" }, { v: "flats", l: "Flats" }]}
+                value={settings.noteNames} onChange={(v) => setSettings((s) => ({ ...s, noteNames: v }))} />
+            </Field>
+            <Field label="Dot labels">
+              <Seg small options={[{ v: "name", l: "Names" }, { v: "degree", l: "Degrees" }, { v: "none", l: "Blank" }]}
+                value={settings.labelMode} onChange={(v) => setSettings((s) => ({ ...s, labelMode: v }))} />
+            </Field>
+            <Field label="Colour">
+              <Seg small options={[{ v: "root", l: "Root" }, { v: "interval", l: "By interval" }, { v: "mono", l: "Mono" }]}
+                value={settings.colourMode} onChange={(v) => setSettings((s) => ({ ...s, colourMode: v }))} />
+            </Field>
+            <Field label="String order">
+              <Seg small options={[{ v: true, l: "High on top" }, { v: false, l: "Low on top" }]}
+                value={settings.highOnTop} onChange={(v) => setSettings((s) => ({ ...s, highOnTop: v }))} />
+            </Field>
+            <Field label="Handed">
+              <Seg small options={[{ v: false, l: "Right" }, { v: true, l: "Left" }]}
+                value={settings.leftHanded} onChange={(v) => setSettings((s) => ({ ...s, leftHanded: v }))} />
+            </Field>
+            <Field label="Chord stretch">
+              <Seg small options={[{ v: 3, l: "3 frets" }, { v: 4, l: "4" }, { v: 5, l: "5" }]}
+                value={settings.span} onChange={(v) => setSettings((s2) => ({ ...s2, span: v }))} />
+            </Field>
+            <Field label="Inversions">
+              <Seg small options={[{ v: false, l: "Root bass" }, { v: true, l: "Allow" }]}
+                value={settings.inversions} onChange={(v) => setSettings((s2) => ({ ...s2, inversions: v }))} />
+            </Field>
+            <Field label="Barres">
+              <Seg small options={[{ v: true, l: "Allow" }, { v: false, l: "Avoid" }]}
+                value={settings.barres} onChange={(v) => setSettings((s2) => ({ ...s2, barres: v }))} />
+            </Field>
+            <Field label="Theme">
+              <Seg small options={[{ v: false, l: "Light" }, { v: true, l: "Dark" }]}
+                value={settings.dark} onChange={(v) => { track("theme_set", { dark: v }); setSettings((s2) => ({ ...s2, dark: v })); }} />
+            </Field>
+            <Field label="Options shown">
+              <Seg small options={[{ v: true, l: "Simple" }, { v: false, l: "Everything" }]}
+                value={settings.simple} onChange={(v) => setSettings((s2) => ({ ...s2, simple: v }))} />
+            </Field>
+            <Field label="Sound">
+              <Seg small options={[{ v: true, l: "On" }, { v: false, l: "Off" }]}
+                value={settings.sound} onChange={(v) => setSettings((s) => ({ ...s, sound: v }))} />
+            </Field>
+          </div>
+
+          <h3 className="sheetsec">Accessibility</h3>
+          <div className="toggles">
+            <Field label="High contrast">
+              <Seg small options={[{ v: false, l: "Off" }, { v: true, l: "On" }]}
+                value={settings.highContrast} onChange={(v) => { track("a11y_contrast", { on: v }); setSettings((s) => ({ ...s, highContrast: v })); }} />
+            </Field>
+            <Field label="Animation">
+              <Seg small options={[{ v: false, l: "Full" }, { v: true, l: "Reduced" }]}
+                value={settings.lowMotion} onChange={(v) => { track("a11y_motion", { reduced: v }); setSettings((s) => ({ ...s, lowMotion: v })); }} />
+            </Field>
+            <Field label="Zoom">
+              <input
+                type="range" min="0.7" max="2.2" step="0.1" value={settings.zoom}
+                aria-label="Fretboard zoom"
+                onChange={(e) => setSettings((s) => ({ ...s, zoom: +e.target.value }))}
+              />
+              <output>{settings.zoom.toFixed(1)}×</output>
+            </Field>
+          </div>
+          <p className="note">
+            The system reduced-motion preference is always respected. These controls apply on top of it.
+          </p>
+        </div>
+        )}
+
+        {mode === "account" && (
+          <div className="pane about">
+            {!authUser ? (
+              <section className="aboutblock">
+                <h2 className="abouthead">{authMode === "create" ? "Create an account" : "Sign in"}</h2>
+                <p className="note">
+                  An account syncs your Bank (saved chords and progressions) and your chord-change records
+                  across devices. Everything also works without one, saved on this device only.
+                </p>
+                <Seg
+                  small
+                  ariaLabel="Sign in or create account"
+                  options={[{ v: "signin", l: "Sign in" }, { v: "create", l: "Create account" }]}
+                  value={authMode}
+                  onChange={(v) => { setAuthMode(v); setAuthErr(""); }}
+                />
+                {authMode === "create" && (
+                  <div className="warnbox" role="note">
+                    <b>No email is required, so no recovery is possible.</b> If you lose your password, this
+                    account cannot be recovered. You can link an email later to enable recovery.
+                  </div>
+                )}
+                <form className="authform" onSubmit={doAuth}>
+                  <Field id="auth-name" label={authMode === "create" ? "Choose a username" : "Username (or linked email)"}>
+                    <input
+                      id="auth-name"
+                      type="text"
+                      value={authName}
+                      autoComplete="username"
+                      maxLength={80}
+                      onChange={(e) => setAuthName(e.target.value)}
+                    />
+                  </Field>
+                  <Field id="auth-pass" label="Password">
+                    <input
+                      id="auth-pass"
+                      type="password"
+                      value={authPass}
+                      autoComplete={authMode === "create" ? "new-password" : "current-password"}
+                      maxLength={100}
+                      onChange={(e) => setAuthPass(e.target.value)}
+                    />
+                  </Field>
+                  <div className="row">
+                    <button className="btn primary" type="submit" disabled={authBusy || !authName.trim() || !authPass}>
+                      {authBusy ? "Working" : authMode === "create" ? "Create account" : "Sign in"}
+                    </button>
+                    {authMode === "signin" && (
+                      <button className="btn ghost" type="button" onClick={doForgot} disabled={authBusy}>
+                        Forgot password
+                      </button>
+                    )}
+                  </div>
+                  <p className="empty" role="status" aria-live="polite">{authErr}</p>
+                </form>
+              </section>
+            ) : (
+              <>
+                {recoveryMode && (
+                  <section className="aboutblock">
+                    <h2 className="abouthead">Set a new password</h2>
+                    <form className="authform" onSubmit={doSetNewPassword}>
+                      <Field id="new-pass" label="New password">
+                        <input
+                          id="new-pass"
+                          type="password"
+                          value={newPass}
+                          autoComplete="new-password"
+                          maxLength={100}
+                          onChange={(e) => setNewPass(e.target.value)}
+                        />
+                      </Field>
+                      <div className="row">
+                        <button className="btn primary" type="submit" disabled={authBusy || !newPass}>
+                          {authBusy ? "Working" : "Save new password"}
+                        </button>
+                        <p className="empty" role="status" aria-live="polite">{authErr}</p>
+                      </div>
+                    </form>
+                  </section>
+                )}
+                <section className="aboutblock">
+                  <h2 className="abouthead">Account</h2>
+                  <p className="note">
+                    Signed in as <b className="unamechip">{uname}</b>. Your Bank and chord-change records sync
+                    to this account automatically.
+                  </p>
+                  <div className="row">
+                    <button className="btn ghost danger" onClick={doSignOut}>Sign out</button>
+                  </div>
+                </section>
+                <section className="aboutblock">
+                  <h2 className="abouthead">Account recovery</h2>
+                  {linkedEmail ? (
+                    <p className="note">
+                      Recovery email linked: <b>{linkedEmail}</b>. Sign in with this address. If you lose your
+                      password, use Forgot password on the sign-in screen to reset it by email.
+                    </p>
+                  ) : authUser.new_email ? (
+                    <p className="note">
+                      Email change pending for <b>{authUser.new_email}</b>. Click the link in that email to
+                      complete it. Until then, keep signing in with your username.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="note">
+                        No email is linked, so this account cannot be recovered if the password is lost.
+                        Linking is optional. Once confirmed, you sign in with the address instead of your
+                        username, and password reset by email becomes available.
+                      </p>
+                      <form className="authform" onSubmit={doLinkEmail}>
+                        <Field id="link-email" label="Email address">
+                          <input
+                            id="link-email"
+                            type="email"
+                            value={linkEmail}
+                            autoComplete="email"
+                            maxLength={120}
+                            onChange={(e) => setLinkEmail(e.target.value)}
+                          />
+                        </Field>
+                        <div className="row">
+                          <button className="btn" type="submit" disabled={linkState === "busy" || !linkEmail.trim()}>
+                            {linkState === "busy" ? "Sending" : "Link email"}
+                          </button>
+                          <p className={linkState === "err" ? "empty" : "note"} role="status" aria-live="polite">
+                            {linkState === "sent"
+                              ? "Confirmation requested. If the email arrives, click its link to complete the change."
+                              : linkState === "err"
+                              ? linkErrMsg
+                              : ""}
+                          </p>
+                        </div>
+                      </form>
+                    </>
+                  )}
+                </section>
+              </>
+            )}
+          </div>
+        )}
       </main>
       </div>
 
@@ -3343,7 +3743,9 @@ const CSS = `
 .dhead{
   margin:14px 6px 6px; font-family:"Antonio",sans-serif; font-size:11px;
   letter-spacing:.17em; text-transform:uppercase; color:var(--muted);
+  display:flex; align-items:center; gap:7px;
 }
+.dicon{flex:none; opacity:.85}
 .dhead:first-child{margin-top:0}
 .dnav{
   display:flex; align-items:center; gap:8px; width:100%; text-align:left;
@@ -3408,7 +3810,7 @@ const CSS = `
 .gear:hover{background:var(--paper)}
 
 .setup{border-bottom:1px solid var(--line); background:var(--card); padding:16px 18px; display:grid; gap:18px}
-.setup .grid,.sheetbody .grid,.toggles{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px}
+.setup .grid,.pane .grid,.toggles{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px}
 .field{display:flex; flex-direction:column; gap:6px; min-width:0}
 .flabel{font-family:"Antonio",sans-serif; font-size:12px; letter-spacing:.15em; text-transform:uppercase; color:var(--muted)}
 .field output{font-family:"IBM Plex Mono",monospace; font-size:12px; color:#B07C12}
@@ -3561,12 +3963,13 @@ const CSS = `
   border-radius:4px; padding:9px 10px; font-size:14px; font-family:inherit; width:100%;
 }
 .panel{margin:12px 18px 0; background:var(--card); border:1px solid var(--line); border-radius:6px; padding:18px}
-.setup .grid,.sheetbody .grid,.toggles{max-width:1240px}
+.setup .grid,.pane .grid,.toggles{max-width:1240px}
 .pane{display:grid; gap:16px}
 .row{display:flex; gap:14px; align-items:flex-start; flex-wrap:nowrap}
 .row > .btn{align-self:flex-end}
 .row.wrap{flex-wrap:wrap}
 .row > .field{flex:1; min-width:0}
+.row > .field:has(> .picker){flex:0 0 auto}
 
 .picker{position:relative; align-self:flex-start}
 .pickbtn{
@@ -3641,33 +4044,6 @@ const CSS = `
 @keyframes fadein{from{opacity:0}to{opacity:1}}
 
 .app button:focus-visible, .app select:focus-visible, .app input:focus-visible, .app .fretboard:focus-visible{outline:2px solid var(--ink); outline-offset:2px}
-
-/* full-screen sheet (Settings) */
-.sheet{
-  position:fixed; inset:0; z-index:100; background:var(--paper);
-  display:flex; flex-direction:column;
-  opacity:0; visibility:hidden; transform:translateY(10px);
-  transition:opacity .22s ease, transform .3s cubic-bezier(.22,1,.36,1), visibility 0s linear .22s;
-}
-.sheet.open{opacity:1; visibility:visible; transform:none; transition:opacity .22s ease, transform .3s cubic-bezier(.22,1,.36,1), visibility 0s}
-.sheethead{
-  display:flex; align-items:center; justify-content:space-between; gap:12px; flex:none;
-  padding:14px 20px; border-bottom:1px solid var(--line); background:var(--card);
-}
-.sheettitle{margin:0; font-family:"Antonio",sans-serif; font-weight:600; font-size:20px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink)}
-.sheetx{
-  width:40px; height:40px; display:inline-flex; align-items:center; justify-content:center; flex:none;
-  background:var(--card); border:1px solid var(--line2); border-radius:9px; cursor:pointer; color:var(--ink);
-  font-size:15px; line-height:1; transition:background .15s ease, border-color .15s ease, transform .09s ease;
-}
-.sheetx:hover{background:var(--paper); border-color:var(--ink)}
-.sheetx:active{transform:scale(.93)}
-.sheetbody{
-  flex:1; min-height:0; min-width:0; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch;
-  width:100%; max-width:1240px; margin:0 auto;
-  padding:20px 20px 48px; display:flex; flex-direction:column; gap:20px;
-}
-.sheetbody > *{min-width:0}
 
 /* view transition on mode change */
 @keyframes viewIn{from{opacity:0; transform:translateY(7px)} to{opacity:1; transform:none}}
@@ -3776,6 +4152,19 @@ const CSS = `
 .donatelink{color:var(--ink); border-bottom:1px solid var(--gold); text-decoration:none; font-weight:600}
 .donatebox{min-height:52px}
 .srlive{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0}
+
+/* account */
+.warnbox{
+  border:1px solid var(--red); border-left-width:4px; border-radius:6px;
+  padding:12px 14px; font-size:13px; line-height:1.55; color:var(--ink); background:var(--card);
+}
+.warnbox b{color:var(--red)}
+.authform{display:grid; gap:14px; max-width:420px}
+.authform input{
+  background:var(--card); color:var(--ink); border:1px solid var(--line2); border-radius:5px;
+  padding:9px 11px; font-size:14px; font-family:inherit; width:100%;
+}
+.unamechip{font-family:"IBM Plex Mono",monospace; color:var(--goldtext)}
 
 /* button hierarchy */
 .btn.primary{background:var(--ink); color:var(--onink); border-color:var(--ink)}

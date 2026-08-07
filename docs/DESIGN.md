@@ -46,10 +46,11 @@ Subtle and premium, never showy. Standard easing is `cubic-bezier(.22,1,.36,1)` 
 
 ## Navigation and layout (app-like)
 
-- Left drawer holds the menu, grouped **Learn / Practice / Tools**. Global settings live inside Tools, Settings (a full-screen sheet), not in the nav.
+- Left drawer holds the menu, grouped **Learn / Practice / Profile / Tools**, each heading with a small icon, and About Fretwork pinned dark at the bottom. Profile holds Account, Bank and Settings; Tools holds Metronome and Tuner.
 - On phones (max-width 700px) the drawer overlays with a scrim and closes automatically when you choose anything. On desktop it is a persistent push sidebar that stays open.
-- Settings and any future full-page tools use the full-screen `.sheet` pattern (fixed overlay, `.sheethead` with title and close, scrollable `.sheetbody` that is a flex column so nested `auto-fit` grids never overflow on mobile).
+- Every destination is a plain view rendered in the content area next to the open menu. There are no full-screen sheets: Jonathan found the close button moving position disorienting, so Settings and Tuner load like any other mode.
 - The metronome remains a lightweight inline panel so it can sit above the neck while you play.
+- Compact controls share rows: a row of pickers plus their action buttons (Root, Chord, Strum, Save) rather than one control per line.
 
 ## Architecture
 
