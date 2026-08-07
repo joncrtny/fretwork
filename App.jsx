@@ -1661,6 +1661,12 @@ export default function App() {
   const [customProgs, setCustomProgs] = useState([]);
   const [builder, setBuilder] = useState({ bars: [], name: "" });
 
+  const [melSteps, setMelSteps] = useState([]); // [{s, f}]
+  const [melName, setMelName] = useState("");
+  const [melodies, setMelodies] = useState([]);
+  const [melPlayIdx, setMelPlayIdx] = useState(null);
+  const [melRate, setMelRate] = useState(2); // notes per beat
+
   const [bank, setBank] = useState([]);
   const [metroOn, setMetroOn] = useState(false);
   const [beat, setBeat] = useState(-1);
@@ -1793,7 +1799,7 @@ export default function App() {
     (async () => {
       const { data, error } = await supabase
         .from("user_data")
-        .select("bank,changes,custom_progs")
+        .select("bank,changes,custom_progs,melodies")
         .eq("user_id", authUser.id)
         .maybeSingle();
       if (cancelled) return;
@@ -1814,11 +1820,15 @@ export default function App() {
           setCustomProgs(data.custom_progs);
           store.set("fretboard:customprogs", JSON.stringify(data.custom_progs)).catch(() => {});
         }
+        if (Array.isArray(data.melodies)) {
+          setMelodies(data.melodies);
+          store.set("fretboard:melodies", JSON.stringify(data.melodies)).catch(() => {});
+        }
         setToast("Synced");
       } else {
         const { error: insErr } = await supabase
           .from("user_data")
-          .upsert({ user_id: authUser.id, bank, changes: chgRecords, custom_progs: customProgs });
+          .upsert({ user_id: authUser.id, bank, changes: chgRecords, custom_progs: customProgs, melodies });
         setToast(insErr ? "Sync failed, saved locally" : "Account ready, this device's saves are now synced");
       }
     })();
@@ -1995,6 +2005,15 @@ export default function App() {
         /* none yet */
       }
       try {
+        const r = await store.get("fretboard:melodies");
+        if (!cancelled && r && r.value) {
+          const v = JSON.parse(r.value);
+          if (Array.isArray(v)) setMelodies(v);
+        }
+      } catch (e) {
+        /* none yet */
+      }
+      try {
         const r = await store.get("fretboard:changes");
         if (!cancelled && r && r.value) {
           const v = JSON.parse(r.value);
@@ -2107,6 +2126,25 @@ export default function App() {
     syncField("custom_progs", next);
   }, [syncField]);
 
+  const saveMelodies = useCallback((next) => {
+    setMelodies(next);
+    store.set("fretboard:melodies", JSON.stringify(next)).catch(() => {});
+    syncField("melodies", next);
+  }, [syncField]);
+
+  /* shift every note by semitones on its own string; refuse if any falls off the neck */
+  const transposeMelody = useCallback(
+    (delta) => {
+      const moved = melSteps.map((st) => ({ s: st.s, f: st.f + delta }));
+      if (moved.some((st) => st.f < 0 || st.f > fretCount)) {
+        setToast("That transposition falls off the neck");
+        return;
+      }
+      setMelSteps(moved);
+    },
+    [melSteps, fretCount]
+  );
+
   const progChords = useMemo(
     () =>
       progDef.bars.map((rn) => {
@@ -2146,6 +2184,21 @@ export default function App() {
     return out;
   }, [progChords]);
 
+  /* which major key covers the melody's notes best */
+  const melKeyHint = useMemo(() => {
+    if (!melSteps.length) return null;
+    const pcs = [...new Set(melSteps.map((st) => (settings.midis[st.s] + st.f) % 12))];
+    const majorIv = [0, 2, 4, 5, 7, 9, 11];
+    let best = null;
+    for (let root = 0; root < 12; root++) {
+      const set = new Set(majorIv.map((i) => (root + i) % 12));
+      const hits = pcs.filter((pc) => set.has(pc)).length;
+      if (!best || hits > best.hits) best = { root, hits };
+    }
+    if (!best || best.hits < pcs.length) return best && best.hits >= pcs.length - 1 ? { ...best, loose: true } : null;
+    return best;
+  }, [melSteps, settings.midis]);
+
   /* effective accidental spelling: Auto follows the key of whatever is on screen */
   const effFlats = useMemo(() => {
     if (settings.noteNames === "sharps") return false;
@@ -2154,6 +2207,8 @@ export default function App() {
     if (mode === "chord" || mode === "bank") return keyPrefersFlats(chordRoot, chordDef.iv);
     if (mode === "prog") return keyPrefersFlats(progRoot, progDef.tonality === "minor" ? [3] : [4]);
     if (mode === "interval") return keyPrefersFlats(ivRoot, ivOn);
+    if (mode === "melody")
+      return melKeyHint ? keyPrefersFlats(melKeyHint.root, [0, 2, 4, 5, 7, 9, 11]) : false;
     if (mode === "changes") {
       const c0 = chg.chords[0];
       const d0 = c0 ? CHORDS.find((x) => x.id === c0.id) : null;
@@ -2166,7 +2221,7 @@ export default function App() {
         ? keyPrefersFlats(chordRoot, chordDef.iv)
         : keyPrefersFlats(ivRoot, ivOn);
     return false;
-  }, [settings.noteNames, mode, scaleRoot, scaleDef, chordRoot, chordDef, progRoot, progDef, ivRoot, ivOn, chg.chords, quiz.source]);
+  }, [settings.noteNames, mode, scaleRoot, scaleDef, chordRoot, chordDef, progRoot, progDef, ivRoot, ivOn, chg.chords, quiz.source, melKeyHint]);
 
   /* per-item spelling for saved things rendered outside their own key context */
   const flatsFor = useCallback(
@@ -2299,6 +2354,11 @@ export default function App() {
   const onCell = useCallback(
     (s, f, midi) => {
       if (capo > 0 && f > 0 && f < capo) return;
+      if (mode === "melody") {
+        playNote(midi);
+        setMelSteps((st) => (st.length >= 128 ? st : [...st, { s, f }]));
+        return;
+      }
       if (mode !== "quiz" || !quiz.hidden) {
         playNote(midi);
         return;
@@ -2367,6 +2427,7 @@ export default function App() {
     playTimers.current = [];
     setPlaying(null);
     setProgPlaying(false);
+    setMelPlayIdx(null);
   }, []);
 
   const playScale = useCallback(() => {
@@ -2402,6 +2463,23 @@ export default function App() {
       playTimers.current.push(setTimeout(() => setProgIdx(i), i * barSec * 1000));
     });
   }, [stopPlayback, settings.bpm, settings.beats, progChords, progVoicings, midis, n, playNote]);
+
+  const playMelody = useCallback(() => {
+    stopPlayback();
+    if (!melSteps.length) return;
+    const stepSec = 60 / settings.bpm / melRate;
+    melSteps.forEach((st, i) => {
+      playTimers.current.push(
+        setTimeout(() => {
+          playNote(settings.midis[st.s] + st.f);
+          setMelPlayIdx(i);
+          setFlash({ key: `${st.s}:${st.f}`, ok: true, t: i });
+        }, i * stepSec * 1000)
+      );
+    });
+    playTimers.current.push(setTimeout(() => { setMelPlayIdx(null); setFlash(null); }, melSteps.length * stepSec * 1000));
+  }, [stopPlayback, melSteps, settings.bpm, settings.midis, melRate, playNote]);
+
 
   /* metronome: schedule ahead of the audio clock rather than trusting setInterval */
   const nextClick = useRef(0);
@@ -2548,6 +2626,7 @@ export default function App() {
     if (mode === "changes")
       return `Chord changes · ${chgLabel}`;
     if (mode === "about") return "About Fretwork";
+    if (mode === "melody") return `Melody \u00b7 ${melSteps.length} ${melSteps.length === 1 ? "note" : "notes"}`;
     if (mode === "settings") return "Settings";
     if (mode === "tuner") {
       const t = TUNINGS.find((x) => x.id === settings.tuningId);
@@ -2561,7 +2640,7 @@ export default function App() {
         ? `${nameOf(ivRoot, effFlats)} · ${[...ivOn].sort((a, b) => a - b).map((i) => DEG[i]).join(" ")}`
         : `${nameOf(chordRoot, effFlats)}${chordDef.suffix || ""}`;
     return `Quiz · ${src} · ${quiz.hidden ? quiz.hidden.size - quiz.found.size : 0} to find`;
-  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, effFlats, quiz, progRoot, progDef, bank.length, chgLabel, authUser, uname, settings.tuningId]);
+  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, effFlats, quiz, progRoot, progDef, bank.length, chgLabel, authUser, uname, settings.tuningId, melSteps.length]);
 
   const total = quiz.correct + quiz.wrong;
   const accuracy = total ? Math.round((quiz.correct / total) * 100) : 0;
@@ -2629,6 +2708,7 @@ export default function App() {
           <p className="dhead"><HeadIcon kind="practice" />Practice</p>
           {navItem("quiz", "Quiz")}
           {navItem("changes", "Chord changes")}
+          {navItem("melody", "Melodies", melodies.length > 0 ? <span className="badge">{melodies.length}</span> : null)}
 
           <p className="dhead"><HeadIcon kind="profile" />Profile</p>
           {navItem("account", authUser ? "Account" : "Create account", authUser ? <span className="badge">{uname}</span> : null)}
@@ -3548,6 +3628,110 @@ export default function App() {
           </div>
         )}
 
+        {mode === "melody" && (
+          <div className="pane">
+            <p className="note">
+              Tap notes on the neck (or focus it and use the arrow keys and Enter) to write a melody from any
+              tab you are learning. Play it back, speed it up, transpose it, and save it for practice.
+            </p>
+
+            <Field label={`Melody \u00b7 ${melSteps.length} ${melSteps.length === 1 ? "note" : "notes"}`}>
+              <div className="barstrip">
+                {melSteps.length === 0 && <span className="note">Nothing yet. Tap the fretboard to add notes.</span>}
+                {melSteps.map((st, i) => (
+                  <button
+                    key={i}
+                    className={`barchip ${melPlayIdx === i ? "hot" : ""}`}
+                    onClick={() => setMelSteps((arr) => arr.filter((_, j) => j !== i))}
+                    aria-label={`Remove note ${i + 1}, ${nameOf((settings.midis[st.s] + st.f) % 12, effFlats)}`}
+                  >
+                    {nameOf((settings.midis[st.s] + st.f) % 12, effFlats)}
+                    <em>{st.f}</em>
+                  </button>
+                ))}
+              </div>
+            </Field>
+
+            {melKeyHint && (
+              <p className="note" role="status">
+                {melKeyHint.loose ? "Mostly fits" : "Fits"} {nameOf(melKeyHint.root, keyPrefersFlats(melKeyHint.root, [0, 2, 4, 5, 7, 9, 11]))} major
+                {" / "}{nameOf((melKeyHint.root + 9) % 12, keyPrefersFlats(melKeyHint.root, [0, 2, 4, 5, 7, 9, 11]))} minor.
+              </p>
+            )}
+
+            <div className="row wrap actions">
+              <button
+                className={`btn primary ${melPlayIdx != null ? "live" : ""}`}
+                onClick={melPlayIdx != null ? stopPlayback : playMelody}
+                disabled={!melSteps.length}
+              >
+                {melPlayIdx != null ? "Stop" : "Play"}
+              </button>
+              <Field label="Speed">
+                <Seg small ariaLabel="Notes per beat"
+                  options={[{ v: 1, l: "1 per beat" }, { v: 2, l: "2" }, { v: 4, l: "4" }]}
+                  value={melRate} onChange={setMelRate} />
+              </Field>
+              <Field label="Transpose">
+                <div className="row">
+                  <button className="mini" aria-label="Down one semitone" onClick={() => transposeMelody(-1)} disabled={!melSteps.length}>{"\u2212"}1</button>
+                  <button className="mini" aria-label="Up one semitone" onClick={() => transposeMelody(1)} disabled={!melSteps.length}>+1</button>
+                </div>
+              </Field>
+              <span className="actspacer" aria-hidden="true" />
+              <button className="btn ghost" onClick={() => setMelSteps((arr) => arr.slice(0, -1))} disabled={!melSteps.length}>Undo note</button>
+              <button className="btn ghost danger" onClick={() => setMelSteps([])} disabled={!melSteps.length}>Clear</button>
+            </div>
+
+            <div className="row wrap">
+              <Field id="melname" label="Name">
+                <input
+                  id="melname" type="text" value={melName} maxLength={60} placeholder="Riff I am learning"
+                  onChange={(e) => setMelName(e.target.value)}
+                  className="melinput"
+                />
+              </Field>
+              <button
+                className="btn"
+                disabled={!melSteps.length || !melName.trim()}
+                onClick={() => {
+                  saveMelodies([{ id: `m${Date.now()}`, name: melName.trim(), steps: melSteps }, ...melodies]);
+                  track("melody_save", { notes: melSteps.length });
+                  setToast("Melody saved");
+                  setMelName("");
+                }}
+              >
+                Save melody
+              </button>
+            </div>
+
+            {melodies.length > 0 && (
+              <Field label="Saved melodies">
+                <div className="mellist">
+                  {melodies.map((m) => (
+                    <div className="melitem" key={m.id}>
+                      <button
+                        className="melload"
+                        onClick={() => { setMelSteps(m.steps); setMelName(m.name); setToast(`Loaded ${m.name}`); }}
+                      >
+                        <b>{m.name}</b>
+                        <em>{m.steps.length} notes</em>
+                      </button>
+                      <button
+                        className="mini"
+                        aria-label={`Delete ${m.name}`}
+                        onClick={() => saveMelodies(melodies.filter((x) => x.id !== m.id))}
+                      >
+                        {"\u2715"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </Field>
+            )}
+          </div>
+        )}
+
         {mode === "tuner" && (
           <div className="pane">
           <p className="note">
@@ -4303,6 +4487,21 @@ const CSS = `
   background:var(--paper); color:var(--ink); border:1px solid var(--line2); border-radius:5px;
   padding:9px 11px; font-size:14px; font-family:inherit; width:100%; max-width:260px;
 }
+
+/* melodies */
+.barchip.hot{background:var(--gold); border-color:var(--gold); color:#1A2429}
+.barchip em{font-style:normal; font-size:10px; color:var(--muted)}
+.barchip.hot em{color:#1A2429; opacity:.75}
+.melinput{
+  background:var(--card); color:var(--ink); border:1px solid var(--line2); border-radius:5px;
+  padding:9px 11px; font-size:14px; font-family:inherit; width:100%; max-width:280px;
+}
+.mellist{display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:8px}
+.melitem{display:flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:6px; padding:6px 8px; background:var(--card)}
+.melload{flex:1; display:grid; gap:1px; text-align:left; background:transparent; border:0; cursor:pointer; color:var(--ink); font-family:inherit; padding:2px 4px}
+.melload b{font-size:13px}
+.melload em{font-style:normal; font-size:11px; color:var(--muted)}
+.melload:hover b{color:var(--goldtext)}
 
 /* account */
 .warnbox{
