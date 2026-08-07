@@ -1125,6 +1125,16 @@ export default function App() {
   });
   const [flash, setFlash] = useState(null);
 
+  /* one-minute chord change trainer */
+  const [chg, setChg] = useState({
+    chords: [{ root: 9, id: "maj" }, { root: 2, id: "maj" }], // A, D — the classic first pair
+    duration: 60,
+    phase: "idle", // idle | running | done
+    remaining: 60,
+  });
+  const [chgRecords, setChgRecords] = useState({}); // key -> { best, last, tries }
+  const [chgEntry, setChgEntry] = useState("");
+
   /* fonts */
   useEffect(() => {
     const l = document.createElement("link");
@@ -1167,6 +1177,15 @@ export default function App() {
         }
       } catch (e) {
         /* no stats yet */
+      }
+      try {
+        const r = await store.get("fretboard:changes");
+        if (!cancelled && r && r.value) {
+          const v = JSON.parse(r.value);
+          if (v && typeof v === "object") setChgRecords(v);
+        }
+      } catch (e) {
+        /* no change-trainer scores yet */
       }
       if (!cancelled) setLoaded(true);
     })();
@@ -1536,6 +1555,82 @@ export default function App() {
     return () => clearInterval(id);
   }, [metroOn, settings.bpm, settings.beats, settings.clickSound, settings.accent]);
 
+  /* ---- one-minute chord change trainer ---- */
+  const chgKey = (chords) => chords.map((c) => `${c.root}:${c.id}`).sort().join(">");
+  const chordName = (c) => `${nameOf(c.root, settings.flats)}${(CHORDS.find((x) => x.id === c.id) || {}).suffix || ""}`;
+  const chgLabel = chg.chords.map(chordName).join("  ·  ");
+  const chgRecord = chgRecords[chgKey(chg.chords)] || { best: 0, last: 0, tries: 0 };
+
+  const chgVoicings = useMemo(() => {
+    if (mode !== "changes") return [];
+    return chg.chords.map((c) => {
+      const def = CHORDS.find((x) => x.id === c.id) || CHORDS[0];
+      const vs = findVoicings(c.root, def.iv, midis, fretCount, 0, vopt); // trainer ignores the capo — no neck/capo control in this mode
+      return vs[0] || null;
+    });
+  }, [mode, chg.chords, midis, fretCount, vopt]);
+
+  const startRun = useCallback(() => {
+    setChgEntry("");
+    setChg((c) => ({ ...c, phase: "running", remaining: c.duration }));
+    const ac = ctx();
+    if (ac && settings.sound) playClick(settings.clickSound, ac.currentTime, true);
+  }, [settings.sound, settings.clickSound]);
+
+  const stopRun = useCallback(() => {
+    setChg((c) => ({ ...c, phase: "idle", remaining: c.duration }));
+  }, []);
+
+  /* Countdown: fix the end time when the run starts, then tick against the audio-free
+     wall clock. Gated on mode so leaving the drill tears the interval down — no beeps
+     or state changes fire off-screen. */
+  useEffect(() => {
+    if (mode !== "changes" || chg.phase !== "running") return;
+    const end = performance.now() + chg.remaining * 1000;
+    const id = setInterval(() => {
+      const rem = Math.max(0, Math.ceil((end - performance.now()) / 1000));
+      if (rem <= 0) {
+        clearInterval(id);
+        const ac = ctx();
+        if (ac && settings.sound) {
+          playClick("beep", ac.currentTime, true);
+          playClick("beep", ac.currentTime + 0.22, true);
+          playClick("beep", ac.currentTime + 0.44, true);
+        }
+        setChg((c) => ({ ...c, phase: "done", remaining: 0 }));
+      } else {
+        setChg((c) => (c.phase === "running" ? { ...c, remaining: rem } : c));
+      }
+    }, 250);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, chg.phase, settings.sound]);
+
+  /* leaving the drill mid-run abandons it cleanly back to idle */
+  useEffect(() => {
+    if (mode !== "changes") setChg((c) => (c.phase === "idle" ? c : { ...c, phase: "idle", remaining: c.duration }));
+  }, [mode]);
+
+  const saveChangeScore = useCallback(() => {
+    const count = Math.max(0, Math.min(9999, parseInt(chgEntry, 10) || 0));
+    const key = chgKey(chg.chords);
+    const cur = chgRecords[key] || { best: 0, last: 0, tries: 0 };
+    const beat = count > cur.best;
+    const next = { ...chgRecords, [key]: { best: Math.max(cur.best, count), last: count, tries: cur.tries + 1 } };
+    setChgRecords(next);
+    store.set("fretboard:changes", JSON.stringify(next)).catch(() => {});
+    setToast(beat && count > 0 ? `New best · ${count} changes` : `Saved · ${count} changes`);
+    setChg((c) => ({ ...c, phase: "idle", remaining: c.duration }));
+    setChgEntry("");
+  }, [chgEntry, chg.chords, chgRecords]);
+
+  const setChgChord = (i, patch) =>
+    setChg((c) => ({ ...c, chords: c.chords.map((x, j) => (j === i ? { ...x, ...patch } : x)) }));
+  const addChgChord = () =>
+    setChg((c) => (c.chords.length >= 4 ? c : { ...c, chords: [...c.chords, { root: 7, id: "maj" }] }));
+  const removeChgChord = (i) =>
+    setChg((c) => (c.chords.length <= 2 ? c : { ...c, chords: c.chords.filter((_, j) => j !== i) }));
+
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(""), 1800);
@@ -1556,6 +1651,8 @@ export default function App() {
     if (mode === "bank") return `Bank \u00b7 ${bank.length} saved`;
     if (mode === "interval")
       return `${nameOf(ivRoot, settings.flats)} root · ${[...ivOn].sort((a, b) => a - b).map((i) => DEG[i]).join(" ")}`;
+    if (mode === "changes")
+      return `Chord changes · ${chgLabel}`;
     const src =
       quiz.source === "scale"
         ? `${nameOf(scaleRoot, settings.flats)} ${scaleDef.name}`
@@ -1563,7 +1660,7 @@ export default function App() {
         ? `${nameOf(ivRoot, settings.flats)} · ${[...ivOn].sort((a, b) => a - b).map((i) => DEG[i]).join(" ")}`
         : `${nameOf(chordRoot, settings.flats)}${chordDef.suffix || ""}`;
     return `Quiz · ${src} · ${quiz.hidden ? quiz.hidden.size - quiz.found.size : 0} to find`;
-  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, settings.flats, quiz, progRoot, progDef, bank.length]);
+  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, settings.flats, quiz, progRoot, progDef, bank.length, chgLabel]);
 
   const total = quiz.correct + quiz.wrong;
   const accuracy = total ? Math.round((quiz.correct / total) * 100) : 0;
@@ -1599,12 +1696,15 @@ export default function App() {
 
       <aside className={`drawer ${drawer ? "open" : ""}`} aria-label="Main menu">
         <div className="dinner">
-          <p className="dhead">Practise</p>
+          <p className="dhead">Learn</p>
           {navItem("scale", "Scales")}
           {navItem("chord", "Chords")}
           {navItem("prog", "Progressions")}
           {navItem("interval", "Intervals")}
+
+          <p className="dhead">Practice</p>
           {navItem("quiz", "Quiz")}
+          {navItem("changes", "Chord changes")}
           {navItem("bank", "Bank", bank.length > 0 ? <span className="badge">{bank.length}</span> : null)}
 
           <p className="dhead">Tools</p>
@@ -1619,24 +1719,7 @@ export default function App() {
             className={`dnav ${openPanel === "setup" ? "on" : ""}`}
             onClick={() => setOpenPanel((v) => (v === "setup" ? null : "setup"))}
           >
-            Setup
-          </button>
-
-          <p className="dhead">View</p>
-          <button
-            className={`dnav ${settings.simple ? "on" : ""}`}
-            onClick={() => setSettings((s2) => ({ ...s2, simple: !s2.simple }))}
-            data-tip="Fewer options, and only the scales and chords a beginner needs"
-          >
-            Simple view
-            <span className="dstate">{settings.simple ? "On" : "Off"}</span>
-          </button>
-          <button
-            className="dnav"
-            onClick={() => setSettings((s2) => ({ ...s2, dark: !s2.dark }))}
-          >
-            Dark mode
-            <span className="dstate">{settings.dark ? "On" : "Off"}</span>
+            Settings
           </button>
         </div>
       </aside>
@@ -1836,6 +1919,7 @@ export default function App() {
         </section>
       )}
 
+      {mode !== "changes" && (
       <section className="neckwrap">
         <div className="neckscroll">
           <Fretboard
@@ -1869,6 +1953,7 @@ export default function App() {
           )}
         </div>
       </section>
+      )}
 
       <main className="panel">
         {mode === "scale" && (
@@ -2333,6 +2418,142 @@ export default function App() {
             </button>
           </div>
         )}
+
+        {mode === "changes" && (
+          <div className="pane">
+            <div className="chgstage">
+              <div
+                role="timer"
+                aria-label="Time remaining"
+                className={`chgclock ${
+                  chg.phase === "running" ? (chg.remaining <= 10 ? "low" : "run") : chg.phase === "done" ? "low" : ""
+                }`}
+              >
+                {chg.phase === "done"
+                  ? "Time!"
+                  : `${Math.floor(chg.remaining / 60)}:${String(chg.remaining % 60).padStart(2, "0")}`}
+              </div>
+              <div className="chgnames">{chgLabel}</div>
+              <div className="chgstatus" role="status" aria-live="assertive">
+                {chg.phase === "done" ? "Time — enter how many changes you got." : ""}
+              </div>
+              {(chgRecord.best > 0 || chgRecord.tries > 0) && (
+                <div className="chgbest">
+                  <span>best <b>{chgRecord.best}</b></span>
+                  <span>last <b>{chgRecord.last}</b></span>
+                  <span>tries <b>{chgRecord.tries}</b></span>
+                </div>
+              )}
+            </div>
+
+            {chgVoicings.some(Boolean) ? (
+              <div className="voicings">
+                {chg.chords.map((c, i) =>
+                  chgVoicings[i] ? (
+                    <ChordDiagram
+                      key={i}
+                      voicing={chgVoicings[i]}
+                      midis={midis}
+                      rootPc={c.root}
+                      capo={0}
+                      flats={settings.flats}
+                      showDegrees={false}
+                      title={chordName(c)}
+                      onSelect={() => {
+                        if (!settings.sound) return;
+                        let j = 0;
+                        for (let st = 0; st < n; st++) {
+                          const f = chgVoicings[i].frets[st];
+                          if (f === null) continue;
+                          pluck(midis[st] + f, j * 0.035);
+                          j++;
+                        }
+                      }}
+                    />
+                  ) : (
+                    <p className="empty" key={i}>No easy shape for {chordName(c)} in this tuning.</p>
+                  )
+                )}
+              </div>
+            ) : (
+              <p className="empty">No playable shapes for these chords in this tuning.</p>
+            )}
+
+            {chg.phase === "idle" && (
+              <>
+                <Field label="Chords to switch between">
+                  <div className="chgslots">
+                    {chg.chords.map((c, i) => (
+                      <div className="chgslot" key={i}>
+                        <KeyPicker value={c.root} onChange={(v) => setChgChord(i, { root: v })} flats={settings.flats} />
+                        <div className="chgslotbtm">
+                          <select value={c.id} onChange={(e) => setChgChord(i, { id: e.target.value })}>
+                            {simpleList(CHORDS, SIMPLE_CHORDS, settings.simple, c.id).map((x) => (
+                              <option key={x.id} value={x.id}>{x.name}</option>
+                            ))}
+                          </select>
+                          <button
+                            className="mini"
+                            onClick={() => removeChgChord(i)}
+                            disabled={chg.chords.length <= 2}
+                            data-tip="Remove this chord"
+                            aria-label={`Remove ${chordName(c)}`}
+                          >
+                            {"✕"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {chg.chords.length < 4 && (
+                      <button className="btn ghost wide" onClick={addChgChord}>+ Add a chord</button>
+                    )}
+                  </div>
+                </Field>
+
+                <div className="row">
+                  <Field label="Length">
+                    <Seg
+                      small
+                      options={[{ v: 30, l: "0:30" }, { v: 60, l: "1:00" }, { v: 120, l: "2:00" }]}
+                      value={chg.duration}
+                      onChange={(v) => setChg((c) => ({ ...c, duration: v, remaining: v }))}
+                    />
+                  </Field>
+                  <button className="transport" onClick={startRun} disabled={!chgVoicings.some(Boolean)}>Start</button>
+                </div>
+                <p className="note">
+                  Change between the chords as many times as you can before the clock runs out. Count each clean
+                  change, then enter your total when time is up — beat your best.
+                </p>
+              </>
+            )}
+
+            {chg.phase === "running" && (
+              <div className="row">
+                <button className="transport on" onClick={stopRun}>Stop</button>
+                <p className="note">Switch between {chgLabel} — count each clean change.</p>
+              </div>
+            )}
+
+            {chg.phase === "done" && (
+              <div className="chgentry">
+                <Field label="How many changes did you get?">
+                  <input
+                    type="number"
+                    min="0"
+                    inputMode="numeric"
+                    value={chgEntry}
+                    autoFocus
+                    onChange={(e) => setChgEntry(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") saveChangeScore(); }}
+                  />
+                </Field>
+                <button className="btn" onClick={saveChangeScore}>Save</button>
+                <button className="btn ghost" onClick={stopRun}>Discard</button>
+              </div>
+            )}
+          </div>
+        )}
       </main>
       </div>
 
@@ -2654,7 +2875,7 @@ const CSS = `
 .note,.empty,.done{font-size:13px; color:var(--muted); line-height:1.5; margin:0}
 .app [hidden]{display:none !important}
 .done{color:#0E8A84}
-.empty{color:#A8433F}
+.empty{color:var(--red)}
 
 @keyframes ping{0%{r:7;opacity:1}100%{r:20;opacity:0}}
 .ping{animation:ping .48s ease-out forwards}
@@ -2691,6 +2912,37 @@ const CSS = `
   .keys{grid-template-columns:repeat(6,minmax(0,1fr))}
   .ivgrid{grid-template-columns:repeat(4,minmax(0,1fr))}
   .row{flex-wrap:wrap}
+  .chgclock{font-size:56px}
+  .chgslot{flex-basis:100%}
 }
 @media (prefers-reduced-motion:reduce){.ping,.pop,.dot,.toast{animation:none}}
+
+/* one-minute chord change trainer */
+.chgstage{display:flex; flex-direction:column; align-items:center; gap:8px; padding:10px 0 2px; text-align:center}
+.chgclock{
+  font-family:"Antonio",sans-serif; font-weight:600; font-size:72px; line-height:.95;
+  letter-spacing:.01em; font-variant-numeric:tabular-nums; color:var(--ink);
+}
+.chgclock.run{color:var(--teal)}
+.chgclock.low{color:var(--red)}
+.chgnames{font-family:"Antonio",sans-serif; font-size:20px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted)}
+.chgbest{display:flex; gap:16px; font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.04em; text-transform:uppercase; color:var(--muted)}
+.chgbest b{color:var(--ink); font-weight:600; margin-left:5px}
+.chgslots{display:flex; flex-wrap:wrap; gap:10px}
+.chgslot{
+  display:flex; flex-direction:column; gap:8px; flex:1 1 160px; min-width:150px;
+  padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--card);
+}
+.chgslotbtm{display:flex; align-items:center; gap:8px}
+.chgslotbtm select{flex:1 1 auto; min-width:0}
+.chgslots > .btn.wide{flex:1 1 160px; align-self:stretch}
+.row > .transport{align-self:flex-end}
+.chgstatus{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0}
+.chgentry{display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap}
+.chgentry input{
+  width:110px; font-size:22px; text-align:center; padding:8px 10px;
+  border:1px solid var(--line2); border-radius:6px; background:var(--card); color:var(--ink);
+  font-family:"IBM Plex Mono",monospace;
+}
+.transport:disabled{opacity:.4; cursor:not-allowed}
 `;
