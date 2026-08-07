@@ -3,14 +3,81 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#FFFFFF" />
-    <meta name="description" content="Interactive guitar neck reference: scales, chords with fingerings, intervals, a draggable capo and a fretboard quiz." />
-    <title>Fretwork — guitar neck reference</title>
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#F2F5F6" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0E1418" media="(prefers-color-scheme: dark)" />
+
+    <title>Fretwork: Guitar Fretboard Trainer for Scales and Chords</title>
+    <meta
+      name="description"
+      content="A free, interactive guitar fretboard. Learn scales and chords with fingerings, explore intervals and progressions, and practise with drills."
+    />
+    <meta name="keywords" content="guitar, fretboard, guitar scales, guitar chords, chord fingerings, intervals, chord progressions, metronome, learn guitar, guitar practice" />
+    <meta name="author" content="Jonathan Courtney" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://fretwork-practice.app/" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Fretwork" />
+    <meta property="og:title" content="Fretwork: Guitar Fretboard Trainer for Scales and Chords" />
+    <meta
+      property="og:description"
+      content="A free, interactive guitar fretboard. Learn scales and chords with fingerings, explore intervals and progressions, and drill with a metronome, quiz and timed practice tools."
+    />
+    <meta property="og:url" content="https://fretwork-practice.app/" />
+    <meta property="og:image" content="https://fretwork-practice.app/og.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Fretwork, an interactive guitar fretboard for scales, chords and practice" />
+    <meta property="og:locale" content="en_GB" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Fretwork: Guitar Fretboard Trainer for Scales and Chords" />
+    <meta
+      name="twitter:description"
+      content="A free, interactive guitar fretboard. Learn scales and chords with fingerings, intervals, progressions, a metronome and timed practice drills."
+    />
+    <meta name="twitter:image" content="https://fretwork-practice.app/og.png" />
+    <meta name="twitter:image:alt" content="Fretwork, an interactive guitar fretboard for scales, chords and practice" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-VMNC1CJ595"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-VMNC1CJ595');
+    </script>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Fretwork",
+        "url": "https://fretwork-practice.app/",
+        "applicationCategory": "EducationalApplication",
+        "operatingSystem": "Any (web browser)",
+        "description": "A free, interactive guitar fretboard for learning scales and chords with fingerings, intervals and progressions, plus a metronome, quiz and timed practice tools.",
+        "author": { "@type": "Person", "name": "Jonathan Courtney" },
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "GBP" }
+      }
+    </script>
+
     <style>
       html, body, #root { margin: 0; padding: 0; }
       body { background: #F2F5F6; -webkit-text-size-adjust: 100%; }
+      @media (prefers-color-scheme: dark) { body { background: #0E1418; } }
     </style>
   </head>
   <body>

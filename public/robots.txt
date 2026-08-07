@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://fretwork-practice.app/sitemap.xml

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="Fretwork: interactive guitar fretboard">
+  <rect width="1200" height="630" fill="#0E1418"/>
+  <!-- subtle fret lines across the backdrop -->
+  <g stroke="#1C272E" stroke-width="2">
+    <line x1="0" y1="150" x2="1200" y2="150"/>
+    <line x1="0" y1="300" x2="1200" y2="300"/>
+    <line x1="0" y1="450" x2="1200" y2="450"/>
+  </g>
+  <!-- brand mark -->
+  <rect x="100" y="238" width="26" height="150" rx="13" fill="#E9A824"/>
+  <g fill="#243139">
+    <rect x="150" y="250" width="120" height="16" rx="8"/>
+    <rect x="150" y="307" width="120" height="16" rx="8"/>
+    <rect x="150" y="364" width="120" height="16" rx="8"/>
+  </g>
+  <!-- wordmark and tagline -->
+  <text x="100" y="470" font-family="Arial, Helvetica, sans-serif" font-size="112" font-weight="700" letter-spacing="10" fill="#E7EEF0">FRETWORK</text>
+  <text x="104" y="530" font-family="Arial, Helvetica, sans-serif" font-size="34" fill="#8FA0A8">Interactive guitar fretboard for scales, chords and practice</text>
+</svg>

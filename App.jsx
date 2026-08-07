@@ -150,7 +150,7 @@ const SINGLE_DOTS = [3, 5, 7, 9, 15, 17, 19, 21];
 const DOUBLE_DOTS = [12, 24];
 
 /* ============================================================
-   AUDIO — Karplus-Strong plucked string
+   AUDIO: Karplus-Strong plucked string
    ============================================================ */
 
 let audioCtx = null;
@@ -280,6 +280,15 @@ const store = {
     window.localStorage.setItem(key, value);
   },
 };
+
+/* Google Analytics event helper; no-op when gtag is blocked or absent */
+function track(name, params) {
+  try {
+    if (typeof window !== "undefined" && typeof window.gtag === "function") window.gtag("event", name, params || {});
+  } catch (e) {
+    /* analytics must never break the app */
+  }
+}
 
 /* ============================================================
    VOICING ENGINE
@@ -1075,6 +1084,10 @@ export default function App() {
   const [capo, setCapo] = useState(0);
   const [openPanel, setOpenPanel] = useState(null);
   const [drawer, setDrawer] = useState(false);
+  const burgerRef = useRef(null);
+  const sheetRef = useRef(null);
+  const sheetCloseRef = useRef(null);
+  const sheetReturnRef = useRef(null);
   const [scalePos, setScalePos] = useState(null);
   const [chordArea, setChordArea] = useState(null);
   const [toast, setToast] = useState("");
@@ -1127,7 +1140,7 @@ export default function App() {
 
   /* one-minute chord change trainer */
   const [chg, setChg] = useState({
-    chords: [{ root: 9, id: "maj" }, { root: 2, id: "maj" }], // A, D — the classic first pair
+    chords: [{ root: 9, id: "maj" }, { root: 2, id: "maj" }], // A, D, the classic first pair
     duration: 60,
     phase: "idle", // idle | running | done
     remaining: 60,
@@ -1565,24 +1578,25 @@ export default function App() {
     if (mode !== "changes") return [];
     return chg.chords.map((c) => {
       const def = CHORDS.find((x) => x.id === c.id) || CHORDS[0];
-      const vs = findVoicings(c.root, def.iv, midis, fretCount, 0, vopt); // trainer ignores the capo — no neck/capo control in this mode
+      const vs = findVoicings(c.root, def.iv, midis, fretCount, 0, vopt); // trainer ignores the capo; no neck/capo control in this mode
       return vs[0] || null;
     });
   }, [mode, chg.chords, midis, fretCount, vopt]);
 
   const startRun = useCallback(() => {
     setChgEntry("");
+    track("changes_start", { chords: chgLabel, duration: chg.duration });
     setChg((c) => ({ ...c, phase: "running", remaining: c.duration }));
     const ac = ctx();
     if (ac && settings.sound) playClick(settings.clickSound, ac.currentTime, true);
-  }, [settings.sound, settings.clickSound]);
+  }, [settings.sound, settings.clickSound, chgLabel, chg.duration]);
 
   const stopRun = useCallback(() => {
     setChg((c) => ({ ...c, phase: "idle", remaining: c.duration }));
   }, []);
 
   /* Countdown: fix the end time when the run starts, then tick against the audio-free
-     wall clock. Gated on mode so leaving the drill tears the interval down — no beeps
+     wall clock. Gated on mode so leaving the drill tears the interval down, no beeps
      or state changes fire off-screen. */
   useEffect(() => {
     if (mode !== "changes" || chg.phase !== "running") return;
@@ -1619,6 +1633,7 @@ export default function App() {
     const next = { ...chgRecords, [key]: { best: Math.max(cur.best, count), last: count, tries: cur.tries + 1 } };
     setChgRecords(next);
     store.set("fretboard:changes", JSON.stringify(next)).catch(() => {});
+    track("changes_save", { count, new_best: beat });
     setToast(beat && count > 0 ? `New best · ${count} changes` : `Saved · ${count} changes`);
     setChg((c) => ({ ...c, phase: "idle", remaining: c.duration }));
     setChgEntry("");
@@ -1683,19 +1698,77 @@ export default function App() {
     <button
       className={`dnav ${mode === id ? "on" : ""}`}
       aria-current={mode === id ? "page" : undefined}
-      onClick={() => { setMode(id); setOpenPanel(null); }}
+      onClick={() => { setMode(id); setOpenPanel(null); track("view_mode", { mode: id }); closeNav(); }}
     >
       {label}
       {extra}
     </button>
   );
 
+  /* app-like nav: on a phone, choosing anything closes the drawer. On desktop the
+     drawer is a persistent sidebar, so it stays put. Focus moves to the burger
+     before the drawer goes inert, so it is never stranded on a hidden control. */
+  const closeNav = () => {
+    if (typeof window === "undefined" || !window.matchMedia("(max-width: 700px)").matches) return;
+    if (burgerRef.current) burgerRef.current.focus();
+    setDrawer(false);
+  };
+
+  /* Settings sheet is a real modal: focus moves in on open and back out on close,
+     Escape dismisses, and Tab stays inside while it is up. */
+  const sheetOpen = openPanel === "setup";
+  useEffect(() => {
+    if (!sheetOpen) return;
+    track("settings_open");
+    sheetReturnRef.current = document.activeElement;
+    /* deferred: the sheet must have finished flipping to visibility:visible before it can take focus */
+    const focusTimer = setTimeout(() => {
+      if (sheetCloseRef.current) sheetCloseRef.current.focus();
+    }, 40);
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        setOpenPanel(null);
+        return;
+      }
+      if (e.key !== "Tab" || !sheetRef.current) return;
+      const focusables = sheetRef.current.querySelectorAll(
+        "button, select, input, [tabindex]:not([tabindex='-1'])"
+      );
+      if (!focusables.length) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      } else if (!sheetRef.current.contains(document.activeElement)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      clearTimeout(focusTimer);
+      window.removeEventListener("keydown", onKey);
+      const back = sheetReturnRef.current;
+      if (back && back.isConnected && typeof back.focus === "function") back.focus();
+      if (document.activeElement === document.body && burgerRef.current) burgerRef.current.focus();
+    };
+  }, [sheetOpen]);
+
   return (
     <div className={`app ${settings.dark ? "dark" : ""}`}>
       <style>{CSS}</style>
 
-      <aside className={`drawer ${drawer ? "open" : ""}`} aria-label="Main menu">
+      <aside className={`drawer ${drawer ? "open" : ""}`} aria-label="Main menu" inert={drawer ? undefined : ""}>
         <div className="dinner">
+          <div className="dtop">
+            <span className="dtoplabel">Menu</span>
+            <button className="dclose" onClick={() => setDrawer(false)} aria-label="Close menu">{"✕"}</button>
+          </div>
+
           <p className="dhead">Learn</p>
           {navItem("scale", "Scales")}
           {navItem("chord", "Chords")}
@@ -1710,24 +1783,25 @@ export default function App() {
           <p className="dhead">Tools</p>
           <button
             className={`dnav ${openPanel === "metro" ? "on" : ""}`}
-            onClick={() => setOpenPanel((v) => (v === "metro" ? null : "metro"))}
+            onClick={() => { setOpenPanel((v) => (v === "metro" ? null : "metro")); closeNav(); }}
           >
             Metronome
             {metroOn && <span className="badge">{settings.bpm}</span>}
           </button>
           <button
             className={`dnav ${openPanel === "setup" ? "on" : ""}`}
-            onClick={() => setOpenPanel((v) => (v === "setup" ? null : "setup"))}
+            onClick={() => { setOpenPanel("setup"); closeNav(); }}
           >
             Settings
           </button>
         </div>
       </aside>
-      {drawer && <div className="scrim" onClick={() => setDrawer(false)} />}
+      <div className={`scrim ${drawer ? "on" : ""}`} onClick={() => setDrawer(false)} aria-hidden="true" />
 
       <div className="stage">
       <header className="chassis">
         <button
+          ref={burgerRef}
           className={`burger ${drawer ? "on" : ""}`}
           onClick={() => setDrawer((v) => !v)}
           aria-expanded={drawer}
@@ -1751,7 +1825,7 @@ export default function App() {
           <div className="metrorow">
             <button
               className={`transport ${metroOn ? "on" : ""}`}
-              onClick={() => setMetroOn((v) => !v)}
+              onClick={() => { track("metronome_toggle", { on: !metroOn, bpm: settings.bpm }); setMetroOn((v) => !v); }}
               aria-pressed={metroOn}
             >
               {metroOn ? "Stop" : "Start"}
@@ -1799,8 +1873,19 @@ export default function App() {
         </section>
       )}
 
-      {openPanel === "setup" && (
-        <section className="setup">
+      <div
+        ref={sheetRef}
+        className={`sheet ${openPanel === "setup" ? "open" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Settings"
+        inert={openPanel === "setup" ? undefined : ""}
+      >
+        <div className="sheethead">
+          <h2 className="sheettitle">Settings</h2>
+          <button ref={sheetCloseRef} className="sheetx" onClick={() => setOpenPanel(null)} aria-label="Close settings">{"✕"}</button>
+        </div>
+        <div className="sheetbody">
           <div className="grid">
             <Field label="Frets">
               <input
@@ -1905,7 +1990,7 @@ export default function App() {
             </Field>
             <Field label="Theme">
               <Seg small options={[{ v: false, l: "Light" }, { v: true, l: "Dark" }]}
-                value={settings.dark} onChange={(v) => setSettings((s2) => ({ ...s2, dark: v }))} />
+                value={settings.dark} onChange={(v) => { track("theme_set", { dark: v }); setSettings((s2) => ({ ...s2, dark: v })); }} />
             </Field>
             <Field label="Options shown">
               <Seg small options={[{ v: true, l: "Simple" }, { v: false, l: "Everything" }]}
@@ -1916,8 +2001,8 @@ export default function App() {
                 value={settings.sound} onChange={(v) => setSettings((s) => ({ ...s, sound: v }))} />
             </Field>
           </div>
-        </section>
-      )}
+        </div>
+      </div>
 
       {mode !== "changes" && (
       <section className="neckwrap">
@@ -1955,7 +2040,7 @@ export default function App() {
       </section>
       )}
 
-      <main className="panel">
+      <main className="panel" key={mode}>
         {mode === "scale" && (
           <div className="pane">
             <Field label="Key"><KeyPicker value={scaleRoot} onChange={setScaleRoot} flats={settings.flats} /></Field>
@@ -1967,7 +2052,7 @@ export default function App() {
                   ))}
                 </select>
               </Field>
-              <button className="btn" onClick={playScale} data-tip="Play the scale and light each note as it sounds">
+              <button className="btn" onClick={() => { track("hear_scale", { scale: scaleId }); playScale(); }} data-tip="Play the scale and light each note as it sounds">
                 {playing != null ? "Playing" : "Hear it"}
               </button>
             </div>
@@ -2088,7 +2173,7 @@ export default function App() {
                   ))}
                 </select>
               </Field>
-              <button className="btn" onClick={strumVoicing} disabled={!activeVoicing} data-tip="Hear the selected shape">Strum</button>
+              <button className="btn" onClick={() => { track("strum_chord", { chord: chordId }); strumVoicing(); }} disabled={!activeVoicing} data-tip="Hear the selected shape">Strum</button>
               <button
                 className="btn ghost"
                 disabled={!activeVoicing}
@@ -2107,6 +2192,7 @@ export default function App() {
                     },
                     ...bank,
                   ]);
+                  track("bank_save", { kind: "chord" });
                   setToast("Saved to bank");
                 }}
               >
@@ -2177,6 +2263,7 @@ export default function App() {
                     { id: `b${Date.now()}`, kind: "prog", root: progRoot, progId, label: `${nameOf(progRoot, settings.flats)} \u00b7 ${progDef.name}` },
                     ...bank,
                   ]);
+                  track("bank_save", { kind: "prog" });
                   setToast("Saved to bank");
                 }}
               >
@@ -2396,7 +2483,7 @@ export default function App() {
                   />
                 </div>
               </Field>
-              <button className="btn" onClick={newRound}>New round</button>
+              <button className="btn" onClick={() => { track("quiz_new_round", { source: quiz.source }); newRound(); }}>New round</button>
             </div>
 
             {quiz.source === "interval" && ivOn.size === 0 ? (
@@ -2435,7 +2522,7 @@ export default function App() {
               </div>
               <div className="chgnames">{chgLabel}</div>
               <div className="chgstatus" role="status" aria-live="assertive">
-                {chg.phase === "done" ? "Time — enter how many changes you got." : ""}
+                {chg.phase === "done" ? "Time. Enter how many changes you got." : ""}
               </div>
               {(chgRecord.best > 0 || chgRecord.tries > 0) && (
                 <div className="chgbest">
@@ -2523,7 +2610,7 @@ export default function App() {
                 </div>
                 <p className="note">
                   Change between the chords as many times as you can before the clock runs out. Count each clean
-                  change, then enter your total when time is up — beat your best.
+                  change, then enter your total when time is up, and beat your best.
                 </p>
               </>
             )}
@@ -2531,7 +2618,7 @@ export default function App() {
             {chg.phase === "running" && (
               <div className="row">
                 <button className="transport on" onClick={stopRun}>Stop</button>
-                <p className="note">Switch between {chgLabel} — count each clean change.</p>
+                <p className="note">Switch between {chgLabel}. Count each clean change.</p>
               </div>
             )}
 
@@ -2582,7 +2669,8 @@ const CSS = `
 /* drawer pushes the stage across rather than covering it */
 .drawer{
   flex:0 0 0; width:0; overflow:hidden; background:var(--card);
-  border-right:1px solid var(--line); transition:flex-basis .18s ease, width .18s ease;
+  border-right:1px solid var(--line);
+  transition:flex-basis .24s cubic-bezier(.22,1,.36,1), width .24s cubic-bezier(.22,1,.36,1);
 }
 .drawer.open{flex:0 0 244px; width:244px}
 .dinner{width:244px; padding:16px 12px; position:sticky; top:0}
@@ -2595,13 +2683,16 @@ const CSS = `
   display:flex; align-items:center; gap:8px; width:100%; text-align:left;
   background:transparent; border:0; border-radius:5px; cursor:pointer;
   padding:10px 10px; color:var(--ink); font-family:inherit; font-size:14px;
+  transition:background .15s ease, color .15s ease, padding-left .16s cubic-bezier(.22,1,.36,1);
 }
-.dnav:hover{background:var(--paper)}
+.dnav:hover{background:var(--paper); padding-left:14px}
+.dnav:active{background:var(--line)}
 .dnav.on{background:var(--ink); color:var(--onink)}
 .dnav .badge{margin-left:auto}
 .dstate{margin-left:auto; font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--muted)}
 .dnav.on .dstate{color:var(--onink); opacity:.75}
-.scrim{display:none}
+.scrim{display:none; position:fixed; inset:0; z-index:70; background:rgba(8,14,18,.42); opacity:0; pointer-events:none; transition:opacity .24s ease}
+.scrim.on{opacity:1; pointer-events:auto}
 
 .burger{
   display:flex; flex-direction:column; justify-content:center; gap:4px;
@@ -2651,7 +2742,7 @@ const CSS = `
 .gear:hover{background:var(--paper)}
 
 .setup{border-bottom:1px solid var(--line); background:var(--card); padding:16px 18px; display:grid; gap:18px}
-.setup .grid,.toggles{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px}
+.setup .grid,.sheetbody .grid,.toggles{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px}
 .field{display:flex; flex-direction:column; gap:6px; min-width:0}
 .flabel{font-family:"Antonio",sans-serif; font-size:12px; letter-spacing:.15em; text-transform:uppercase; color:var(--muted)}
 .field output{font-family:"IBM Plex Mono",monospace; font-size:12px; color:#B07C12}
@@ -2752,7 +2843,7 @@ const CSS = `
   position:fixed; left:50%; bottom:26px; transform:translateX(-50%);
   background:var(--ink); color:var(--onink); border-radius:20px; padding:9px 18px;
   font-family:"Antonio",sans-serif; letter-spacing:.11em; text-transform:uppercase; font-size:13px;
-  box-shadow:0 6px 20px rgba(0,0,0,.22); z-index:60; animation:risein .18s ease both;
+  box-shadow:0 6px 20px rgba(0,0,0,.22); z-index:120; animation:risein .18s ease both;
 }
 @keyframes risein{from{opacity:0; transform:translate(-50%,8px)}to{opacity:1; transform:translate(-50%,0)}}
 
@@ -2805,7 +2896,7 @@ const CSS = `
   border-radius:4px; padding:9px 10px; font-size:14px; font-family:inherit; width:100%;
 }
 .panel{margin:12px 18px 0; background:var(--card); border:1px solid var(--line); border-radius:6px; padding:18px}
-.setup .grid,.toggles{max-width:1240px}
+.setup .grid,.sheetbody .grid,.toggles{max-width:1240px}
 .pane{display:grid; gap:16px}
 .row{display:flex; gap:14px; align-items:flex-start; flex-wrap:nowrap}
 .row > .btn{align-self:flex-end}
@@ -2886,15 +2977,68 @@ const CSS = `
 
 .app button:focus-visible, .app select:focus-visible, .app input:focus-visible{outline:2px solid var(--ink); outline-offset:2px}
 
+/* full-screen sheet (Settings) */
+.sheet{
+  position:fixed; inset:0; z-index:100; background:var(--paper);
+  display:flex; flex-direction:column;
+  opacity:0; visibility:hidden; transform:translateY(10px);
+  transition:opacity .22s ease, transform .3s cubic-bezier(.22,1,.36,1), visibility 0s linear .22s;
+}
+.sheet.open{opacity:1; visibility:visible; transform:none; transition:opacity .22s ease, transform .3s cubic-bezier(.22,1,.36,1), visibility 0s}
+.sheethead{
+  display:flex; align-items:center; justify-content:space-between; gap:12px; flex:none;
+  padding:14px 20px; border-bottom:1px solid var(--line); background:var(--card);
+}
+.sheettitle{margin:0; font-family:"Antonio",sans-serif; font-weight:600; font-size:20px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink)}
+.sheetx{
+  width:40px; height:40px; display:inline-flex; align-items:center; justify-content:center; flex:none;
+  background:var(--card); border:1px solid var(--line2); border-radius:9px; cursor:pointer; color:var(--ink);
+  font-size:15px; line-height:1; transition:background .15s ease, border-color .15s ease, transform .09s ease;
+}
+.sheetx:hover{background:var(--paper); border-color:var(--ink)}
+.sheetx:active{transform:scale(.93)}
+.sheetbody{
+  flex:1; min-height:0; min-width:0; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch;
+  width:100%; max-width:1240px; margin:0 auto;
+  padding:20px 20px 48px; display:flex; flex-direction:column; gap:20px;
+}
+.sheetbody > *{min-width:0}
+
+/* drawer header */
+.dtop{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:2px 6px 12px; margin-bottom:6px; border-bottom:1px solid var(--line)}
+.dtoplabel{font-family:"Antonio",sans-serif; font-size:12px; letter-spacing:.17em; text-transform:uppercase; color:var(--muted)}
+.dclose{
+  width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; flex:none;
+  background:transparent; border:1px solid var(--line2); border-radius:8px; cursor:pointer; color:var(--ink);
+  font-size:13px; transition:background .15s ease, border-color .15s ease, transform .09s ease;
+}
+.dclose:hover{background:var(--paper); border-color:var(--ink)}
+.dclose:active{transform:scale(.93)}
+
+/* view transition on mode change */
+@keyframes viewIn{from{opacity:0; transform:translateY(7px)} to{opacity:1; transform:none}}
+.panel{animation:viewIn .26s cubic-bezier(.22,1,.36,1)}
+
+/* premium press + hover micro-interactions */
+.btn,.gear,.transport,.mini,.seg button,.pickbtn,.prochord,.poschip{
+  transition:background .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease, transform .09s ease;
+}
+.btn:active,.gear:active,.transport:active,.mini:active,.seg button:active,.pickbtn:active,.prochord:active,.poschip:active{transform:translateY(1px)}
+.voicing{transition:border-color .15s ease, box-shadow .15s ease, transform .13s cubic-bezier(.22,1,.36,1)}
+.voicing:hover{transform:translateY(-2px)}
+.prochord:hover{transform:translateY(-1px)}
+.prochord:active{transform:translateY(1px)}
+
 @media (max-width:700px){
   .chassis{gap:10px 12px}
   .chassis .modes{order:3; flex-basis:100%; margin-top:2px}
   .chassis .gear{order:2}
   .chassis .modes .seg{width:100%}
-  .drawer{position:fixed; left:0; top:0; height:100dvh; z-index:80; width:244px; flex:0 0 0;
-    transform:translateX(-100%); transition:transform .18s ease; overflow-y:auto}
-  .drawer.open{transform:translateX(0); flex:0 0 0; width:244px}
-  .scrim{display:block; position:fixed; inset:0; z-index:70; background:rgba(8,14,18,.42)}
+  .drawer{position:fixed; left:0; top:0; height:100dvh; z-index:80; width:280px; max-width:85vw; flex:0 0 0;
+    transform:translateX(-100%); transition:transform .28s cubic-bezier(.22,1,.36,1); overflow-y:auto}
+  .drawer.open{transform:translateX(0); flex:0 0 0; width:280px; box-shadow:0 0 44px rgba(0,0,0,.4)}
+  .dinner{width:100%}
+  .scrim{display:block}
   .chassis .modes{gap:6px}
   .chassis .modes .seg{flex:1 1 auto}
   .chassis .modes .seg button{flex:1 1 auto; padding:9px 8px; font-size:12px}
@@ -2915,7 +3059,10 @@ const CSS = `
   .chgclock{font-size:56px}
   .chgslot{flex-basis:100%}
 }
-@media (prefers-reduced-motion:reduce){.ping,.pop,.dot,.toast{animation:none}}
+@media (prefers-reduced-motion:reduce){
+  .ping,.pop,.dot,.toast,.panel{animation:none}
+  .app *,.drawer,.scrim,.sheet{transition-duration:.001ms !important; animation-duration:.001ms !important}
+}
 
 /* one-minute chord change trainer */
 .chgstage{display:flex; flex-direction:column; align-items:center; gap:8px; padding:10px 0 2px; text-align:center}
