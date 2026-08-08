@@ -1401,9 +1401,10 @@ export default function App() {
      scale/arp position on any scale change, so a bank open stashes the wanted
      position here and bumps the nonce to let the matching effect apply it. */
   const restorePosRef = useRef(null);
+  const restoreVoiceRef = useRef(null); // key of the saved chord shape to reselect on Bank open
   const [posNonce, setPosNonce] = useState(0);
   const openBankItem = useCallback((item) => {
-    if (item.kind === "chord") { setChordRoot(item.root); setChordId(item.chordId); setCapo(item.capo || 0); setMode("chord"); }
+    if (item.kind === "chord") { restoreVoiceRef.current = (item.voicing && item.voicing.key) || null; setPosNonce((k) => k + 1); setChordArea(null); setChordRoot(item.root); setChordId(item.chordId); setCapo(item.capo || 0); setMode("chord"); }
     else if (item.kind === "scale") { restorePosRef.current = { kind: "scale", pos: item.pos == null ? null : item.pos }; setPosNonce((k) => k + 1); setScaleRoot(item.root); setScaleId(item.scaleId); setMode("scale"); }
     else if (item.kind === "arp") { restorePosRef.current = { kind: "arp", pos: item.pos == null ? null : item.pos }; setPosNonce((k) => k + 1); setArpRoot(item.root); setArpId(item.arpId); if (item.dir) setArpDir(item.dir); setMode("arp"); }
     else if (item.kind === "prog") {
@@ -1488,8 +1489,17 @@ export default function App() {
   );
 
   useEffect(() => {
-    setVoiceIdx(0);
-  }, [chordRoot, chordId, vopt, capo, settings.tuningId, settings.fretCount, chordArea]);
+    /* a Bank open of a specific shape stashes its key; reselect it, else reset to the first */
+    const key = restoreVoiceRef.current;
+    if (key) {
+      restoreVoiceRef.current = null;
+      const idx = shownVoicings.findIndex((v) => v.key === key);
+      setVoiceIdx(idx >= 0 ? idx : 0);
+    } else {
+      setVoiceIdx(0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chordRoot, chordId, vopt, capo, settings.tuningId, settings.fretCount, chordArea, posNonce]);
 
   useEffect(() => {
     if (chordArea != null && !chordAreas.includes(chordArea)) setChordArea(null);
@@ -2042,17 +2052,21 @@ export default function App() {
   }, [activeVoicing, strumPatId, settings.bpm, stopPlayback, strumChord]);
 
   const doImportTab = useCallback((text) => {
-    const steps = parseTab(text, settings.midis.length);
+    /* keep notes on the neck and within the timeline the grid can render */
+    const steps = parseTab(text, settings.midis.length)
+      .filter((st) => st.f <= fretCount)
+      .slice(0, MEL_MAX_BARS * MEL_SLOTS);
     if (!steps.length) { setToast("Could not read a tab there. Check the format."); return; }
     stopPlayback();
     setMelSteps(steps);
-    setMelBars(Math.max(2, Math.min(MEL_MAX_BARS, Math.ceil(steps.length / MEL_SLOTS))));
-    setMelCursor(Math.min(steps.length, MEL_MAX_BARS * MEL_SLOTS - 1));
+    const bars = Math.max(2, Math.min(MEL_MAX_BARS, Math.ceil((steps.length + 1) / MEL_SLOTS)));
+    setMelBars(bars);
+    setMelCursor(Math.min(steps.length, bars * MEL_SLOTS - 1));
     setMelImport(false);
     setMelImportText("");
     track("melody_import", { notes: steps.length });
     setToast(`Imported ${steps.length} notes`);
-  }, [settings.midis.length, stopPlayback]);
+  }, [settings.midis.length, fretCount, stopPlayback]);
 
   const importTabFromClipboard = useCallback(async () => {
     try {
@@ -2427,7 +2441,7 @@ export default function App() {
       } else if (p.m === "melody" && Array.isArray(p.steps)) {
         const steps = p.steps
           .filter((st) => st === null || (Array.isArray(st) && Number.isInteger(st[0]) && Number.isInteger(st[1]) && st[0] >= 0 && st[0] < settings.midis.length && st[1] >= 0 && st[1] <= fretCount))
-          .slice(0, 128)
+          .slice(0, MEL_MAX_BARS * MEL_SLOTS)
           .map((st) => (st === null ? { rest: true } : { s: st[0], f: st[1] }));
         if (steps.length) {
           setMelSteps(steps);
@@ -2472,7 +2486,7 @@ export default function App() {
   }, [toast]);
 
   useEffect(() => stopPlayback, [stopPlayback]);
-  useEffect(() => { stopPlayback(); }, [mode, scaleId, scaleRoot, progId, progRoot, arpRoot, arpId, arpDir, melSteps, stopPlayback]);
+  useEffect(() => { stopPlayback(); }, [mode, scaleId, scaleRoot, chordId, chordRoot, capo, progId, progRoot, arpRoot, arpId, arpDir, melSteps, stopPlayback]);
 
   /* ---- readout ---- */
   const readout = useMemo(() => {
@@ -2698,9 +2712,9 @@ export default function App() {
             <div className="dcatbody">
               {navItem("scale", "Scales")}
               {navItem("arp", "Arpeggios")}
-              {!settings.simple && navItem("interval", "Intervals")}
+              {(!settings.simple || mode === "interval") && navItem("interval", "Intervals")}
               {navItem("chord", "Chords")}
-              {!settings.simple && navItem("prog", "Progressions")}
+              {(!settings.simple || mode === "prog") && navItem("prog", "Progressions")}
             </div>
           )}
 
@@ -2714,7 +2728,7 @@ export default function App() {
               {navItem("strum", "Strumming")}
               {navItem("melody", "Melodies", melodies.length > 0 ? <span className="badge">{melodies.length}</span> : null)}
               {navItem("quiz", "Quiz")}
-              {!settings.simple && navItem("ear", "Ear training")}
+              {(!settings.simple || mode === "ear") && navItem("ear", "Ear training")}
             </div>
           )}
 
@@ -2732,7 +2746,7 @@ export default function App() {
                 {metroOn && <span className="badge">{settings.bpm}</span>}
               </button>
               {navItem("tuner", "Tuner")}
-              {!settings.simple && navItem("finder", "Chord finder")}
+              {(!settings.simple || mode === "finder") && navItem("finder", "Chord finder")}
             </div>
           )}
 
@@ -3025,7 +3039,7 @@ export default function App() {
                             midis,
                             capo,
                             tun: settings.tuningId,
-                            label: `${nameOf(chordRoot, effFlats)}${chordDef.suffix}`,
+                            label,
                           })}
                         />
                       </span>
@@ -3852,6 +3866,7 @@ export default function App() {
                 {STRUM_PATTERNS.map((p) => (
                   <button
                     key={p.id}
+                    aria-pressed={strumPatId === p.id}
                     className={`btn ${strumPatId === p.id ? "primary" : "ghost"}`}
                     onClick={() => { if (strumOn) stopPlayback(); setStrumPatId(p.id); }}
                   >
@@ -4032,8 +4047,9 @@ export default function App() {
                       <button
                         className="melload"
                         onClick={() => {
-                          setMelSteps(m.steps);
-                          setMelBars(m.bars || Math.max(2, Math.min(MEL_MAX_BARS, Math.ceil(m.steps.length / MEL_SLOTS))));
+                          const steps = m.steps.slice(0, MEL_MAX_BARS * MEL_SLOTS);
+                          setMelSteps(steps);
+                          setMelBars(Math.max(2, Math.min(MEL_MAX_BARS, m.bars || Math.ceil(steps.length / MEL_SLOTS))));
                           setMelCursor(0);
                           setMelName(m.name);
                           setToast(`Loaded ${m.name}`);

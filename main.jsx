@@ -11,10 +11,13 @@ import App from "./App.jsx";
    Analytics only: session replay was deliberately dropped; this app gathers
    usage data to improve, not to watch people. */
 const AMPLITUDE_KEY = import.meta.env.VITE_AMPLITUDE_API_KEY || "8f37f29448f9a0f68dda4d423b89846c";
-if (import.meta.env.PROD && AMPLITUDE_KEY) {
+/* a real deployment, not a local build preview: matches the GA hostname gate in
+   index.html so `vite preview` on localhost never pollutes the live project */
+const isLocalHost = typeof location !== "undefined" && (location.hostname === "localhost" || location.hostname === "127.0.0.1");
+if (import.meta.env.PROD && AMPLITUDE_KEY && !isLocalHost) {
   amplitude.init(AMPLITUDE_KEY, { autocapture: true });
   /* expose the initialised singleton so App.jsx can forward custom events and
-     in-app screen views. PROD-only, so dev never touches Amplitude. */
+     in-app screen views. Only on a real deployment, so dev/preview stay clean. */
   window.amplitude = amplitude;
 }
 
