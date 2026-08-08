@@ -111,6 +111,11 @@ export const PRACTICE_MODES = {
 };
 export const localDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
+/* rough easy-to-hard order, used to pick the one "stretch" item in a practice
+   routine: the first thing you have not marked as known yet */
+export const SCALE_ORDER = ["major", "minor", "majpent", "minpent", "blues", "majblues", "dorian", "mixo", "harmmin", "melmin", "phrygian", "lydian", "locrian", "phrydom", "lydb7", "altered", "wholetone", "dimhw", "dimwh", "chromatic"];
+export const CHORD_ORDER = ["maj", "min", "5", "sus2", "sus4", "7", "m7", "maj7", "6", "m6", "dim", "aug", "add9", "9", "m9", "maj9", "m7b5", "dim7", "7sus4", "mmaj7", "11", "13", "7b9", "7s9", "7s5", "7b5"];
+
 /* parse pasted ASCII guitar tab into melody steps [{s, f}]. Handles the common
    six-line format, top line high e, ordered left to right; a column with several
    notes is read low string to high. Returns [] if nothing usable is found. */
@@ -204,7 +209,7 @@ export const SIMPLE_PROGS = new Set(["p1564", "p145", "p1645", "pblues", "pm1637
    chord changes, quiz, melodies, tuner, metronome) */
 export const SIMPLE_HIDDEN = new Set(["interval", "prog", "ear", "finder"]);
 /* which accordion each view lives under, so the active view's group can open */
-export const CAT_OF = { scale: "learn", arp: "learn", interval: "learn", chord: "learn", prog: "learn", changes: "practice", strum: "practice", melody: "practice", quiz: "practice", ear: "practice", tuner: "tools", finder: "tools", account: "profile", plog: "profile", settings: "profile" };
+export const CAT_OF = { scale: "learn", arp: "learn", interval: "learn", chord: "learn", prog: "learn", changes: "practice", routine: "practice", strum: "practice", melody: "practice", quiz: "practice", ear: "practice", tuner: "tools", finder: "tools", account: "profile", plog: "profile", settings: "profile" };
 
 /* melody timeline: eighth-note slots per bar (4/4), and a bar cap */
 export const MEL_SLOTS = 8;

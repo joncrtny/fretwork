@@ -7,7 +7,7 @@ import {
   PRACTICE_MODES, localDay, parseTab, EAR_INTERVALS, EAR_INTERVALS_SIMPLE, EAR_CHORDS,
   EAR_CHORDS_SIMPLE, MINOR_STARTS, ROMAN, PROGRESSIONS, SIMPLE_SCALES, SIMPLE_CHORDS,
   SIMPLE_PROGS, SIMPLE_HIDDEN, CAT_OF, MEL_SLOTS, MEL_MAX_BARS, STRUM_PATTERNS, simpleList,
-  INTERVAL_PRESETS, TIME_SIGS, FUNC_COLOUR, LOWERED, SINGLE_DOTS, DOUBLE_DOTS,
+  INTERVAL_PRESETS, TIME_SIGS, FUNC_COLOUR, LOWERED, SINGLE_DOTS, DOUBLE_DOTS, SCALE_ORDER, CHORD_ORDER,
 } from "./theory.js";
 import { useGeometry, Fretboard, ChordDiagram } from "./fretboard.jsx";
 import { BADGES, badgeTier, pointsFor, levelProgress, mergeGamify } from "./gamify.js";
@@ -40,6 +40,7 @@ const VIEW_META = {
   interval: { path: "/intervals", title: "Intervals" },
   prog: { path: "/progressions", title: "Progressions" },
   changes: { path: "/chord-changes", title: "Chord changes" },
+  routine: { path: "/practice-routine", title: "Practice routine" },
   strum: { path: "/strumming", title: "Strumming" },
   melody: { path: "/melodies", title: "Melodies" },
   quiz: { path: "/quiz", title: "Fretboard Quiz" },
@@ -472,6 +473,25 @@ function StarSave({ saved, onClick, label }) {
   );
 }
 
+/* the lightbulb: mark a scale/chord/arpeggio as something you know, which feeds
+   the practice-routine builder */
+function BulbSave({ known, onClick, label }) {
+  return (
+    <button
+      type="button"
+      className={`bulbsave ${known ? "on" : ""}`}
+      onClick={onClick}
+      aria-pressed={known}
+      data-tip={known ? "You know this" : "Mark as known"}
+      aria-label={known ? `${label} is marked as known` : `Mark ${label} as known`}
+    >
+      <svg viewBox="0 0 24 24" width="18" height="18" fill={known ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
+        <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.6 1 1.3 1 2.1v.4h6v-.4c0-.8.3-1.5 1-2.1A6 6 0 0 0 12 3z" />
+      </svg>
+    </button>
+  );
+}
+
 /* ============================================================
    ABOUT: resources, feedback, donate
    ============================================================ */
@@ -864,6 +884,12 @@ export default function App() {
   const [finderSel, setFinderSel] = useState(new Set()); // "s:f" positions tapped in the chord finder
 
   const [bank, setBank] = useState([]);
+  /* "things you know": items the player has marked with the lightbulb, plus the
+     last star rating a practice routine gave each, which weights future routines */
+  const [known, setKnown] = useState([]); // [{ sig, kind, root, id, label }]
+  const [routineRatings, setRoutineRatings] = useState({}); // sig -> 1..3
+  const [routineDur, setRoutineDur] = useState(10); // minutes
+  const [routine, setRoutine] = useState(null); // null | { phase:'running'|'rate', segments:[{item,seconds,stretch}], idx, remaining, duration }
   const [metroOn, setMetroOn] = useState(false);
   const [beat, setBeat] = useState(-1);
 
@@ -1423,6 +1449,14 @@ export default function App() {
         /* nothing saved yet */
       }
       try {
+        const r = await store.get("fretboard:known");
+        if (!cancelled && r && r.value) { const v = JSON.parse(r.value); if (Array.isArray(v)) setKnown(v); }
+      } catch (e) { /* none yet */ }
+      try {
+        const r = await store.get("fretboard:routineratings");
+        if (!cancelled && r && r.value) { const v = JSON.parse(r.value); if (v && typeof v === "object") setRoutineRatings(v); }
+      } catch (e) { /* none yet */ }
+      try {
         const r = await store.get("fretboard:stats");
         if (!cancelled && r && r.value) {
           const v = JSON.parse(r.value);
@@ -1512,6 +1546,17 @@ export default function App() {
     store.set("fretboard:bank", JSON.stringify(next)).catch(() => {});
     syncField("bank", next);
   }, [syncField]);
+
+  const saveKnown = useCallback((next) => {
+    setKnown(next);
+    store.set("fretboard:known", JSON.stringify(next)).catch(() => {});
+  }, []);
+  const toggleKnown = useCallback((item) => {
+    const exists = known.some((k) => k.sig === item.sig);
+    const next = exists ? known.filter((k) => k.sig !== item.sig) : [item, ...known];
+    saveKnown(next);
+    setToast(exists ? "Removed from what you know" : "Marked as known");
+  }, [known, saveKnown]);
 
   const saveToBank = useCallback((item) => {
     if (bank.some((b) => b.sig === item.sig)) { setToast("Already in your Bank"); return; }
@@ -2778,6 +2823,7 @@ export default function App() {
     if (mode === "ear")
       return `Ear training \u00b7 ${ear.correct + ear.wrong ? Math.round((ear.correct / (ear.correct + ear.wrong)) * 100) + "%" : "ready"}`;
     if (mode === "plog") return `Practice log \u00b7 ${practiceStats.streak} day streak`;
+    if (mode === "routine") return `Practice routine \u00b7 ${known.length} known`;
     if (mode === "finder")
       return finderInfo.exact.length ? `Chord finder \u00b7 ${finderInfo.exact[0].name}` : finderSel.size ? "Chord finder \u00b7 no exact match" : "Chord finder";
     if (mode === "settings") return "Settings";
@@ -2793,7 +2839,7 @@ export default function App() {
         ? `${nameOf(ivRoot, effFlats)} · ${[...ivOn].sort((a, b) => a - b).map((i) => DEG[i]).join(" ")}`
         : `${nameOf(chordRoot, effFlats)}${chordDef.suffix || ""}`;
     return `Fretboard Quiz · ${src} · ${quiz.hidden ? quiz.hidden.size - quiz.found.size : 0} to find`;
-  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, effFlats, quiz, progRoot, progDef, bank.length, chgLabel, authUser, uname, settings.tuningId, melSteps, ear.correct, ear.wrong, arpRoot, arpDef, practiceStats.streak, finderInfo, finderSel.size]);
+  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, effFlats, quiz, progRoot, progDef, bank.length, chgLabel, authUser, uname, settings.tuningId, melSteps, ear.correct, ear.wrong, arpRoot, arpDef, practiceStats.streak, finderInfo, finderSel.size, known.length]);
 
   const total = quiz.correct + quiz.wrong;
   const accuracy = total ? Math.round((quiz.correct / total) * 100) : 0;
@@ -2825,6 +2871,90 @@ export default function App() {
     else if (targetMode === "interval") setIvRoot(root);
     setMode(targetMode);
   };
+
+  /* ---- guided practice routine, built from what you know ---- */
+  const gotoSegment = useCallback((item) => {
+    if (!item) return;
+    if (item.kind === "scale") { setScaleRoot(item.root); setScaleId(item.id); setMode("scale"); }
+    else if (item.kind === "chord") { setChordRoot(item.root); setChordId(item.id); setMode("chord"); }
+    else if (item.kind === "arp") { setArpRoot(item.root); setArpId(item.id); setMode("arp"); }
+  }, []);
+
+  const pickStretch = (knownList) => {
+    const counts = {};
+    knownList.forEach((k) => { counts[k.kind] = (counts[k.kind] || 0) + 1; });
+    const kind = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0] || "chord";
+    const order = kind === "scale" ? SCALE_ORDER : CHORD_ORDER;
+    const knownIds = new Set(knownList.filter((k) => k.kind === kind).map((k) => k.id));
+    const nextId = order.find((id) => !knownIds.has(id));
+    if (!nextId) return null;
+    const root = knownList.find((k) => k.kind === kind)?.root ?? 0;
+    const def = kind === "scale" ? SCALES.find((s) => s.id === nextId) : CHORDS.find((c) => c.id === nextId);
+    if (!def) return null;
+    const label = kind === "scale" ? `${nameOf(root, false)} ${def.name}` : `${nameOf(root, false)}${def.suffix}${kind === "arp" ? " arpeggio" : ""}`;
+    return { sig: `k-${kind}:${root}:${nextId}`, kind, root, id: nextId, label, isStretch: true };
+  };
+
+  const buildRoutine = () => {
+    if (!known.length) return;
+    stopPlayback();
+    const totalSec = routineDur * 60;
+    const stretch = pickStretch(known);
+    /* practise the shaky ones (low past rating) for longer, then one stretch */
+    const list = [...known];
+    if (stretch) list.push(stretch);
+    const weightOf = (it) => {
+      if (it.isStretch) return 1.3;
+      const r = routineRatings[it.sig];
+      return r === 1 ? 2 : r === 2 ? 1.4 : 1;
+    };
+    const weights = list.map(weightOf);
+    const wSum = weights.reduce((a, b) => a + b, 0) || 1;
+    const segments = list.map((it, i) => ({ item: it, seconds: Math.max(30, Math.round((totalSec * weights[i]) / wSum)), stretch: !!it.isStretch }));
+    track("routine_start", { minutes: routineDur, items: segments.length });
+    setRoutine({ phase: "running", segments, idx: 0, remaining: segments[0].seconds, duration: routineDur });
+  };
+
+  const routineNext = () => {
+    setRoutine((r) => {
+      if (!r) return r;
+      const ni = r.idx + 1;
+      if (ni >= r.segments.length) return { ...r, phase: "rate" };
+      return { ...r, idx: ni, remaining: r.segments[ni].seconds };
+    });
+  };
+
+  const rateRoutine = (stars) => {
+    const next = { ...routineRatings };
+    if (routine) routine.segments.forEach((seg) => { if (!seg.stretch) next[seg.item.sig] = stars; });
+    setRoutineRatings(next);
+    store.set("fretboard:routineratings", JSON.stringify(next)).catch(() => {});
+    track("routine_done", { minutes: routine ? routine.duration : 0, stars });
+    setRoutine(null);
+    setToast(stars >= 3 ? "Great session!" : stars === 2 ? "Good work, keep at it" : "Noted, we'll revisit those");
+  };
+
+  /* count the current segment down; advance or finish at zero */
+  useEffect(() => {
+    if (!routine || routine.phase !== "running") return;
+    const id = setInterval(() => {
+      setRoutine((r) => {
+        if (!r || r.phase !== "running") return r;
+        if (r.remaining > 1) return { ...r, remaining: r.remaining - 1 };
+        const ni = r.idx + 1;
+        if (ni >= r.segments.length) return { ...r, phase: "rate" };
+        return { ...r, idx: ni, remaining: r.segments[ni].seconds };
+      });
+    }, 1000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routine && routine.phase]);
+
+  /* show each segment's item on the neck as the routine reaches it */
+  useEffect(() => {
+    if (routine && routine.phase === "running") gotoSegment(routine.segments[routine.idx] && routine.segments[routine.idx].item);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routine && routine.idx, routine && routine.phase]);
 
   const navItem = (id, label, extra) => (
     <button
@@ -3007,6 +3137,7 @@ export default function App() {
           </button>
           {openCats.practice && (
             <div className="dcatbody">
+              {navItem("routine", "Practice routine", known.length > 0 ? <span className="badge">{known.length}</span> : null)}
               {navItem("changes", "Chord changes")}
               {navItem("strum", "Strumming")}
               {navItem("melody", "Melodies", melodies.length > 0 ? <span className="badge">{melodies.length}</span> : null)}
@@ -3228,6 +3359,11 @@ export default function App() {
                   label: `${nameOf(scaleRoot, effFlats)} ${scaleDef.name}${scalePos == null ? "" : ` · pos ${scalePos + 1}`}`,
                 })}
               />
+              <BulbSave
+                label={`${nameOf(scaleRoot, effFlats)} ${scaleDef.name}`}
+                known={known.some((k) => k.sig === `k-scale:${scaleRoot}:${scaleId}`)}
+                onClick={() => toggleKnown({ sig: `k-scale:${scaleRoot}:${scaleId}`, kind: "scale", root: scaleRoot, id: scaleId, label: `${nameOf(scaleRoot, effFlats)} ${scaleDef.name}` })}
+              />
             </div>
 
             <Field label="Position">
@@ -3378,6 +3514,11 @@ export default function App() {
                 />
               </Field>
               <button className="btn primary" onClick={() => { track("strum_chord", { chord: chordId }); strumVoicing(); }} disabled={!activeVoicing} data-tip="Hear the selected shape">Strum</button>
+              <BulbSave
+                label={`${nameOf(chordRoot, effFlats)}${chordDef.suffix}`}
+                known={known.some((k) => k.sig === `k-chord:${chordRoot}:${chordId}`)}
+                onClick={() => toggleKnown({ sig: `k-chord:${chordRoot}:${chordId}`, kind: "chord", root: chordRoot, id: chordId, label: `${nameOf(chordRoot, effFlats)}${chordDef.suffix}` })}
+              />
             </div>
 
             <div className="keyjump">
@@ -4092,6 +4233,11 @@ export default function App() {
                   label: `${nameOf(arpRoot, effFlats)}${arpDef.suffix} arpeggio${arpPos == null ? "" : ` · pos ${arpPos + 1}`}`,
                 })}
               />
+              <BulbSave
+                label={`${nameOf(arpRoot, effFlats)}${arpDef.suffix} arpeggio`}
+                known={known.some((k) => k.sig === `k-arp:${arpRoot}:${arpId}`)}
+                onClick={() => toggleKnown({ sig: `k-arp:${arpRoot}:${arpId}`, kind: "arp", root: arpRoot, id: arpId, label: `${nameOf(arpRoot, effFlats)}${arpDef.suffix} arpeggio` })}
+              />
             </div>
 
             <div className="keyjump">
@@ -4143,6 +4289,49 @@ export default function App() {
               Every place these chord tones live on the neck. Narrow to one position, then follow the playback
               direction with your pick.
             </p>
+          </div>
+        )}
+
+        {mode === "routine" && (
+          <div className="pane">
+            <p className="note">
+              Mark scales, chords and arpeggios you know with the lightbulb, then build a short routine here.
+              Fretwork practises the ones you rated shaky for longer and adds one new "stretch" item. Rate the
+              session afterwards to shape the next one.
+            </p>
+            {known.length === 0 ? (
+              <p className="empty">
+                Nothing marked yet. On the Scales, Chords or Arpeggios views, tap the lightbulb next to the star
+                to mark something you know, then come back to build a routine.
+              </p>
+            ) : (
+              <>
+                <div className="row wrap actions">
+                  <Field label="How long?">
+                    <Seg small ariaLabel="Routine length"
+                      options={[{ v: 5, l: "5 min" }, { v: 10, l: "10 min" }, { v: 15, l: "15 min" }, { v: 20, l: "20 min" }]}
+                      value={routineDur} onChange={setRoutineDur} />
+                  </Field>
+                  <button className="btn primary" onClick={buildRoutine}>Build and start</button>
+                </div>
+                <p className="note">
+                  You know {known.length} thing{known.length === 1 ? "" : "s"}. Your {routineDur} minute routine will
+                  run through {known.length === 1 ? "it" : "them"} plus one new stretch to grow into.
+                </p>
+                <Field label="Things you know">
+                  <div className="knownlist">
+                    {known.map((k) => (
+                      <div className="knownitem" key={k.sig}>
+                        <span className="knowndot" aria-hidden="true" />
+                        <b>{k.label}</b>
+                        {routineRatings[k.sig] ? <em className="knownrate">{"★".repeat(routineRatings[k.sig])}</em> : null}
+                        <button className="mini" aria-label={`Forget ${k.label}`} onClick={() => toggleKnown(k)}>{"✕"}</button>
+                      </div>
+                    ))}
+                  </div>
+                </Field>
+              </>
+            )}
           </div>
         )}
 
@@ -5063,6 +5252,40 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {routine && routine.phase === "running" && (() => {
+        const seg = routine.segments[routine.idx];
+        const mm = Math.floor(routine.remaining / 60);
+        const ss = String(routine.remaining % 60).padStart(2, "0");
+        return (
+          <div className="routinehud" role="region" aria-label="Practice routine in progress">
+            <div className="rhud-main">
+              <b>{seg && seg.item.label}</b>
+              <span>{seg && seg.stretch ? "Stretch · something new" : `Step ${routine.idx + 1} of ${routine.segments.length}`}</span>
+            </div>
+            <div className="rhud-time" aria-label={`${mm} minutes ${routine.remaining % 60} seconds left`}>{mm}:{ss}</div>
+            <button className="btn ghost" onClick={routineNext}>{routine.idx + 1 >= routine.segments.length ? "Finish" : "Next"}</button>
+            <button className="btn ghost danger" onClick={() => { setRoutine(null); }}>Stop</button>
+          </div>
+        );
+      })()}
+
+      {routine && routine.phase === "rate" && (
+        <div className="celebrate" role="dialog" aria-label="Rate your practice">
+          <div className="celebratecard">
+            <b>How did that feel?</b>
+            <span>Your rating shapes the next routine</span>
+            <div className="ratestars">
+              {[{ s: 1, l: "Shaky" }, { s: 2, l: "Getting there" }, { s: 3, l: "Solid" }].map((o) => (
+                <button key={o.s} className="ratestar" onClick={() => rateRoutine(o.s)} aria-label={`${o.l}, ${o.s} star${o.s > 1 ? "s" : ""}`}>
+                  <span aria-hidden="true">{"★".repeat(o.s)}</span>
+                  <em>{o.l}</em>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -5308,6 +5531,25 @@ const CSS = `
 @keyframes spinpop{from{opacity:0; transform:rotate(-30deg) scale(.5)}to{opacity:1; transform:none}}
 .lowmotion .celebrate,.lowmotion .celebratecard,.lowmotion .celebratemedal{animation:none}
 .freeline{font-weight:600; color:var(--ink)}
+
+/* practice routine: known list, HUD and rating */
+.knownlist{display:flex; flex-direction:column; gap:6px}
+.knownitem{display:flex; align-items:center; gap:9px; padding:9px 12px; background:var(--card); border:1px solid var(--line); border-radius:6px}
+.knownitem b{flex:1; min-width:0; font-weight:600}
+.knowndot{width:9px; height:9px; border-radius:50%; background:var(--teal); flex:none}
+.knownrate{font-style:normal; color:var(--gold); font-size:13px}
+.routinehud{position:fixed; left:50%; bottom:20px; transform:translateX(-50%); z-index:115; display:flex; align-items:center; gap:12px; background:var(--ink); color:var(--onink); border-radius:12px; padding:10px 12px 10px 16px; box-shadow:0 8px 26px rgba(0,0,0,.3); max-width:calc(100vw - 24px); animation:risein .2s ease both}
+.rhud-main{display:flex; flex-direction:column; line-height:1.2; min-width:0}
+.rhud-main b{font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:40vw}
+.rhud-main span{font-size:11px; opacity:.7; text-transform:uppercase; letter-spacing:.08em}
+.rhud-time{font-family:"Antonio",sans-serif; font-size:26px; min-width:56px; text-align:center}
+.routinehud .btn.ghost{color:var(--onink); border-color:rgba(255,255,255,.25)}
+.routinehud .btn.ghost:hover{background:rgba(255,255,255,.12)}
+.routinehud .btn.ghost.danger{color:#ff9a9a}
+.ratestars{display:flex; gap:10px; margin-top:8px}
+.ratestar{display:flex; flex-direction:column; align-items:center; gap:3px; padding:12px 14px; border:1px solid var(--line2); border-radius:10px; background:var(--paper); cursor:pointer; color:var(--gold); font-size:16px}
+.ratestar em{font-style:normal; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em}
+.ratestar:hover{border-color:var(--gold); background:var(--card)}
 
 /* About FAQ accordion */
 .faq{display:flex; flex-direction:column; gap:6px}
@@ -5719,6 +5961,16 @@ const CSS = `
 .starsave:hover{background:var(--paper); color:var(--gold); border-color:var(--gold)}
 .starsave:active{transform:scale(.9)}
 .starsave.on{background:var(--gold); border-color:var(--gold); color:#26200C}
+
+.bulbsave{
+  width:40px; height:40px; flex:none; align-self:flex-end; border-radius:50%;
+  display:inline-flex; align-items:center; justify-content:center; cursor:pointer;
+  background:var(--card); border:1px solid var(--line2); color:var(--muted);
+  transition:background .15s ease, color .15s ease, border-color .15s ease, transform .1s ease;
+}
+.bulbsave:hover{background:var(--paper); color:var(--teal); border-color:var(--teal)}
+.bulbsave:active{transform:scale(.9)}
+.bulbsave.on{background:var(--teal); border-color:var(--teal); color:#08211C}
 
 /* bank sections */
 .banksec{display:grid; gap:10px; margin-bottom:8px}
