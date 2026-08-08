@@ -876,7 +876,9 @@ function NoteDot({ x, y, mark, flats, labelMode, colourMode, maxW }) {
 
   const pill = labelMode === "both";
   const label =
-    labelMode === "none"
+    mark.custom != null
+      ? mark.custom
+      : labelMode === "none"
       ? ""
       : labelMode === "finger"
       ? mark.finger != null ? String(mark.finger) : ""
@@ -919,6 +921,24 @@ function NoteDot({ x, y, mark, flats, labelMode, colourMode, maxW }) {
    MINI CHORD DIAGRAM
    ============================================================ */
 
+/* spoken description of a shape for screen readers: string by string, low to high */
+function describeVoicing(voicing, midis, flats) {
+  const n = midis.length;
+  const parts = [];
+  for (let st = 0; st < n; st++) {
+    const f = voicing.frets[st];
+    const num = n - st;
+    if (f === null) parts.push(`string ${num} muted`);
+    else if (f === 0) parts.push(`string ${num} open, ${nameOf(midis[st] % 12, flats)}`);
+    else {
+      const fin = voicing.fingering ? voicing.fingering[st] : null;
+      parts.push(`string ${num} fret ${f}${fin ? ` finger ${fin}` : ""}, ${nameOf((midis[st] + f) % 12, flats)}`);
+    }
+  }
+  const barre = voicing.barreFret != null ? ` Barre across fret ${voicing.barreFret}.` : "";
+  return parts.join("; ") + "." + barre;
+}
+
 function ChordDiagram({ voicing, midis, rootPc, capo, selected, onSelect, flats, showDegrees, title, caption }) {
   const n = midis.length;
   const S = 1.5;
@@ -935,7 +955,12 @@ function ChordDiagram({ voicing, midis, rootPc, capo, selected, onSelect, flats,
   const cols = Array.from({ length: n }, (_, i) => i);
 
   return (
-    <button className={`voicing ${selected ? "sel" : ""}`} onClick={() => onSelect(voicing)} aria-pressed={selected}>
+    <button
+      className={`voicing ${selected ? "sel" : ""}`}
+      onClick={() => onSelect(voicing)}
+      aria-pressed={selected}
+      aria-label={`${title || "Chord shape"}${caption ? `, ${caption}` : ""}. ${describeVoicing(voicing, midis, flats)}`}
+    >
       {title && (
         <span className="vtitle">
           {title}
@@ -1102,10 +1127,16 @@ function IntervalGrid({ root, on, onToggle, flats }) {
 
 function KeyPicker({ value, onChange, flats, tip }) {
   const [open, setOpen] = useState(false);
+  const [upK, setUpK] = useState(false);
   const boxRef = useRef(null);
   const btnRef = useRef(null);
   useEffect(() => {
     if (!open) return;
+    if (btnRef.current) {
+      const b = btnRef.current.getBoundingClientRect();
+      const below = window.innerHeight - b.bottom;
+      setUpK(below < 240 && b.top > below);
+    }
     /* close on any pointerdown outside this picker, including on another picker */
     const close = (e) => {
       if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
@@ -1136,7 +1167,7 @@ function KeyPicker({ value, onChange, flats, tip }) {
         <i className="caret" aria-hidden="true" />
       </button>
       {open && (
-        <div className="pickmenu" role="listbox">
+        <div className={`pickmenu ${upK ? "up" : ""}`} role="listbox">
           {Array.from({ length: 12 }, (_, i) => i).map((pc) => (
             <button
               key={pc}
@@ -1159,18 +1190,22 @@ function KeyPicker({ value, onChange, flats, tip }) {
 function CatPicker({ value, groups, onChange, label, tip }) {
   const [open, setOpen] = useState(false);
   const [shift, setShift] = useState(0);
+  const [up, setUp] = useState(false);
   const boxRef = useRef(null);
   const btnRef = useRef(null);
   const menuRef = useRef(null);
   const uid = useRef(`cp${Math.floor(performance.now() * 1000) % 1e9}`);
   useEffect(() => {
     if (!open) return;
-    /* keep the panel inside the viewport: shift left when it would overflow */
+    /* keep the panel inside the viewport: shift left when it would overflow,
+       and open upward when there is more room above than below */
     if (menuRef.current && btnRef.current) {
       const b = btnRef.current.getBoundingClientRect();
-      const w = menuRef.current.getBoundingClientRect().width;
-      const overflow = b.left + w - (window.innerWidth - 16);
+      const m = menuRef.current.getBoundingClientRect();
+      const overflow = b.left + m.width - (window.innerWidth - 16);
       setShift(overflow > 0 ? -Math.min(overflow, b.left - 16) : 0);
+      const below = window.innerHeight - b.bottom;
+      setUp(below < Math.min(m.height, 320) && b.top > below);
     }
     const close = (e) => {
       if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
@@ -1223,7 +1258,7 @@ function CatPicker({ value, groups, onChange, label, tip }) {
       </button>
       {open && (
         <div
-          className="pickmenu catmenu"
+          className={`pickmenu catmenu ${up ? "up" : ""}`}
           role="listbox"
           aria-label={label}
           ref={menuRef}
@@ -1648,6 +1683,10 @@ export default function App() {
   const [scaleId, setScaleId] = useState("major");
   const [scaleLabel, setScaleLabel] = useState("name");
   const [playing, setPlaying] = useState(null);
+
+  const [arpRoot, setArpRoot] = useState(0);
+  const [arpId, setArpId] = useState("maj");
+  const [arpDir, setArpDir] = useState("up");
 
   const [chordRoot, setChordRoot] = useState(0);
   const [chordId, setChordId] = useState("maj");
@@ -2103,6 +2142,10 @@ export default function App() {
 
   useEffect(() => { setScalePos(null); }, [scaleId, scaleRoot, settings.tuningId, capo]);
   const chordDef = CHORDS.find((c) => c.id === chordId) || CHORDS[0];
+  const arpDef = CHORDS.find((c) => c.id === arpId) || CHORDS[0];
+  useEffect(() => {
+    if (settings.simple && (arpDir === "thirds" || arpDir === "pedal")) setArpDir("up");
+  }, [settings.simple, arpDir]);
 
   const vopt = useMemo(
     () => ({ span: settings.span, inversions: settings.inversions, barres: settings.barres }),
@@ -2159,8 +2202,8 @@ export default function App() {
   /* shift every note by semitones on its own string; refuse if any falls off the neck */
   const transposeMelody = useCallback(
     (delta) => {
-      const moved = melSteps.map((st) => ({ s: st.s, f: st.f + delta }));
-      if (moved.some((st) => st.f < 0 || st.f > fretCount)) {
+      const moved = melSteps.map((st) => (st.rest ? st : { s: st.s, f: st.f + delta }));
+      if (moved.some((st) => !st.rest && (st.f < 0 || st.f > fretCount))) {
         setToast("That transposition falls off the neck");
         return;
       }
@@ -2211,7 +2254,9 @@ export default function App() {
   /* which major key covers the melody's notes best */
   const melKeyHint = useMemo(() => {
     if (!melSteps.length) return null;
-    const pcs = [...new Set(melSteps.map((st) => (settings.midis[st.s] + st.f) % 12))];
+    const notes = melSteps.filter((st) => !st.rest);
+    if (!notes.length) return null;
+    const pcs = [...new Set(notes.map((st) => (settings.midis[st.s] + st.f) % 12))];
     const majorIv = [0, 2, 4, 5, 7, 9, 11];
     let best = null;
     for (let root = 0; root < 12; root++) {
@@ -2229,6 +2274,7 @@ export default function App() {
     if (settings.noteNames === "flats") return true;
     if (mode === "scale") return keyPrefersFlats(scaleRoot, scaleDef.iv);
     if (mode === "chord" || mode === "bank") return keyPrefersFlats(chordRoot, chordDef.iv);
+    if (mode === "arp") return keyPrefersFlats(arpRoot, arpDef.iv);
     if (mode === "prog") return keyPrefersFlats(progRoot, progDef.tonality === "minor" ? [3] : [4]);
     if (mode === "interval") return keyPrefersFlats(ivRoot, ivOn);
     if (mode === "melody")
@@ -2245,7 +2291,7 @@ export default function App() {
         ? keyPrefersFlats(chordRoot, chordDef.iv)
         : keyPrefersFlats(ivRoot, ivOn);
     return false;
-  }, [settings.noteNames, mode, scaleRoot, scaleDef, chordRoot, chordDef, progRoot, progDef, ivRoot, ivOn, chg.chords, quiz.source, melKeyHint]);
+  }, [settings.noteNames, mode, scaleRoot, scaleDef, chordRoot, chordDef, progRoot, progDef, ivRoot, ivOn, chg.chords, quiz.source, melKeyHint, arpRoot, arpDef]);
 
   /* per-item spelling for saved things rendered outside their own key context */
   const flatsFor = useCallback(
@@ -2327,8 +2373,36 @@ export default function App() {
       }
     }
 
+    if (mode === "arp") {
+      const set = new Set(arpDef.iv.map((i) => i % 12));
+      for (const p of positionsFor(arpRoot, set)) {
+        const state = playing != null ? (p.semis === playing ? "lit" : "dim") : null;
+        add(p.s, p.f, p.pc, p.semis, "arp", state);
+      }
+    }
+
+    if (mode === "melody") {
+      const occ = new Map();
+      melSteps.forEach((st, i) => {
+        if (st.rest) return;
+        const k = `${st.s}:${st.f}`;
+        if (!occ.has(k)) occ.set(k, []);
+        occ.get(k).push(i + 1);
+      });
+      const curStep = melPlayIdx != null ? melSteps[melPlayIdx] : null;
+      const curKey = curStep && !curStep.rest ? `${curStep.s}:${curStep.f}` : null;
+      for (const [k, orders] of occ) {
+        const [ms, mf] = k.split(":").map(Number);
+        const pc = (midis[ms] + mf) % 12;
+        const semis = (pc - (melKeyHint ? melKeyHint.root : 0) + 12) % 12;
+        const custom = orders.length <= 3 ? orders.join("\u00b7") : `${orders.slice(0, 2).join("\u00b7")}+${orders.length - 2}`;
+        add(ms, mf, pc, semis, "melody", k === curKey ? "lit" : "on");
+        map.get(k).custom = custom;
+      }
+    }
+
     return map;
-  }, [mode, scaleDef, scaleRoot, ivRoot, ivOn, activeVoicing, chordRoot, midis, n, quiz, positionsFor, playing, activeProg, activeProgVoicing, scalePos, positions]);
+  }, [mode, scaleDef, scaleRoot, ivRoot, ivOn, activeVoicing, chordRoot, midis, n, quiz, positionsFor, playing, activeProg, activeProgVoicing, scalePos, positions, melSteps, melPlayIdx, melKeyHint, arpRoot, arpDef]);
 
   const ghosts = useMemo(() => {
     if (mode !== "chord" || !showAllTones) return null;
@@ -2495,14 +2569,46 @@ export default function App() {
     melSteps.forEach((st, i) => {
       playTimers.current.push(
         setTimeout(() => {
-          playNote(settings.midis[st.s] + st.f);
+          if (!st.rest) {
+            playNote(settings.midis[st.s] + st.f);
+            setFlash({ key: `${st.s}:${st.f}`, ok: true, t: i });
+          }
           setMelPlayIdx(i);
-          setFlash({ key: `${st.s}:${st.f}`, ok: true, t: i });
         }, i * stepSec * 1000)
       );
     });
     playTimers.current.push(setTimeout(() => { setMelPlayIdx(null); setFlash(null); }, melSteps.length * stepSec * 1000));
   }, [stopPlayback, melSteps, settings.bpm, settings.midis, melRate, playNote]);
+
+  const playArpeggio = useCallback(() => {
+    stopPlayback();
+    let base = midis[0];
+    while (base % 12 !== arpRoot) base++;
+    const up = [];
+    for (let oct = 0; oct < 2; oct++) arpDef.iv.forEach((i) => up.push(base + oct * 12 + i));
+    up.push(base + 24);
+    let seq = up;
+    if (arpDir === "down") seq = [...up].reverse();
+    else if (arpDir === "updown") seq = [...up, ...[...up].reverse().slice(1)];
+    else if (arpDir === "downup") seq = [...[...up].reverse(), ...up.slice(1)];
+    else if (arpDir === "thirds") {
+      seq = [];
+      for (let i = 0; i + 2 < up.length; i++) seq.push(up[i], up[i + 2]);
+    } else if (arpDir === "pedal") {
+      seq = [];
+      for (let i = 1; i < up.length; i++) seq.push(up[0], up[i]);
+    }
+    const STEP = 60 / settings.bpm / 2;
+    seq.forEach((m, i) => {
+      playTimers.current.push(
+        setTimeout(() => {
+          playNote(m);
+          setPlaying(((m - base) % 12 + 12) % 12);
+        }, i * STEP * 1000)
+      );
+    });
+    playTimers.current.push(setTimeout(() => setPlaying(null), seq.length * STEP * 1000));
+  }, [stopPlayback, midis, arpRoot, arpDef, arpDir, settings.bpm, playNote]);
 
   /* ---- ear training ---- */
   const earPool = useMemo(
@@ -2640,7 +2746,7 @@ export default function App() {
      wall clock. Gated on mode so leaving the drill tears the interval down, no beeps
      or state changes fire off-screen. */
   useEffect(() => {
-    if (mode !== "changes" || chg.phase !== "running") return;
+    if (mode !== "changes" || chg.phase !== "running" || chg.duration === 0) return;
     const end = performance.now() + chg.remaining * 1000;
     const id = setInterval(() => {
       const rem = Math.max(0, Math.ceil((end - performance.now()) / 1000));
@@ -2684,9 +2790,87 @@ export default function App() {
   const setChgChord = (i, patch) =>
     setChg((c) => ({ ...c, chords: c.chords.map((x, j) => (j === i ? { ...x, ...patch } : x)) }));
   const addChgChord = () =>
-    setChg((c) => (c.chords.length >= 4 ? c : { ...c, chords: [...c.chords, { root: 7, id: "maj" }] }));
+    setChg((c) => (c.chords.length >= 8 ? c : { ...c, chords: [...c.chords, { root: 7, id: "maj" }] }));
   const removeChgChord = (i) =>
     setChg((c) => (c.chords.length <= 2 ? c : { ...c, chords: c.chords.filter((_, j) => j !== i) }));
+
+  /* ---- share links: current view encoded in the URL hash ---- */
+  const buildShareLink = useCallback(() => {
+    const p = { m: mode };
+    if (mode === "scale") Object.assign(p, { r: scaleRoot, id: scaleId });
+    else if (mode === "arp") Object.assign(p, { r: arpRoot, id: arpId });
+    else if (mode === "chord") Object.assign(p, { r: chordRoot, id: chordId });
+    else if (mode === "prog") {
+      Object.assign(p, { r: progRoot, id: progId });
+      const cust = customProgs.find((x) => x.id === progId);
+      if (cust) Object.assign(p, { bars: cust.bars, nm: cust.name });
+    } else if (mode === "interval") Object.assign(p, { r: ivRoot, iv: [...ivOn] });
+    else if (mode === "melody") Object.assign(p, { steps: melSteps.map((st) => (st.rest ? null : [st.s, st.f])), nm: melName.trim() || undefined });
+    if (capo) p.capo = capo;
+    if (settings.tuningId !== "std" && settings.tuningId !== "custom") p.tun = settings.tuningId;
+    const enc = btoa(encodeURIComponent(JSON.stringify(p))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return `${window.location.origin}/#s=${enc}`;
+  }, [mode, scaleRoot, scaleId, chordRoot, chordId, progRoot, progId, customProgs, ivRoot, ivOn, melSteps, melName, capo, settings.tuningId, arpRoot, arpId]);
+
+  const shareable = ["scale", "chord", "prog", "interval", "melody", "arp"].includes(mode);
+  const doShare = useCallback(async () => {
+    const url = buildShareLink();
+    try {
+      await navigator.clipboard.writeText(url);
+      setToast("Link copied");
+    } catch (e) {
+      window.prompt("Copy this link", url);
+    }
+    track("share_link", { mode });
+  }, [buildShareLink, mode]);
+
+  /* apply an incoming share once local state has hydrated */
+  useEffect(() => {
+    if (!loaded) return;
+    const mt = window.location.hash.match(/^#s=([A-Za-z0-9_-]+)$/);
+    if (!mt) return;
+    try {
+      const pad = mt[1].length % 4 === 0 ? "" : "=".repeat(4 - (mt[1].length % 4));
+      const p = JSON.parse(decodeURIComponent(atob(mt[1].replace(/-/g, "+").replace(/_/g, "/") + pad)));
+      const pc = (v) => Number.isInteger(v) && v >= 0 && v < 12;
+      if (p.m === "scale" && pc(p.r) && SCALES.some((x) => x.id === p.id)) {
+        setScaleRoot(p.r); setScaleId(p.id); setMode("scale");
+      } else if (p.m === "arp" && pc(p.r) && CHORDS.some((x) => x.id === p.id)) {
+        setArpRoot(p.r); setArpId(p.id); setMode("arp");
+      } else if (p.m === "chord" && pc(p.r) && CHORDS.some((x) => x.id === p.id)) {
+        setChordRoot(p.r); setChordId(p.id); setMode("chord");
+      } else if (p.m === "prog" && pc(p.r)) {
+        setProgRoot(p.r);
+        if (Array.isArray(p.bars) && p.bars.length && p.bars.every((b) => typeof b === "string" && ROMAN[b])) {
+          setBuilder({ bars: p.bars.slice(0, 64), name: typeof p.nm === "string" ? p.nm.slice(0, 40) : "" });
+          setProgId("custom");
+        } else if (PROGRESSIONS.some((x) => x.id === p.id)) {
+          setProgId(p.id);
+        }
+        setMode("prog");
+      } else if (p.m === "interval" && pc(p.r) && Array.isArray(p.iv)) {
+        setIvRoot(p.r);
+        setIvOn(new Set(p.iv.filter((i) => Number.isInteger(i) && i >= 0 && i < 12)));
+        setMode("interval");
+      } else if (p.m === "melody" && Array.isArray(p.steps)) {
+        const steps = p.steps
+          .filter((st) => st === null || (Array.isArray(st) && Number.isInteger(st[0]) && Number.isInteger(st[1]) && st[0] >= 0 && st[0] < 9 && st[1] >= 0 && st[1] <= 27))
+          .slice(0, 128)
+          .map((st) => (st === null ? { rest: true } : { s: st[0], f: st[1] }));
+        if (steps.length) {
+          setMelSteps(steps);
+          if (typeof p.nm === "string") setMelName(p.nm.slice(0, 60));
+          setMode("melody");
+        }
+      }
+      if (Number.isInteger(p.capo) && p.capo >= 0 && p.capo <= 12) setCapo(p.capo);
+      if (typeof p.tun === "string" && TUNINGS.some((t) => t.id === p.tun)) setTuning(p.tun);
+      track("share_open", { mode: p.m });
+    } catch (e) {
+      /* malformed link, ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
 
   useEffect(() => {
     if (!toast) return;
@@ -2712,6 +2896,8 @@ export default function App() {
       return `Chord changes · ${chgLabel}`;
     if (mode === "about") return "About Fretwork";
     if (mode === "melody") return `Melody \u00b7 ${melSteps.length} ${melSteps.length === 1 ? "note" : "notes"}`;
+    if (mode === "arp")
+      return `${nameOf(arpRoot, effFlats)}${arpDef.suffix || ""} arpeggio \u00b7 ${arpDef.iv.length} tones`;
     if (mode === "ear")
       return `Ear training \u00b7 ${ear.correct + ear.wrong ? Math.round((ear.correct / (ear.correct + ear.wrong)) * 100) + "%" : "ready"}`;
     if (mode === "settings") return "Settings";
@@ -2727,7 +2913,7 @@ export default function App() {
         ? `${nameOf(ivRoot, effFlats)} · ${[...ivOn].sort((a, b) => a - b).map((i) => DEG[i]).join(" ")}`
         : `${nameOf(chordRoot, effFlats)}${chordDef.suffix || ""}`;
     return `Quiz · ${src} · ${quiz.hidden ? quiz.hidden.size - quiz.found.size : 0} to find`;
-  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, effFlats, quiz, progRoot, progDef, bank.length, chgLabel, authUser, uname, settings.tuningId, melSteps.length, ear.correct, ear.wrong]);
+  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, effFlats, quiz, progRoot, progDef, bank.length, chgLabel, authUser, uname, settings.tuningId, melSteps.length, ear.correct, ear.wrong, arpRoot, arpDef]);
 
   const total = quiz.correct + quiz.wrong;
   const accuracy = total ? Math.round((quiz.correct / total) * 100) : 0;
@@ -2789,6 +2975,7 @@ export default function App() {
           <p className="dhead"><HeadIcon kind="learn" />Learn</p>
           {navItem("scale", "Scales")}
           {navItem("chord", "Chords")}
+          {navItem("arp", "Arpeggios")}
           {navItem("prog", "Progressions")}
           {navItem("interval", "Intervals")}
 
@@ -2797,11 +2984,6 @@ export default function App() {
           {navItem("changes", "Chord changes")}
           {navItem("melody", "Melodies", melodies.length > 0 ? <span className="badge">{melodies.length}</span> : null)}
           {navItem("ear", "Ear training")}
-
-          <p className="dhead"><HeadIcon kind="profile" />Profile</p>
-          {navItem("account", authUser ? "Account" : "Create account", authUser ? <span className="badge">{uname}</span> : null)}
-          {navItem("bank", "Bank", bank.length > 0 ? <span className="badge">{bank.length}</span> : null)}
-          {navItem("settings", "Settings")}
 
           <p className="dhead"><HeadIcon kind="tools" />Tools</p>
           <button
@@ -2812,6 +2994,12 @@ export default function App() {
             {metroOn && <span className="badge">{settings.bpm}</span>}
           </button>
           {navItem("tuner", "Tuner")}
+
+          <p className="dhead"><HeadIcon kind="profile" />Profile</p>
+          {navItem("account", authUser ? "Account" : "Create account", authUser ? <span className="badge">{uname}</span> : null)}
+          {navItem("bank", "Bank", bank.length > 0 ? <span className="badge">{bank.length}</span> : null)}
+          {navItem("settings", "Settings")}
+
 
           <div className="dspacer" aria-hidden="true" />
           <button
@@ -2845,6 +3033,15 @@ export default function App() {
           <span className="rdot" />
           {readout}
         </div>
+        {shareable && (
+          <button className="gear sharebtn" onClick={doShare} data-tip="Copy a link to this exact view" aria-label="Copy share link">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="4" cy="8" r="2.2" /><circle cx="12" cy="3.5" r="2.2" /><circle cx="12" cy="12.5" r="2.2" />
+              <path d="M6 7l4-2.6M6 9l4 2.6" />
+            </svg>
+            Share
+          </button>
+        )}
       </header>
 
       {openPanel === "metro" && (
@@ -2959,8 +3156,12 @@ export default function App() {
                   groups={groupItems(SCALE_GROUPS, SCALES, SIMPLE_SCALES, settings.simple, scaleId)}
                 />
               </Field>
-              <button className="btn primary" onClick={() => { track("hear_scale", { scale: scaleId }); playScale(); }} data-tip="Play the scale and light each note as it sounds">
-                {playing != null ? "Playing" : "Hear it"}
+              <button
+                className={`btn primary ${playing != null ? "live" : ""}`}
+                onClick={playing != null ? stopPlayback : () => { track("hear_scale", { scale: scaleId }); playScale(); }}
+                data-tip="Play the scale and light each note as it sounds"
+              >
+                {playing != null ? "Stop" : "Hear it"}
               </button>
             </div>
 
@@ -3400,11 +3601,20 @@ export default function App() {
             </div>
             {!settings.simple && (
             <div className="row wrap">
-              <button className="btn ghost" onClick={() => setIvOn(new Set([0]))}>Root only</button>
-              <button className="btn ghost" onClick={() => setIvOn(new Set([0, 4, 7]))}>Major triad</button>
-              <button className="btn ghost" onClick={() => setIvOn(new Set([0, 3, 7]))}>Minor triad</button>
-              <button className="btn ghost" onClick={() => setIvOn(new Set([0, 4, 7, 10]))}>Dominant 7th</button>
-              <button className="btn ghost" onClick={() => setIvOn(new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]))}>All twelve</button>
+              {[
+                { l: "Root only", iv: [0] },
+                { l: "Major triad", iv: [0, 4, 7] },
+                { l: "Minor triad", iv: [0, 3, 7] },
+                { l: "Dominant 7th", iv: [0, 4, 7, 10] },
+                { l: "All twelve", iv: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
+              ].map((pr) => {
+                const on = pr.iv.length === ivOn.size && pr.iv.every((i) => ivOn.has(i));
+                return (
+                  <button key={pr.l} className={`btn ghost ${on ? "sel" : ""}`} aria-pressed={on} onClick={() => setIvOn(new Set(pr.iv))}>
+                    {pr.l}
+                  </button>
+                );
+              })}
             </div>
             )}
             <p className="note" hidden={settings.simple}>Filled dots are natural degrees. Rings are flattened ones. Colour groups intervals by function: seconds, thirds, fourths, fifths, sixths, sevenths.</p>
@@ -3524,6 +3734,10 @@ export default function App() {
               >
                 {chg.phase === "done"
                   ? "Time!"
+                  : chg.duration === 0
+                  ? chg.phase === "running"
+                    ? "Free"
+                    : "\u221e"
                   : `${Math.floor(chg.remaining / 60)}:${String(chg.remaining % 60).padStart(2, "0")}`}
               </div>
               <div className="chgnames">{chgLabel}</div>
@@ -3598,7 +3812,7 @@ export default function App() {
                         </div>
                       </div>
                     ))}
-                    {chg.chords.length < 4 && (
+                    {chg.chords.length < 8 && (
                       <button className="btn ghost wide" onClick={addChgChord}>+ Add a chord</button>
                     )}
                   </div>
@@ -3608,7 +3822,7 @@ export default function App() {
                   <Field label="Length">
                     <Seg
                       small
-                      options={[{ v: 30, l: "0:30" }, { v: 60, l: "1:00" }, { v: 120, l: "2:00" }]}
+                      options={[{ v: 30, l: "0:30" }, { v: 60, l: "1:00" }, { v: 120, l: "2:00" }, { v: 0, l: "Free" }]}
                       value={chg.duration}
                       onChange={(v) => setChg((c) => ({ ...c, duration: v, remaining: v }))}
                     />
@@ -3625,7 +3839,11 @@ export default function App() {
             {chg.phase === "running" && (
               <div className="row">
                 <button className="transport on" onClick={stopRun}>Stop</button>
-                <p className="note">Switch between {chgLabel}. Count each clean change.</p>
+                <p className="note">
+                  {chg.duration === 0
+                    ? `Practise switching between ${chgLabel} at your own pace. Stop whenever you are done.`
+                    : `Switch between ${chgLabel}. Count each clean change.`}
+                </p>
               </div>
             )}
 
@@ -3691,10 +3909,9 @@ export default function App() {
                 respected.
               </p>
               <p className="note">
-                Known gaps, honestly: chord diagrams are visual and their per-string fingerings are not yet
-                described to screen readers; some audio feedback has no visual equivalent yet; and the app has
-                not had a formal WCAG audit. If something gets in your way, please say so in the form below,
-                and it will be treated as a bug, not a nice-to-have.
+                Known gaps: some audio feedback has no visual equivalent yet, and the app has not had a
+                formal WCAG audit. Chord shapes are described string by string to screen readers. If something
+                gets in your way, please say so in the form below, and it will be treated as a bug.
               </p>
             </section>
 
@@ -3716,6 +3933,51 @@ export default function App() {
           </div>
         )}
 
+        {mode === "arp" && (
+          <div className="pane">
+            <div className="row wrap">
+              <Field label="Root"><KeyPicker value={arpRoot} onChange={setArpRoot} flats={effFlats} /></Field>
+              <Field label="Arpeggio">
+                <CatPicker
+                  value={arpId}
+                  onChange={setArpId}
+                  label="Arpeggio type"
+                  groups={groupItems(CHORD_GROUPS, CHORDS, SIMPLE_CHORDS, settings.simple, arpId)}
+                />
+              </Field>
+              <Field label="Direction">
+                <Seg small ariaLabel="Arpeggio direction"
+                  options={[
+                    { v: "up", l: "Up" }, { v: "down", l: "Down" }, { v: "updown", l: "Up-down" }, { v: "downup", l: "Down-up" },
+                    ...(settings.simple ? [] : [{ v: "thirds", l: "In thirds" }, { v: "pedal", l: "Pedal root" }]),
+                  ]}
+                  value={arpDir} onChange={setArpDir} />
+              </Field>
+              <button
+                className={`btn primary ${playing != null ? "live" : ""}`}
+                onClick={playing != null ? stopPlayback : () => { track("hear_arp", { arp: arpId, dir: arpDir }); playArpeggio(); }}
+                data-tip="Play the arpeggio over two octaves and light each tone"
+              >
+                {playing != null ? "Stop" : "Hear it"}
+              </button>
+            </div>
+
+            <div className="degrees">
+              {arpDef.iv.map((i) => (
+                <span key={i} className="chip" style={{ borderLeftColor: FUNC_COLOUR[i % 12] }}>
+                  <b style={{ color: FUNC_COLOUR[i % 12] }}>{DEG[i % 12]}</b>
+                  {nameOf(arpRoot + i, effFlats)}
+                </span>
+              ))}
+            </div>
+
+            <p className="note">
+              Every place these chord tones live on the neck. Practise the shape one string set at a time,
+              then follow the playback direction with your pick.
+            </p>
+          </div>
+        )}
+
         {mode === "melody" && (
           <div className="pane">
             <p className="note">
@@ -3729,12 +3991,12 @@ export default function App() {
                 {melSteps.map((st, i) => (
                   <button
                     key={i}
-                    className={`barchip ${melPlayIdx === i ? "hot" : ""}`}
+                    className={`barchip ${melPlayIdx === i ? "hot" : ""} ${st.rest ? "restchip" : ""}`}
                     onClick={() => setMelSteps((arr) => arr.filter((_, j) => j !== i))}
-                    aria-label={`Remove note ${i + 1}, ${nameOf((settings.midis[st.s] + st.f) % 12, effFlats)}`}
+                    aria-label={st.rest ? `Remove rest at position ${i + 1}` : `Remove note ${i + 1}, ${nameOf((settings.midis[st.s] + st.f) % 12, effFlats)}`}
                   >
-                    {nameOf((settings.midis[st.s] + st.f) % 12, effFlats)}
-                    <em>{st.f}</em>
+                    {st.rest ? "rest" : nameOf((settings.midis[st.s] + st.f) % 12, effFlats)}
+                    {!st.rest && <em>{st.f}</em>}
                   </button>
                 ))}
               </div>
@@ -3766,6 +4028,7 @@ export default function App() {
                   <button className="mini" aria-label="Up one semitone" onClick={() => transposeMelody(1)} disabled={!melSteps.length}>+1</button>
                 </div>
               </Field>
+              <button className="btn ghost" onClick={() => setMelSteps((st) => (st.length >= 128 ? st : [...st, { rest: true }]))}>Add rest</button>
               <span className="actspacer" aria-hidden="true" />
               <button className="btn ghost" onClick={() => setMelSteps((arr) => arr.slice(0, -1))} disabled={!melSteps.length}>Undo note</button>
               <button className="btn ghost danger" onClick={() => setMelSteps([])} disabled={!melSteps.length}>Clear</button>
@@ -4669,6 +4932,15 @@ const CSS = `
   padding:9px 11px; font-size:14px; font-family:inherit; width:100%; max-width:260px;
 }
 
+/* pickers open upward near the bottom edge */
+.pickmenu.up{top:auto; bottom:calc(100% + 5px)}
+
+/* selected state for ghost preset buttons */
+.btn.ghost.sel{background:var(--ink); color:var(--onink); border-color:var(--ink)}
+
+/* share */
+.sharebtn{display:inline-flex; align-items:center; gap:7px; flex:none}
+
 /* ear training */
 .earopts{display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:6px}
 .earopt{
@@ -4684,6 +4956,7 @@ const CSS = `
 /* melodies */
 .barchip.hot{background:var(--gold); border-color:var(--gold); color:#1A2429}
 .barchip em{font-style:normal; font-size:10px; color:var(--muted)}
+.barchip.restchip{border-style:dashed; color:var(--muted); font-style:italic}
 .barchip.hot em{color:#1A2429; opacity:.75}
 .melinput{
   background:var(--card); color:var(--ink); border:1px solid var(--line2); border-radius:5px;
