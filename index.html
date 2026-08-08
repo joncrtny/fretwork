@@ -58,7 +58,9 @@
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
       if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-        gtag('config', 'G-VMNC1CJ595');
+        /* SPA: the app owns page_view emission (one per in-app view change),
+           so disable the single automatic pageview to avoid double-counting. */
+        gtag('config', 'G-VMNC1CJ595', { send_page_view: false });
       }
     </script>
 

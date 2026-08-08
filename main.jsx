@@ -12,6 +12,9 @@ import App from "./App.jsx";
 const AMPLITUDE_KEY = import.meta.env.VITE_AMPLITUDE_API_KEY || "8f37f29448f9a0f68dda4d423b89846c";
 if (import.meta.env.PROD && AMPLITUDE_KEY) {
   amplitude.init(AMPLITUDE_KEY, { autocapture: true });
+  /* expose the initialised singleton so App.jsx can forward custom events and
+     in-app screen views. PROD-only, so dev never touches Amplitude. */
+  window.amplitude = amplitude;
 }
 
 createRoot(document.getElementById("root")).render(

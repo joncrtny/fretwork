@@ -366,10 +366,40 @@ const store = {
   },
 };
 
-/* Google Analytics event helper; no-op when gtag is blocked or absent */
+/* A friendly synthetic path and title for each in-app view. The app is a
+   single page, so GA and Amplitude never see navigation on their own: we send
+   a page_view per view change instead, keyed off these. Keep every `mode`
+   value covered, or its path falls back to a raw, opaque "/mode". */
+const VIEW_META = {
+  chord: { path: "/chords", title: "Chords" },
+  scale: { path: "/scales", title: "Scales" },
+  arp: { path: "/arpeggios", title: "Arpeggios" },
+  interval: { path: "/intervals", title: "Intervals" },
+  prog: { path: "/progressions", title: "Progressions" },
+  changes: { path: "/chord-changes", title: "Chord changes" },
+  melody: { path: "/melodies", title: "Melodies" },
+  quiz: { path: "/quiz", title: "Quiz" },
+  ear: { path: "/ear-training", title: "Ear training" },
+  finder: { path: "/chord-finder", title: "Chord finder" },
+  tuner: { path: "/tuner", title: "Tuner" },
+  bank: { path: "/bank", title: "Bank" },
+  about: { path: "/about", title: "About" },
+  account: { path: "/account", title: "Account" },
+  settings: { path: "/settings", title: "Settings" },
+  plog: { path: "/practice-log", title: "Practice log" },
+};
+
+/* Event helper: forwards to Google Analytics and Amplitude. Each sink has its
+   own try/catch so one failing never skips the other, and analytics never
+   breaks the app. Amplitude is only present in production (set in main.jsx). */
 function track(name, params) {
   try {
     if (typeof window !== "undefined" && typeof window.gtag === "function") window.gtag("event", name, params || {});
+  } catch (e) {
+    /* analytics must never break the app */
+  }
+  try {
+    if (typeof window !== "undefined" && window.amplitude) window.amplitude.track(name, params || {});
   } catch (e) {
     /* analytics must never break the app */
   }
@@ -1892,6 +1922,36 @@ export default function App() {
   const tourCardRef = useRef(null);
   const hadShareHashRef = useRef(typeof window !== "undefined" && /^#s=/.test(window.location.hash || ""));
 
+  /* SPA page views: send a real page_view (and Amplitude screen_view) per view
+     change, since GA/Amplitude cannot see our state-only navigation. GA4 counts
+     a session with 2+ page_views as engaged, so this is what lifts engagement
+     off the floor and populates the per-view usage reports. */
+  const lastPVRef = useRef(null); // last emitted path; dedupes StrictMode double-invoke and same-view re-entry
+  /* strict: a well-formed share hash means the share effect will resolve the
+     landing view and own its page_view, so the [mode] effect must stay quiet
+     until then. A loosely-shaped hash (#s= with bad chars) fails this regex, so
+     the [mode] effect emits the landing normally rather than recording nothing. */
+  const strictShareRef = useRef(typeof window !== "undefined" && /^#s=[A-Za-z0-9_-]+$/.test(window.location.hash || ""));
+  const shareHandledRef = useRef(false); // set once the share effect has emitted the share-load page_view
+  const firePageView = useCallback((m) => {
+    const meta = VIEW_META[m] || { path: "/" + m, title: m };
+    if (meta.path === lastPVRef.current) return;
+    const loc = window.location.origin + meta.path;
+    const referrer = lastPVRef.current ? window.location.origin + lastPVRef.current : document.referrer || undefined;
+    lastPVRef.current = meta.path;
+    try {
+      if (typeof window.gtag === "function")
+        window.gtag("event", "page_view", { page_title: meta.title, page_location: loc, page_referrer: referrer });
+    } catch (e) {
+      /* analytics must never break the app */
+    }
+    try {
+      if (window.amplitude) window.amplitude.track("screen_view", { screen: m, path: meta.path, title: meta.title });
+    } catch (e) {
+      /* analytics must never break the app */
+    }
+  }, []);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       authTokenRef.current = data.session ? data.session.access_token : null;
@@ -3324,16 +3384,21 @@ export default function App() {
     if (!loaded) return;
     const mt = window.location.hash.match(/^#s=([A-Za-z0-9_-]+)$/);
     if (!mt) return;
+    /* This runs only on share loads, where the [mode] mount effect deliberately
+       skips its landing emit. So this effect owns the share view's page_view,
+       set from pvMode and fired even if the link is malformed (falls back to
+       the current view) so a share load never records zero page_views. */
+    let pvMode = mode;
     try {
       const pad = mt[1].length % 4 === 0 ? "" : "=".repeat(4 - (mt[1].length % 4));
       const p = JSON.parse(decodeURIComponent(atob(mt[1].replace(/-/g, "+").replace(/_/g, "/") + pad)));
       const pc = (v) => Number.isInteger(v) && v >= 0 && v < 12;
       if (p.m === "scale" && pc(p.r) && SCALES.some((x) => x.id === p.id)) {
-        setScaleRoot(p.r); setScaleId(p.id); setMode("scale");
+        setScaleRoot(p.r); setScaleId(p.id); setMode("scale"); pvMode = "scale";
       } else if (p.m === "arp" && pc(p.r) && CHORDS.some((x) => x.id === p.id)) {
-        setArpRoot(p.r); setArpId(p.id); setMode("arp");
+        setArpRoot(p.r); setArpId(p.id); setMode("arp"); pvMode = "arp";
       } else if (p.m === "chord" && pc(p.r) && CHORDS.some((x) => x.id === p.id)) {
-        setChordRoot(p.r); setChordId(p.id); setMode("chord");
+        setChordRoot(p.r); setChordId(p.id); setMode("chord"); pvMode = "chord";
       } else if (p.m === "prog" && pc(p.r)) {
         setProgRoot(p.r);
         if (Array.isArray(p.bars) && p.bars.length && p.bars.every((b) => typeof b === "string" && Object.prototype.hasOwnProperty.call(ROMAN, b))) {
@@ -3344,11 +3409,11 @@ export default function App() {
         } else if (PROGRESSIONS.some((x) => x.id === p.id)) {
           setProgId(p.id);
         }
-        setMode("prog");
+        setMode("prog"); pvMode = "prog";
       } else if (p.m === "interval" && pc(p.r) && Array.isArray(p.iv)) {
         setIvRoot(p.r);
         setIvOn(new Set(p.iv.filter((i) => Number.isInteger(i) && i >= 0 && i < 12)));
-        setMode("interval");
+        setMode("interval"); pvMode = "interval";
       } else if (p.m === "melody" && Array.isArray(p.steps)) {
         const steps = p.steps
           .filter((st) => st === null || (Array.isArray(st) && Number.isInteger(st[0]) && Number.isInteger(st[1]) && st[0] >= 0 && st[0] < settings.midis.length && st[1] >= 0 && st[1] <= fretCount))
@@ -3357,7 +3422,7 @@ export default function App() {
         if (steps.length) {
           setMelSteps(steps);
           if (typeof p.nm === "string") setMelName(p.nm.slice(0, 60));
-          setMode("melody");
+          setMode("melody"); pvMode = "melody";
         }
       }
       if (Number.isInteger(p.capo) && p.capo >= 0 && p.capo <= 12) setCapo(p.capo);
@@ -3366,11 +3431,27 @@ export default function App() {
     } catch (e) {
       /* malformed link, ignore */
     }
+    /* own the landing page_view for this share load; the [mode] effect stayed
+       quiet waiting for this, and unblocks once shareHandledRef is set */
+    shareHandledRef.current = true;
+    firePageView(pvMode);
     /* apply once: clear the hash so a reload reflects current state, not the link */
     if (window.history && window.history.replaceState)
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
+
+  /* Emit a page_view on the initial view and on every view change. This is the
+     single, complete source of view transitions (covers nav, Bank open, finder,
+     tour and the account redirect). On a share load the mount emit is skipped:
+     the share effect above owns that first page_view once it resolves the target. */
+  useEffect(() => {
+    /* On a share load, stay quiet until the share effect resolves and emits the
+       real target view. This is robust to StrictMode's double mount invoke: both
+       invocations see the share unhandled and skip, so no phantom landing fires. */
+    if (strictShareRef.current && !shareHandledRef.current) return;
+    firePageView(mode);
+  }, [mode, firePageView]);
 
   useEffect(() => {
     if (!toast) return;
@@ -3439,7 +3520,7 @@ export default function App() {
     <button
       className={`dnav ${mode === id ? "on" : ""}`}
       aria-current={mode === id ? "page" : undefined}
-      onClick={() => { setMode(id); setOpenPanel(null); track("view_mode", { mode: id }); closeNav(); }}
+      onClick={() => { setMode(id); setOpenPanel(null); closeNav(); }}
     >
       {label}
       {extra}
@@ -3623,7 +3704,7 @@ export default function App() {
             <button
               className={`dnav soft ${mode === "about" ? "on" : ""}`}
               aria-current={mode === "about" ? "page" : undefined}
-              onClick={() => { setMode("about"); setOpenPanel(null); track("view_mode", { mode: "about" }); closeNav(); }}
+              onClick={() => { setMode("about"); setOpenPanel(null); closeNav(); }}
             >
               About Fretwork
             </button>
