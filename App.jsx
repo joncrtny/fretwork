@@ -1731,7 +1731,7 @@ export default function App() {
   const [progIdx, setProgIdx] = useState(0);
   const [progPlaying, setProgPlaying] = useState(false);
   const [customProgs, setCustomProgs] = useState([]);
-  const [builder, setBuilder] = useState({ bars: [], name: "" });
+  const [builder, setBuilder] = useState({ bars: [], name: "", sections: {} });
 
   const [melSteps, setMelSteps] = useState([]); // [{s, f}]
   const [melName, setMelName] = useState("");
@@ -2316,7 +2316,7 @@ export default function App() {
     if (saved) return saved;
     if (progId === "custom") {
       const minorish = MINOR_STARTS.has(builder.bars[0]);
-      return { id: "custom", name: builder.name.trim() || "Custom", note: "Build your own", tonality: minorish ? "minor" : "major", bars: builder.bars };
+      return { id: "custom", name: builder.name.trim() || "Custom", note: "Build your own", tonality: minorish ? "minor" : "major", bars: builder.bars, sections: builder.sections };
     }
     return PROGRESSIONS[0];
   }, [progId, customProgs, builder]);
@@ -2446,14 +2446,27 @@ export default function App() {
   /* collapse runs of identical bars, so a 12-bar blues reads as three charts
      with bar counts rather than twelve repeats */
   const progGroups = useMemo(() => {
+    const sections = progDef.sections || {};
     const out = [];
     progChords.forEach((c, i) => {
       const last = out[out.length - 1];
-      if (last && progChords[last.start].roman === c.roman) last.count += 1;
-      else out.push({ start: i, count: 1 });
+      const sec = sections[i];
+      if (last && !sec && progChords[last.start].roman === c.roman) last.count += 1;
+      else out.push({ start: i, count: 1, section: sec || null });
     });
     return out;
-  }, [progChords]);
+  }, [progChords, progDef]);
+
+  /* split the collapsed groups into named song sections */
+  const songBlocks = useMemo(() => {
+    const blocks = [];
+    progGroups.forEach((g) => {
+      if (g.section || blocks.length === 0) blocks.push({ name: g.section || null, groups: [g] });
+      else blocks[blocks.length - 1].groups.push(g);
+    });
+    return blocks;
+  }, [progGroups]);
+  const hasSections = progGroups.some((g) => g.section);
 
   /* which major key covers the melody's notes best */
   const melKeyHint = useMemo(() => {
@@ -3007,7 +3020,7 @@ export default function App() {
     else if (mode === "prog") {
       Object.assign(p, { r: progRoot, id: progId });
       const cust = customProgs.find((x) => x.id === progId);
-      if (cust) Object.assign(p, { bars: cust.bars, nm: cust.name });
+      if (cust) Object.assign(p, { bars: cust.bars, nm: cust.name, sec: cust.sections });
     } else if (mode === "interval") Object.assign(p, { r: ivRoot, iv: [...ivOn] });
     else if (mode === "melody") Object.assign(p, { steps: melSteps.map((st) => (st.rest ? null : [st.s, st.f])), nm: melName.trim() || undefined });
     if (capo) p.capo = capo;
@@ -3046,7 +3059,9 @@ export default function App() {
       } else if (p.m === "prog" && pc(p.r)) {
         setProgRoot(p.r);
         if (Array.isArray(p.bars) && p.bars.length && p.bars.every((b) => typeof b === "string" && Object.prototype.hasOwnProperty.call(ROMAN, b))) {
-          setBuilder({ bars: p.bars.slice(0, 64), name: typeof p.nm === "string" ? p.nm.slice(0, 40) : "" });
+          const sec = {};
+          if (p.sec && typeof p.sec === "object") for (const [k, v] of Object.entries(p.sec)) if (/^[0-9]+$/.test(k) && typeof v === "string") sec[+k] = v.slice(0, 16);
+          setBuilder({ bars: p.bars.slice(0, 64), name: typeof p.nm === "string" ? p.nm.slice(0, 40) : "", sections: sec });
           setProgId("custom");
         } else if (PROGRESSIONS.some((x) => x.id === p.id)) {
           setProgId(p.id);
@@ -3154,6 +3169,39 @@ export default function App() {
   /* app-like nav: on a phone, choosing anything closes the drawer. On desktop the
      drawer is a persistent sidebar, so it stays put. Focus moves to the burger
      before the drawer goes inert, so it is never stranded on a hidden control. */
+  const renderProgDiagram = (g) => {
+    const i = g.start;
+    const c = progChords[i];
+    if (!progVoicings[i]) return null;
+    return (
+      <ChordDiagram
+        key={i}
+        voicing={progVoicings[i]}
+        midis={midis}
+        rootPc={c.rootPc}
+        capo={capo}
+        flats={effFlats}
+        showDegrees={false}
+        selected={progIdx >= i && progIdx < i + g.count}
+        title={`${nameOf(c.rootPc, effFlats)}${c.def.suffix}`}
+        caption={g.count > 1 ? `${c.roman} · ${g.count} bars` : c.roman}
+        onSelect={() => {
+          setProgIdx(i);
+          const v = progVoicings[i];
+          if (v && settings.sound) {
+            let j = 0;
+            for (let st = 0; st < n; st++) {
+              const f = v.frets[st];
+              if (f === null) continue;
+              pluck(midis[st] + f, j * 0.03);
+              j++;
+            }
+          }
+        }}
+      />
+    );
+  };
+
   /* live-app guided tour: each step sets up the real view, then spotlights it */
   const tourSteps = [
     { title: "Welcome to Fretwork", body: "A quick tour of the neck and the practice tools. About a minute. You can skip any time.", target: null, before: () => setDrawer(false) },
@@ -3584,39 +3632,18 @@ export default function App() {
         {mode === "prog" && (
           <div className="pane">
             {progVoicings.some(Boolean) ? (
-              <div className="voicings">
-                {progGroups.map((g) => {
-                  const i = g.start;
-                  const c = progChords[i];
-                  return progVoicings[i] ? (
-                    <ChordDiagram
-                      key={i}
-                      voicing={progVoicings[i]}
-                      midis={midis}
-                      rootPc={c.rootPc}
-                      capo={capo}
-                      flats={effFlats}
-                      showDegrees={false}
-                      selected={progIdx >= i && progIdx < i + g.count}
-                      title={`${nameOf(c.rootPc, effFlats)}${c.def.suffix}`}
-                      caption={g.count > 1 ? `${c.roman} · ${g.count} bars` : c.roman}
-                      onSelect={() => {
-                        setProgIdx(i);
-                        const v = progVoicings[i];
-                        if (v && settings.sound) {
-                          let j = 0;
-                          for (let st = 0; st < n; st++) {
-                            const f = v.frets[st];
-                            if (f === null) continue;
-                            pluck(midis[st] + f, j * 0.03);
-                            j++;
-                          }
-                        }
-                      }}
-                    />
-                  ) : null;
-                })}
-              </div>
+              hasSections ? (
+                <div className="songsheet">
+                  {songBlocks.map((blk, bi) => (
+                    <div className="songsec" key={bi}>
+                      {blk.name && <p className="secname">{blk.name}</p>}
+                      <div className="voicings">{blk.groups.map(renderProgDiagram)}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="voicings">{progGroups.map(renderProgDiagram)}</div>
+              )
             ) : (
               <p className="empty">No playable shapes for this progression in the current tuning.</p>
             )}
@@ -3686,14 +3713,46 @@ export default function App() {
                       <span className="note">Tap chords below to add bars. The same chord can repeat as many times as the song needs.</span>
                     )}
                     {builder.bars.map((b, i) => (
+                      <React.Fragment key={i}>
+                        {builder.sections && builder.sections[i] && (
+                          <button
+                            className="secchip"
+                            onClick={() => setBuilder((bl) => { const sc = { ...bl.sections }; delete sc[i]; return { ...bl, sections: sc }; })}
+                            data-tip="Remove this section marker"
+                          >
+                            {builder.sections[i]}
+                          </button>
+                        )}
+                        <button
+                          className="barchip"
+                          onClick={() => setBuilder((bl) => {
+                            const sections = {};
+                            Object.entries(bl.sections || {}).forEach(([k, v]) => {
+                              const idx = +k;
+                              if (idx < i) sections[idx] = v;
+                              else if (idx > i) sections[idx - 1] = v;
+                            });
+                            return { ...bl, bars: bl.bars.filter((_, j) => j !== i), sections };
+                          })}
+                          aria-label={`Remove bar ${i + 1}, ${b}`}
+                        >
+                          {b}
+                          <span aria-hidden="true">{"\u00d7"}</span>
+                        </button>
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </Field>
+                <Field label="Song sections (optional)">
+                  <div className="posrow">
+                    {["Intro", "Verse", "Chorus", "Bridge", "Solo", "Outro"].map((sec) => (
                       <button
-                        key={i}
-                        className="barchip"
-                        onClick={() => setBuilder((bl) => ({ ...bl, bars: bl.bars.filter((_, j) => j !== i) }))}
-                        aria-label={`Remove bar ${i + 1}, ${b}`}
+                        key={sec}
+                        className="poschip"
+                        onClick={() => setBuilder((bl) => ({ ...bl, sections: { ...bl.sections, [bl.bars.length]: sec } }))}
+                        data-tip={`Start a ${sec} section at the next bar`}
                       >
-                        {b}
-                        <span aria-hidden="true">{"\u00d7"}</span>
+                        + {sec}
                       </button>
                     ))}
                   </div>
@@ -3728,17 +3787,18 @@ export default function App() {
                         note: "Custom",
                         tonality: MINOR_STARTS.has(builder.bars[0]) ? "minor" : "major",
                         bars: builder.bars,
+                        sections: builder.sections,
                       };
                       saveCustomProgs([...customProgs, def]);
                       setProgId(def.id);
-                      setBuilder({ bars: [], name: "" });
+                      setBuilder({ bars: [], name: "", sections: {} });
                       track("custom_prog_save", { bars: def.bars.length });
                       setToast("Progression saved");
                     }}
                   >
                     Save progression
                   </button>
-                  <button className="btn ghost" disabled={!builder.bars.length} onClick={() => setBuilder((bl) => ({ ...bl, bars: [] }))}>
+                  <button className="btn ghost" disabled={!builder.bars.length} onClick={() => setBuilder((bl) => ({ ...bl, bars: [], sections: {} }))}>
                     Clear
                   </button>
                 </div>
@@ -5340,6 +5400,19 @@ const CSS = `
 
 /* selected state for ghost preset buttons */
 .btn.ghost.sel{background:var(--ink); color:var(--onink); border-color:var(--ink)}
+
+/* song sheet sections */
+.songsheet{display:grid; gap:16px}
+.songsec{display:grid; gap:8px}
+.secname{
+  margin:0; font-family:"Antonio",sans-serif; font-weight:600; font-size:13px;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--gold);
+}
+.secchip{
+  align-self:center; background:var(--ink); color:var(--onink); border:0; border-radius:4px;
+  padding:6px 9px; cursor:pointer; font-family:"Antonio",sans-serif; font-size:11px;
+  letter-spacing:.1em; text-transform:uppercase;
+}
 
 /* guided tour */
 .tour{position:fixed; inset:0; z-index:140}
