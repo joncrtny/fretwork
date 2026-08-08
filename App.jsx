@@ -111,6 +111,50 @@ const PRACTICE_MODES = {
 };
 const localDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
+/* parse pasted ASCII guitar tab into melody steps [{s, f}]. Handles the common
+   six-line format, top line high e, ordered left to right; a column with several
+   notes is read low string to high. Returns [] if nothing usable is found. */
+function parseTab(text, stringCount) {
+  const isTabLine = (l) => {
+    const body = l.replace(/^\s*[eEbBgGdDaA][b#]?\s*\|?/, "");
+    const dashes = (body.match(/-/g) || []).length;
+    return dashes >= 4 && /^[-\d|hpbx~/\\()\s.*]+$/.test(body) && /\d|-/.test(body);
+  };
+  const lines = text.replace(/\r/g, "").split("\n");
+  const steps = [];
+  let i = 0;
+  while (i < lines.length && steps.length < 128) {
+    if (!isTabLine(lines[i])) { i++; continue; }
+    /* gather a block of consecutive tab lines */
+    const block = [];
+    while (i < lines.length && isTabLine(lines[i]) && block.length < 6) { block.push(lines[i]); i++; }
+    if (block.length < 1) continue;
+    /* strip a leading label and the first bar line so columns align */
+    const rows = block.map((l) => l.replace(/^\s*[eEbBgGdDaA][b#]?\s*\|/, "").replace(/^\s*[eEbBgGdDaA][b#]?\s+/, ""));
+    const width = Math.max(...rows.map((r) => r.length));
+    const colNotes = [];
+    for (let c = 0; c < width; c++) {
+      const notes = [];
+      for (let r = 0; r < rows.length; r++) {
+        const ch = rows[r][c];
+        if (ch && /\d/.test(ch)) {
+          /* only start of a number run */
+          if (c > 0 && /\d/.test(rows[r][c - 1] || "")) continue;
+          let num = ch;
+          if (/\d/.test(rows[r][c + 1] || "")) num += rows[r][c + 1];
+          const fret = parseInt(num, 10);
+          /* the top row is the highest string; blocks are top-aligned */
+          const sIdx = stringCount - 1 - r;
+          if (sIdx >= 0 && sIdx < stringCount && fret >= 0 && fret <= 27) notes.push({ s: sIdx, f: fret, order: r });
+        }
+      }
+      if (notes.length) colNotes.push(notes.sort((a, b) => a.s - b.s));
+    }
+    for (const col of colNotes) for (const nt of col) { if (steps.length < 128) steps.push({ s: nt.s, f: nt.f }); }
+  }
+  return steps;
+}
+
 /* ear training pools */
 const EAR_INTERVALS = [
   { v: 1, l: "Minor 2nd" }, { v: 2, l: "Major 2nd" }, { v: 3, l: "Minor 3rd" }, { v: 4, l: "Major 3rd" },
@@ -1734,6 +1778,8 @@ export default function App() {
   const [arpRoot, setArpRoot] = useState(0);
   const [arpId, setArpId] = useState("maj");
   const [arpDir, setArpDir] = useState("up");
+  const [arpPos, setArpPos] = useState(null);
+  const [arpLabel, setArpLabel] = useState("name");
 
   const [chordRoot, setChordRoot] = useState(0);
   const [chordId, setChordId] = useState("maj");
@@ -1762,6 +1808,8 @@ export default function App() {
 
   const [melSteps, setMelSteps] = useState([]); // [{s, f}]
   const [melName, setMelName] = useState("");
+  const [melImport, setMelImport] = useState(false);
+  const [melImportText, setMelImportText] = useState("");
   const [melodies, setMelodies] = useState([]);
   const [melPlayIdx, setMelPlayIdx] = useState(null);
   const [melRate, setMelRate] = useState(2); // notes per beat
@@ -2361,6 +2409,18 @@ export default function App() {
   useEffect(() => { setScalePos(null); }, [scaleId, scaleRoot, settings.tuningId, capo]);
   const chordDef = CHORDS.find((c) => c.id === chordId) || CHORDS[0];
   const arpDef = CHORDS.find((c) => c.id === arpId) || CHORDS[0];
+  const arpPositions = useMemo(() => {
+    const set = new Set(arpDef.iv.map((i) => i % 12));
+    const span = 4;
+    const out = [];
+    for (let f = capo; f <= fretCount - span && out.length < set.size; f++) {
+      const semis = (((midis[0] + f) % 12) - arpRoot + 24) % 12;
+      if (!set.has(semis)) continue;
+      out.push({ from: f, to: f + span, deg: semis });
+    }
+    return out;
+  }, [arpDef, arpRoot, midis, fretCount, capo]);
+  useEffect(() => { setArpPos(null); }, [arpId, arpRoot, settings.tuningId, capo]);
   useEffect(() => {
     if (settings.simple && (arpDir === "thirds" || arpDir === "pedal")) setArpDir("up");
   }, [settings.simple, arpDir]);
@@ -2705,8 +2765,10 @@ export default function App() {
 
     if (mode === "arp") {
       const set = new Set(arpDef.iv.map((i) => i % 12));
+      const win = arpPos != null ? arpPositions[arpPos] : null;
       for (const p of positionsFor(arpRoot, set)) {
-        const state = playing != null ? (p.semis === playing ? "lit" : "dim") : null;
+        const outside = win && (p.f < win.from || p.f > win.to);
+        const state = playing != null ? (p.semis === playing ? "lit" : "dim") : outside ? "dim" : null;
         add(p.s, p.f, p.pc, p.semis, "arp", state);
       }
     }
@@ -2741,7 +2803,7 @@ export default function App() {
     }
 
     return map;
-  }, [mode, scaleDef, scaleRoot, ivRoot, ivOn, activeVoicing, chordRoot, midis, n, quiz, positionsFor, playing, activeProg, activeProgVoicing, scalePos, positions, melSteps, melPlayIdx, melKeyHint, arpRoot, arpDef, finderSel, finderInfo]);
+  }, [mode, scaleDef, scaleRoot, ivRoot, ivOn, activeVoicing, chordRoot, midis, n, quiz, positionsFor, playing, activeProg, activeProgVoicing, scalePos, positions, melSteps, melPlayIdx, melKeyHint, arpRoot, arpDef, arpPos, arpPositions, finderSel, finderInfo]);
 
   const ghosts = useMemo(() => {
     if (mode !== "chord" || !showAllTones) return null;
@@ -2877,6 +2939,29 @@ export default function App() {
     setProgPlaying(false);
     setMelPlayIdx(null);
   }, []);
+
+  const doImportTab = useCallback((text) => {
+    const steps = parseTab(text, settings.midis.length);
+    if (!steps.length) { setToast("Could not read a tab there. Check the format."); return; }
+    stopPlayback();
+    setMelSteps(steps);
+    setMelImport(false);
+    setMelImportText("");
+    track("melody_import", { notes: steps.length });
+    setToast(`Imported ${steps.length} notes`);
+  }, [settings.midis.length, stopPlayback]);
+
+  const importTabFromClipboard = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && text.trim()) { doImportTab(text); return; }
+      setToast("Clipboard is empty. Paste your tab below.");
+    } catch (e) {
+      /* clipboard read blocked: fall back to the paste box */
+    }
+    setMelImport(true);
+  }, [doImportTab]);
+
 
   const playScale = useCallback(() => {
     stopPlayback();
@@ -3339,12 +3424,13 @@ export default function App() {
 
   /* live-app guided tour: each step sets up the real view, then spotlights it */
   const tourSteps = [
-    { title: "Welcome to Fretwork", body: "A quick tour of the neck and the practice tools. About a minute. You can skip any time.", target: null, before: () => setDrawer(false) },
-    { title: "The menu", body: "Everything lives here, grouped into Learn, Practice, Profile and Tools.", target: ".drawer", before: () => setDrawer(true) },
+    { title: "Welcome to Fretwork", body: "A quick tour of the neck and the practice tools. About a minute, and you can skip any time.", target: null, before: () => setDrawer(false) },
+    { title: "The menu", body: "Everything lives here, grouped into Learn, Practice, Tools and your Profile.", target: ".drawer", before: () => setDrawer(true) },
     { title: "The fretboard", body: "Every view shares this neck. Tap any note to hear it, or drag the capo along the top. It is fully keyboard operable too.", target: ".neckwrap", before: () => { setDrawer(false); setMode("chord"); setOpenPanel(null); } },
-    { title: "Pick anything", body: "Choose a root and a chord, scale, or arpeggio. Every pane uses the same compact pickers.", target: ".pane .row.wrap", before: () => { setDrawer(false); setMode("chord"); } },
-    { title: "Practise", body: "Quiz yourself, drill chord changes against a timer, train your ear, and write out melodies. Your practice time is logged into a streak.", target: "[data-tour=practice]", before: () => setDrawer(true) },
-    { title: "Tools", body: "A metronome with subdivisions, and a real microphone tuner that listens to your guitar.", target: ".drawer", before: () => setDrawer(true) },
+    { title: "Pick anything", body: "Choose a root and a chord, scale or arpeggio with the same compact pickers. Tap the star to keep anything in your Bank.", target: ".pane .row.wrap", before: () => { setDrawer(false); setMode("chord"); } },
+    { title: "Share it", body: "The share button copies a link to exactly what you are looking at, so you can send a shape or a progression to anyone.", target: ".sharebtn", before: () => { setDrawer(false); setMode("chord"); } },
+    { title: "Practise", body: "Quiz yourself, drill chord changes, train your ear, and write or paste in melodies from tab. Your practice time builds a streak.", target: "[data-tour=practice]", before: () => setDrawer(true) },
+    { title: "Tools", body: "A metronome with subdivisions, a real microphone tuner that listens to your guitar, and a chord finder that names the shapes you tap on the neck.", target: "[data-tour=tools]", before: () => setDrawer(true) },
     { title: "That is the tour", body: "Have a play. The About page has learning resources and a place to send feedback. Enjoy.", target: null, before: () => setDrawer(false) },
   ];
 
@@ -3451,7 +3537,7 @@ export default function App() {
           {navItem("quiz", "Quiz")}
           {navItem("ear", "Ear training")}
 
-          <p className="dhead"><HeadIcon kind="tools" />Tools</p>
+          <p className="dhead" data-tour="tools"><HeadIcon kind="tools" />Tools</p>
           <button
             className={`dnav ${openPanel === "metro" ? "on" : ""}`}
             onClick={() => { setOpenPanel((v) => (v === "metro" ? null : "metro")); closeNav(); }}
@@ -3593,7 +3679,7 @@ export default function App() {
             onCapo={setCapo}
             onCell={onCell}
             flats={effFlats}
-            labelMode={mode === "chord" || mode === "prog" ? chordLabel : mode === "scale" ? scaleLabel : settings.labelMode}
+            labelMode={mode === "chord" || mode === "prog" ? chordLabel : mode === "scale" ? scaleLabel : mode === "arp" ? arpLabel : settings.labelMode}
             colourMode={mode === "interval" ? "interval" : settings.colourMode}
             barre={(() => {
               const v = mode === "chord" ? activeVoicing : mode === "prog" ? activeProgVoicing : null;
@@ -4471,6 +4557,36 @@ export default function App() {
               />
             </div>
 
+            <Field label="Position">
+              <div className="posrow">
+                <button
+                  className={`poschip ${arpPos == null ? "on" : ""}`}
+                  onClick={() => setArpPos(null)}
+                  data-tip="Every position at once"
+                >
+                  Whole neck
+                </button>
+                {arpPositions.map((pos, i) => (
+                  <button
+                    key={i}
+                    className={`poschip ${arpPos === i ? "on" : ""}`}
+                    onClick={() => setArpPos(i)}
+                    data-tip={`Frets ${pos.from} to ${pos.to}, starting on the ${DEG[pos.deg]}`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+                {arpPos != null && (
+                  <span className="poshint">Frets {arpPositions[arpPos].from} to {arpPositions[arpPos].to}</span>
+                )}
+              </div>
+            </Field>
+            <Field label="Neck shows">
+              <Seg small
+                options={[{ v: "both", l: "Degree + note" }, { v: "name", l: "Notes" }, { v: "degree", l: "Degrees" }, { v: "none", l: "Blank" }]}
+                value={arpLabel} onChange={setArpLabel} />
+            </Field>
+
             <div className="degrees">
               {arpDef.iv.map((i) => (
                 <span key={i} className="chip" style={{ borderLeftColor: FUNC_COLOUR[i % 12] }}>
@@ -4481,8 +4597,8 @@ export default function App() {
             </div>
 
             <p className="note">
-              Every place these chord tones live on the neck. Practise the shape one string set at a time,
-              then follow the playback direction with your pick.
+              Every place these chord tones live on the neck. Narrow to one position, then follow the playback
+              direction with your pick.
             </p>
           </div>
         )}
@@ -4490,9 +4606,29 @@ export default function App() {
         {mode === "melody" && (
           <div className="pane">
             <p className="note">
-              Tap notes on the neck (or focus it and use the arrow keys and Enter) to write a melody from any
-              tab you are learning. Play it back, speed it up, transpose it, and save it for practice.
+              Tap notes on the neck (or focus it and use the arrow keys and Enter) to write a melody, or paste
+              a tab you found online. Play it back, speed it up, transpose it, and save it for practice.
             </p>
+
+            <div className="row wrap">
+              <button className="btn" onClick={importTabFromClipboard}>Import tab from clipboard</button>
+              <button className="btn ghost" onClick={() => setMelImport((v) => !v)}>{melImport ? "Hide paste box" : "Paste a tab"}</button>
+            </div>
+            {melImport && (
+              <Field id="tabpaste" label="Paste a tab, then Import">
+                <textarea
+                  id="tabpaste"
+                  className="melinput tabbox"
+                  rows={7}
+                  value={melImportText}
+                  onChange={(e) => setMelImportText(e.target.value)}
+                  placeholder={"e|--0--3--0--|\nB|--1-----1--|\nG|--0-----0--|\nD|--2-----2--|\nA|--3--3--3--|\nE|-----------|"}
+                />
+                <div className="row">
+                  <button className="btn primary" onClick={() => doImportTab(melImportText)} disabled={!melImportText.trim()}>Import</button>
+                </div>
+              </Field>
+            )}
 
             <Field label={`Melody \u00b7 ${melSteps.length} ${melSteps.length === 1 ? "note" : "notes"}`}>
               <div className="barstrip">
@@ -5702,6 +5838,7 @@ const CSS = `
 
 .capocalc{display:grid; gap:8px; border-top:1px solid var(--line); padding-top:16px}
 .finderhits{display:flex; flex-wrap:wrap; gap:8px}
+.tabbox{font-family:"IBM Plex Mono",monospace; font-size:12px; white-space:pre; overflow-x:auto; max-width:520px}
 
 /* star save button */
 .starsave{
