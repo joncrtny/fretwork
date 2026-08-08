@@ -5083,6 +5083,12 @@ const CSS = `
 }
 .app input[type=range]{width:100%; max-width:340px; accent-color:var(--ink)}
 .bpmbox input[type=range]{max-width:240px}
+/* iOS Safari zooms in (and never back out) when a focused control is under 16px.
+   Bump native text-entry controls to 16px on touch devices only. */
+@media (pointer: coarse) {
+  .app select, .segsel, .app textarea,
+  .app input[type=text], .app input[type=email], .app input[type=password], .app input[type=number] { font-size:16px }
+}
 
 .mini{background:var(--card); color:var(--ink); border:1px solid var(--line2); border-radius:4px; padding:5px 9px; font-size:12px; cursor:pointer; font-family:inherit}
 .mini:hover{background:var(--paper)}
