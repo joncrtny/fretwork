@@ -26,3 +26,4 @@ See CLAUDE.md and docs/DESIGN.md. No em dashes, no AI-sounding copy, en-GB, GBP.
 - Test account fretwork_selftest exists in Supabase; delete or keep.
 - Email linking needs one dashboard toggle: Authentication, Email, disable "Secure email change" (see SETUP.md).
 - Donate section is hidden behind SHOW_DONATE in App.jsx until there is an audience.
+- Analytics: the app is a single page, so it emits a manual GA4 page_view (and an Amplitude screen_view) per in-app view change via the [mode] effect in App.jsx (VIEW_META maps each view to a synthetic path). index.html sets send_page_view:false so the app owns pageviews. To make value actions also count as engagement, mark bank_save, sign_up and changes_start as Key events in GA4 (Admin, Events); no code change needed.
