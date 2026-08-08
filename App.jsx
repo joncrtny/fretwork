@@ -204,11 +204,21 @@ const SIMPLE_PROGS = new Set(["p1564", "p145", "p1645", "pblues", "pm1637"]);
    chord changes, quiz, melodies, tuner, metronome) */
 const SIMPLE_HIDDEN = new Set(["interval", "prog", "ear", "finder"]);
 /* which accordion each view lives under, so the active view's group can open */
-const CAT_OF = { scale: "learn", arp: "learn", interval: "learn", chord: "learn", prog: "learn", changes: "practice", melody: "practice", quiz: "practice", ear: "practice", tuner: "tools", finder: "tools", account: "profile", plog: "profile", settings: "profile" };
+const CAT_OF = { scale: "learn", arp: "learn", interval: "learn", chord: "learn", prog: "learn", changes: "practice", strum: "practice", melody: "practice", quiz: "practice", ear: "practice", tuner: "tools", finder: "tools", account: "profile", plog: "profile", settings: "profile" };
 
 /* melody timeline: eighth-note slots per bar (4/4), and a bar cap */
 const MEL_SLOTS = 8;
 const MEL_MAX_BARS = 8;
+
+/* strumming patterns over one bar of eighth notes (1 & 2 & 3 & 4 &).
+   d = downstroke, u = upstroke, null = no strum on that eighth. */
+const STRUM_PATTERNS = [
+  { id: "downs", name: "Down beats", slots: ["d", null, "d", null, "d", null, "d", null] },
+  { id: "eighths", name: "All eighths", slots: ["d", "u", "d", "u", "d", "u", "d", "u"] },
+  { id: "oldfaithful", name: "D DU UDU", slots: ["d", null, "d", "u", null, "u", "d", "u"] },
+  { id: "folkrock", name: "D DU D DU", slots: ["d", null, "d", "u", "d", null, "d", "u"] },
+  { id: "offbeats", name: "Off-beats", slots: [null, "u", null, "u", null, "u", null, "u"] },
+];
 const simpleList = (arr, allow, on, keepId) =>
   on ? arr.filter((x) => allow.has(x.id) || x.id === keepId) : arr;
 
@@ -386,6 +396,7 @@ const VIEW_META = {
   interval: { path: "/intervals", title: "Intervals" },
   prog: { path: "/progressions", title: "Progressions" },
   changes: { path: "/chord-changes", title: "Chord changes" },
+  strum: { path: "/strumming", title: "Strumming" },
   melody: { path: "/melodies", title: "Melodies" },
   quiz: { path: "/quiz", title: "Quiz" },
   ear: { path: "/ear-training", title: "Ear training" },
@@ -1867,6 +1878,9 @@ export default function App() {
   const [melRate, setMelRate] = useState(2); // slots per beat on playback (2 = eighths)
   const [melBars, setMelBars] = useState(2); // timeline length in bars
   const [melCursor, setMelCursor] = useState(0); // slot the next tapped note lands on
+  const [strumPatId, setStrumPatId] = useState("oldfaithful");
+  const [strumStep, setStrumStep] = useState(null); // current eighth slot during playback
+  const [strumOn, setStrumOn] = useState(false);
 
   const [ear, setEar] = useState({
     source: "interval", // interval | chord
@@ -2529,7 +2543,7 @@ export default function App() {
   );
 
   const voicings = useMemo(() => {
-    if (mode !== "chord") return [];
+    if (mode !== "chord" && mode !== "strum") return [];
     return findVoicings(chordRoot, chordDef.iv, midis, fretCount, capo, vopt);
   }, [mode, chordRoot, chordDef, midis, fretCount, capo, vopt]);
 
@@ -2903,6 +2917,16 @@ export default function App() {
       }
     }
 
+    if (mode === "strum" && activeVoicing) {
+      /* show the chord shape being strummed on the neck */
+      for (let s = 0; s < n; s++) {
+        const f = activeVoicing.frets[s];
+        if (f === null) continue;
+        const pc = (midis[s] + f) % 12;
+        add(s, f, pc, (pc - chordRoot + 12) % 12, "chord", "on");
+      }
+    }
+
     if (mode === "finder") {
       const rootPc = finderInfo.exact[0] ? finderInfo.exact[0].root : finderInfo.bassPc;
       for (const k of finderSel) {
@@ -3052,7 +3076,38 @@ export default function App() {
     setPlaying(null);
     setProgPlaying(false);
     setMelPlayIdx(null);
+    setStrumOn(false);
+    setStrumStep(null);
   }, []);
+
+  /* one strum of the current chord: down runs low string to high, up reverses */
+  const strumChord = useCallback((dir, at = 0) => {
+    if (!activeVoicing) return;
+    const notes = [];
+    for (let s = 0; s < n; s++) { const f = activeVoicing.frets[s]; if (f !== null) notes.push(midis[s] + f); }
+    const seq = dir === "u" ? notes.slice().reverse() : notes;
+    seq.forEach((m, i) => playNote(m, at + i * 0.024));
+  }, [activeVoicing, midis, n, playNote]);
+
+  const playStrum = useCallback(() => {
+    if (!activeVoicing) return;
+    stopPlayback();
+    setStrumOn(true);
+    const pat = STRUM_PATTERNS.find((p) => p.id === strumPatId) || STRUM_PATTERNS[0];
+    const slotSec = 60 / settings.bpm / 2; // an eighth note
+    const LOOPS = 16;
+    for (let loop = 0; loop < LOOPS; loop++) {
+      for (let sl = 0; sl < 8; sl++) {
+        const idx = loop * 8 + sl;
+        const stroke = pat.slots[sl];
+        playTimers.current.push(setTimeout(() => {
+          setStrumStep(sl);
+          if (stroke) strumChord(stroke);
+        }, idx * slotSec * 1000));
+      }
+    }
+    playTimers.current.push(setTimeout(() => { setStrumOn(false); setStrumStep(null); }, LOOPS * 8 * slotSec * 1000));
+  }, [activeVoicing, strumPatId, settings.bpm, stopPlayback, strumChord]);
 
   const doImportTab = useCallback((text) => {
     const steps = parseTab(text, settings.midis.length);
@@ -3501,6 +3556,7 @@ export default function App() {
     if (mode === "changes")
       return `Chord changes · ${chgLabel}`;
     if (mode === "about") return "About Fretwork";
+    if (mode === "strum") return `Strumming \u00b7 ${nameOf(chordRoot, effFlats)}${chordDef.suffix}`;
     if (mode === "melody") { const nn = melSteps.filter((s) => s && !s.rest).length; return `Melody \u00b7 ${nn} ${nn === 1 ? "note" : "notes"}`; }
     if (mode === "arp")
       return `${nameOf(arpRoot, effFlats)}${arpDef.suffix || ""} arpeggio \u00b7 ${arpDef.iv.length} tones`;
@@ -3723,6 +3779,7 @@ export default function App() {
           {openCats.practice && (
             <div className="dcatbody">
               {navItem("changes", "Chord changes")}
+              {navItem("strum", "Strumming")}
               {navItem("melody", "Melodies", melodies.length > 0 ? <span className="badge">{melodies.length}</span> : null)}
               {navItem("quiz", "Quiz")}
               {!settings.simple && navItem("ear", "Ear training")}
@@ -4819,6 +4876,84 @@ export default function App() {
               Every place these chord tones live on the neck. Narrow to one position, then follow the playback
               direction with your pick.
             </p>
+          </div>
+        )}
+
+        {mode === "strum" && (
+          <div className="pane">
+            <p className="note">
+              Pick a chord and a strumming pattern, hit Play, and strum along in time. A down arrow is a
+              downstroke (low strings to high), an up arrow is an upstroke. Set the tempo to suit you.
+            </p>
+
+            <div className="row wrap">
+              <Field label="Root"><KeyPicker value={chordRoot} onChange={setChordRoot} flats={effFlats} /></Field>
+              <Field label="Chord">
+                <CatPicker
+                  value={chordId}
+                  onChange={setChordId}
+                  label="Chord type"
+                  groups={groupItems(CHORD_GROUPS, CHORDS, SIMPLE_CHORDS, settings.simple, chordId)}
+                />
+              </Field>
+            </div>
+
+            {activeVoicing && (
+              <div className="voicings">
+                <div className="voicewrap">
+                  <ChordDiagram
+                    voicing={activeVoicing}
+                    lefty={settings.leftHanded}
+                    midis={midis}
+                    rootPc={chordRoot}
+                    capo={capo}
+                    flats={effFlats}
+                    showDegrees={false}
+                    selected
+                  />
+                </div>
+              </div>
+            )}
+
+            <Field label="Pattern">
+              <div className="row wrap">
+                {STRUM_PATTERNS.map((p) => (
+                  <button
+                    key={p.id}
+                    className={`btn ${strumPatId === p.id ? "primary" : "ghost"}`}
+                    onClick={() => { if (strumOn) stopPlayback(); setStrumPatId(p.id); }}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            </Field>
+
+            <div className="strumbar" role="group" aria-label="Strum pattern">
+              {(STRUM_PATTERNS.find((p) => p.id === strumPatId) || STRUM_PATTERNS[0]).slots.map((st, i) => (
+                <div key={i} className={`strumslot ${strumStep === i ? "on" : ""} ${i % 2 === 0 ? "beat" : ""}`}>
+                  <span className="strumarrow" aria-hidden="true">{st === "d" ? "↓" : st === "u" ? "↑" : ""}</span>
+                  <span className="strumcount">{i % 2 === 0 ? String(i / 2 + 1) : "&"}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="row wrap actions">
+              <button
+                className={`btn primary ${strumOn ? "live" : ""}`}
+                onClick={strumOn ? stopPlayback : playStrum}
+                disabled={!activeVoicing}
+              >
+                {strumOn ? "Stop" : "Play"}
+              </button>
+              <Field label="Tempo">
+                <div className="row">
+                  <button className="mini" aria-label="Slower" onClick={() => setSettings((s) => ({ ...s, bpm: Math.max(40, s.bpm - 5) }))}>{"−"}5</button>
+                  <b className="barcount">{settings.bpm}</b>
+                  <button className="mini" aria-label="Faster" onClick={() => setSettings((s) => ({ ...s, bpm: Math.min(240, s.bpm + 5) }))}>+5</button>
+                </div>
+              </Field>
+            </div>
           </div>
         )}
 
@@ -6093,6 +6228,18 @@ const CSS = `
 .tslotname{pointer-events:none}
 .barctl{align-items:center; gap:8px}
 .barctl .barcount{font-family:"IBM Plex Mono",monospace; min-width:18px; text-align:center}
+
+/* strum pattern bar */
+.strumbar{display:flex; gap:0; border:1px solid var(--line2); border-radius:8px; overflow:hidden; background:var(--card); max-width:420px}
+.strumslot{flex:1; min-width:40px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:12px 0 8px; border-left:1px solid var(--line); transition:background .1s ease}
+.strumslot:first-child{border-left:0}
+.strumslot.beat{border-left:1px solid var(--line2)}
+.strumbar .strumslot:first-child.beat{border-left:0}
+.strumarrow{font-size:22px; line-height:1; font-weight:700; color:var(--ink); min-height:22px}
+.strumcount{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--muted)}
+.strumslot.on{background:var(--gold)}
+.strumslot.on .strumarrow{color:#1A2429}
+.strumslot.on .strumcount{color:#1A2429; opacity:.8}
 
 .romangrid{display:flex; flex-wrap:wrap; gap:4px}
 .romangrid .key{flex:0 0 auto; min-width:52px; padding:8px 10px}
