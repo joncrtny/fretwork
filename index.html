@@ -67,14 +67,30 @@
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "Fretwork",
-        "url": "https://www.fretwork-practice.app/",
-        "applicationCategory": "EducationalApplication",
-        "operatingSystem": "Any (web browser)",
-        "description": "A free, interactive guitar fretboard for learning scales and chords with fingerings, intervals and progressions, plus a metronome, quiz and timed practice tools.",
-        "author": { "@type": "Person", "name": "Jonathan Courtney" },
-        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "GBP" }
+        "@graph": [
+          {
+            "@type": "WebApplication",
+            "name": "Fretwork",
+            "url": "https://www.fretwork-practice.app/",
+            "applicationCategory": "EducationalApplication",
+            "operatingSystem": "Any (web browser)",
+            "description": "A free, interactive guitar fretboard for learning scales and chords with fingerings, intervals and progressions, plus a metronome, quiz and timed practice tools.",
+            "author": { "@type": "Person", "name": "Jonathan Courtney" },
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "GBP" }
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              { "@type": "Question", "name": "Is Fretwork free?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Fretwork is, and always will be, free and without ads. No account or payment is needed." } },
+              { "@type": "Question", "name": "Do I need an account?", "acceptedAnswer": { "@type": "Answer", "text": "No, everything works without one. An optional free account (just a username, no email) syncs your saved shapes and progress across devices." } },
+              { "@type": "Question", "name": "Does Fretwork work offline?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. It is a progressive web app, so you can install it to your home screen and use it offline." } },
+              { "@type": "Question", "name": "What can I practise with Fretwork?", "acceptedAnswer": { "@type": "Answer", "text": "Scales, chords with fingerings, arpeggios, intervals and progressions, plus a chord-change trainer, ear training, a strumming trainer, a melody writer, a fretboard quiz, a metronome and a microphone tuner." } },
+              { "@type": "Question", "name": "Is Fretwork good for beginners?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Simple mode trims the app to the essentials, and a one-minute guided tour gets you started. You also earn points and badges as you practise." } },
+              { "@type": "Question", "name": "Which instruments and tunings are supported?", "acceptedAnswer": { "@type": "Answer", "text": "Six, seven and eight string guitar, bass, ukulele and mandolin, with standard, drop, open and other alternative tunings, plus a capo." } },
+              { "@type": "Question", "name": "Does Fretwork use my microphone?", "acceptedAnswer": { "@type": "Answer", "text": "Only the tuner, and only while it is switched on. The audio is analysed on your device and never leaves it." } }
+            ]
+          }
+        ]
       }
     </script>
 

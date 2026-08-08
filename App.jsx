@@ -553,6 +553,18 @@ const RESOURCES = [
   { name: "Ultimate Guitar", url: "https://www.ultimate-guitar.com/", blurb: "The biggest tab library for the songs you want to play." },
 ];
 
+/* FAQ shown on the About page. Keep in sync with the FAQPage JSON-LD in
+   index.html so the structured data matches the visible content. */
+const FAQS = [
+  { q: "Is Fretwork free?", a: "Yes. Fretwork is, and always will be, free and without ads. No account or payment is needed." },
+  { q: "Do I need an account?", a: "No, everything works without one. An optional free account (just a username, no email) syncs your saved shapes and progress across devices." },
+  { q: "Does Fretwork work offline?", a: "Yes. It is a progressive web app, so you can install it to your home screen and use it offline." },
+  { q: "What can I practise with Fretwork?", a: "Scales, chords with fingerings, arpeggios, intervals and progressions, plus a chord-change trainer, ear training, a strumming trainer, a melody writer, a fretboard quiz, a metronome and a microphone tuner." },
+  { q: "Is Fretwork good for beginners?", a: "Yes. Simple mode trims the app to the essentials, and a one-minute guided tour gets you started. You also earn points and badges as you practise." },
+  { q: "Which instruments and tunings are supported?", a: "Six, seven and eight string guitar, bass, ukulele and mandolin, with standard, drop, open and other alternative tunings, plus a capo." },
+  { q: "Does Fretwork use my microphone?", a: "Only the tuner, and only while it is switched on. The audio is analysed on your device and never leaves it." },
+];
+
 /* PayPal hosted donate button, injected only when About is open. If the SDK
    cannot load or render (offline, blocked scripts), fall back to a plain link. */
 const DONATE_URL = "https://www.paypal.com/donate/?hosted_button_id=YTQGVLV25V94A";
@@ -3959,6 +3971,22 @@ export default function App() {
               <p className="note freeline">
                 Fretwork is, and always will be, free and without ads.
               </p>
+            </section>
+
+            <section className="aboutblock">
+              <h2 className="abouthead">Frequently asked</h2>
+              <div className="faq">
+                {FAQS.map((f) => (
+                  <details className="faqitem" key={f.q}>
+                    <summary>{f.q}</summary>
+                    <p className="note">{f.a}</p>
+                  </details>
+                ))}
+              </div>
+            </section>
+
+            <section className="aboutblock">
+              <h2 className="abouthead">Your data</h2>
               <p className="note">
                 Fretwork uses Google Analytics, Vercel Analytics and Amplitude to understand how the app is
                 used and improve it. There is no session recording. Feedback sent from this page is stored so
@@ -5280,6 +5308,16 @@ const CSS = `
 @keyframes spinpop{from{opacity:0; transform:rotate(-30deg) scale(.5)}to{opacity:1; transform:none}}
 .lowmotion .celebrate,.lowmotion .celebratecard,.lowmotion .celebratemedal{animation:none}
 .freeline{font-weight:600; color:var(--ink)}
+
+/* About FAQ accordion */
+.faq{display:flex; flex-direction:column; gap:6px}
+.faqitem{border:1px solid var(--line); border-radius:8px; background:var(--card); overflow:hidden}
+.faqitem summary{cursor:pointer; padding:12px 14px; font-weight:600; list-style:none; display:flex; align-items:center; justify-content:space-between; gap:10px}
+.faqitem summary::-webkit-details-marker{display:none}
+.faqitem summary::after{content:"+"; font-family:"IBM Plex Mono",monospace; color:var(--muted); font-size:18px}
+.faqitem[open] summary::after{content:"\\2212"}
+.faqitem summary:hover{background:var(--paper)}
+.faqitem .note{margin:0; padding:0 14px 13px}
 
 .posrow{display:flex; gap:5px; flex-wrap:wrap; align-items:center}
 .poschip{
