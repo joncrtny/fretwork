@@ -1801,6 +1801,9 @@ export default function App() {
   const lastActiveRef = useRef(Date.now());
   const modeRef = useRef("chord");
 
+  const [tour, setTour] = useState(-1);
+  const [tourRect, setTourRect] = useState(null);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       authTokenRef.current = data.session ? data.session.access_token : null;
@@ -3151,6 +3154,54 @@ export default function App() {
   /* app-like nav: on a phone, choosing anything closes the drawer. On desktop the
      drawer is a persistent sidebar, so it stays put. Focus moves to the burger
      before the drawer goes inert, so it is never stranded on a hidden control. */
+  /* live-app guided tour: each step sets up the real view, then spotlights it */
+  const tourSteps = [
+    { title: "Welcome to Fretwork", body: "A quick tour of the neck and the practice tools. About a minute. You can skip any time.", target: null, before: () => setDrawer(false) },
+    { title: "The menu", body: "Everything lives here, grouped into Learn, Practice, Profile and Tools.", target: ".drawer", before: () => setDrawer(true) },
+    { title: "The fretboard", body: "Every view shares this neck. Tap any note to hear it, or drag the capo along the top. It is fully keyboard operable too.", target: ".neckwrap", before: () => { setDrawer(false); setMode("chord"); setOpenPanel(null); } },
+    { title: "Pick anything", body: "Choose a root and a chord, scale, or arpeggio. Every pane uses the same compact pickers.", target: ".pane .row.wrap", before: () => { setDrawer(false); setMode("chord"); } },
+    { title: "Practise", body: "Quiz yourself, drill chord changes against a timer, train your ear, and write out melodies. Your practice time is logged into a streak.", target: ".dnav", before: () => setDrawer(true) },
+    { title: "Tools", body: "A metronome with subdivisions, and a real microphone tuner that listens to your guitar.", target: ".drawer", before: () => setDrawer(true) },
+    { title: "That is the tour", body: "Have a play. The About page has learning resources and a place to send feedback. Enjoy.", target: null, before: () => setDrawer(false) },
+  ];
+
+  const startTour = useCallback(() => { setTour(0); track("tour_start"); }, []);
+  const endTour = useCallback(() => {
+    setTour(-1);
+    setTourRect(null);
+    store.set("fretboard:tourdone", "1").catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (tour < 0) return;
+    const step = tourSteps[tour];
+    if (step.before) step.before();
+    let raf = 0;
+    const measure = () => {
+      if (!step.target) { setTourRect(null); return; }
+      const el = document.querySelector(step.target);
+      if (el) {
+        const r = el.getBoundingClientRect();
+        setTourRect({ x: r.left, y: r.top, w: r.width, h: r.height });
+      } else setTourRect(null);
+    };
+    const t = setTimeout(() => { measure(); raf = requestAnimationFrame(measure); }, 320);
+    window.addEventListener("resize", measure);
+    window.addEventListener("scroll", measure, true);
+    return () => { clearTimeout(t); cancelAnimationFrame(raf); window.removeEventListener("resize", measure); window.removeEventListener("scroll", measure, true); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tour]);
+
+  /* offer the tour once, after first load */
+  useEffect(() => {
+    if (!loaded) return;
+    store.get("fretboard:tourdone").then(() => {}).catch(() => {
+      /* never seen: start it, but not if a share link is opening a specific view */
+      if (!window.location.hash) setTour(0);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
+
   const closeNav = () => {
     if (typeof window === "undefined" || !window.matchMedia("(max-width: 700px)").matches) return;
     if (burgerRef.current) burgerRef.current.focus();
@@ -4108,6 +4159,12 @@ export default function App() {
             </section>
 
             <section className="aboutblock">
+              <h2 className="abouthead">New here?</h2>
+              <p className="note">Take a quick guided tour of the neck and the practice tools.</p>
+              <button className="btn" onClick={() => { setMode("chord"); startTour(); }}>Take the tour</button>
+            </section>
+
+            <section className="aboutblock">
               <h2 className="abouthead">Accessibility</h2>
               <p className="note">
                 Music should be for everyone, and Fretwork aims to be usable by everyone. What works today:
@@ -4768,6 +4825,49 @@ export default function App() {
       </main>
       </div>
 
+      {tour >= 0 && (() => {
+        const step = tourSteps[tour];
+        const pad = 6;
+        const spot = tourRect
+          ? { left: tourRect.x - pad, top: tourRect.y - pad, width: tourRect.w + pad * 2, height: tourRect.h + pad * 2 }
+          : null;
+        const vw = typeof window !== "undefined" ? window.innerWidth : 1000;
+        const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+        const CARD_H = 214;
+        const CARD_W = 320;
+        let cardStyle;
+        if (!spot || spot.height > vh * 0.7) {
+          /* full-height or missing target: centre the card, drawer stays highlighted behind */
+          cardStyle = { top: "50%", left: "50%", transform: "translate(-50%,-50%)" };
+        } else {
+          const placeBelow = vh - (spot.top + spot.height) > CARD_H + 24;
+          const top = placeBelow ? spot.top + spot.height + 12 : Math.max(12, spot.top - CARD_H - 12);
+          const left = Math.max(12, Math.min(spot.left, vw - CARD_W - 12));
+          cardStyle = { top, left };
+        }
+        return (
+          <div className="tour" role="dialog" aria-modal="true" aria-label="Guided tour">
+            <div className="tourscrim" onClick={endTour} />
+            {spot && <div className="tourspot" style={spot} />}
+            <div className="tourcard" style={cardStyle}>
+              <p className="tourstep">Step {tour + 1} of {tourSteps.length}</p>
+              <h3 className="tourtitle">{step.title}</h3>
+              <p className="tourbody">{step.body}</p>
+              <div className="tourbtns">
+                <button className="btn ghost" onClick={endTour}>Skip</button>
+                <span className="actspacer" />
+                {tour > 0 && <button className="btn ghost" onClick={() => setTour((t) => t - 1)}>Back</button>}
+                {tour < tourSteps.length - 1 ? (
+                  <button className="btn primary" onClick={() => setTour((t) => t + 1)}>Next</button>
+                ) : (
+                  <button className="btn primary" onClick={endTour}>Done</button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   );
@@ -5240,6 +5340,20 @@ const CSS = `
 
 /* selected state for ghost preset buttons */
 .btn.ghost.sel{background:var(--ink); color:var(--onink); border-color:var(--ink)}
+
+/* guided tour */
+.tour{position:fixed; inset:0; z-index:140}
+.tourscrim{position:absolute; inset:0}
+.tourspot{position:absolute; border-radius:8px; box-shadow:0 0 0 9999px rgba(8,14,18,.66); outline:2px solid var(--gold); pointer-events:none; transition:all .2s ease}
+.tourcard{
+  position:absolute; width:320px; max-width:calc(100vw - 24px); background:var(--card);
+  border:1px solid var(--line2); border-radius:10px; padding:16px; box-shadow:0 16px 40px rgba(0,0,0,.35);
+}
+.tourstep{margin:0 0 4px; font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--muted)}
+.tourtitle{margin:0 0 6px; font-family:"Antonio",sans-serif; font-weight:600; font-size:18px; letter-spacing:.04em; color:var(--ink)}
+.tourbody{margin:0 0 14px; font-size:13px; line-height:1.55; color:var(--muted)}
+.tourbtns{display:flex; align-items:center; gap:8px}
+.tourbtns .actspacer{flex:1 1 auto}
 
 /* practice log */
 .plogbars{display:flex; align-items:flex-end; gap:5px; height:130px; padding:6px 0}
