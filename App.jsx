@@ -118,7 +118,7 @@ function parseTab(text, stringCount) {
   const isTabLine = (l) => {
     const body = l.replace(/^\s*[eEbBgGdDaA][b#]?\s*\|?/, "");
     const dashes = (body.match(/-/g) || []).length;
-    return dashes >= 4 && /^[-\d|hpbx~/\\()\s.*]+$/.test(body) && /\d|-/.test(body);
+    return dashes >= 4 && /^[-\d|hHpPbBxXsStTrR~/\\()\s.*]+$/.test(body) && /\d|-/.test(body);
   };
   const lines = text.replace(/\r/g, "").split("\n");
   const steps = [];
@@ -990,7 +990,9 @@ function describeVoicing(voicing, midis, flats) {
   return parts.join("; ") + "." + barre;
 }
 
-function ChordDiagram({ voicing, midis, rootPc, capo, selected, onSelect, flats, showDegrees, title, caption }) {
+function ChordDiagram({ voicing, midis, rootPc, capo, selected, onSelect, flats, showDegrees, title, caption, lefty }) {
+  /* standard chord diagrams put the low E on the left; a left-handed player mirrors it */
+  const colToString = (i) => (lefty ? midis.length - 1 - i : i);
   const n = midis.length;
   const S = 1.5;
   const W = 15 * S;          // column pitch
@@ -1020,7 +1022,7 @@ function ChordDiagram({ voicing, midis, rootPc, capo, selected, onSelect, flats,
       )}
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
         {cols.map((i) => {
-          const st = n - 1 - i;
+          const st = colToString(i);
           const f = voicing.frets[st];
           return (
             <text
@@ -1044,16 +1046,20 @@ function ChordDiagram({ voicing, midis, rootPc, capo, selected, onSelect, flats,
         {base > capo + 1 && (
           <text x={PADX * 0.34} y={TOP + RH * 0.62} textAnchor="middle" fontSize={9 * S} className="fretnum" fill="var(--goldtext)">{base}</text>
         )}
-        {voicing.barreFret != null && voicing.barreFret - base >= 0 && voicing.barreFret - base < rows && (
-          <rect
-            x={PADX + (n - 1 - voicing.barreTo) * W - R}
-            y={TOP + (voicing.barreFret - base) * RH + RH / 2 - R}
-            width={(voicing.barreTo - voicing.barreFrom) * W + R * 2}
-            height={R * 2} rx={R} fill="var(--dotplain)"
-          />
-        )}
+        {voicing.barreFret != null && voicing.barreFret - base >= 0 && voicing.barreFret - base < rows && (() => {
+          const cFrom = lefty ? n - 1 - voicing.barreTo : voicing.barreFrom;
+          const cTo = lefty ? n - 1 - voicing.barreFrom : voicing.barreTo;
+          return (
+            <rect
+              x={PADX + cFrom * W - R}
+              y={TOP + (voicing.barreFret - base) * RH + RH / 2 - R}
+              width={(cTo - cFrom) * W + R * 2}
+              height={R * 2} rx={R} fill="var(--dotplain)"
+            />
+          );
+        })()}
         {cols.map((i) => {
-          const st = n - 1 - i;
+          const st = colToString(i);
           const f = voicing.frets[st];
           if (f === null || f === openish) return null;
           const row = f - base;
@@ -2358,22 +2364,28 @@ export default function App() {
     else if (item.kind === "prog") {
       Object.assign(p, { m: "prog", r: item.root, id: item.progId });
       const isPreset = PROGRESSIONS.some((x) => x.id === item.progId);
-      if (!isPreset && item.bars) Object.assign(p, { bars: item.bars, nm: item.label, sec: item.sections });
+      if (!isPreset && item.bars) Object.assign(p, { bars: item.bars, nm: item.name || item.label, sec: item.sections });
     }
     if (item.capo) p.capo = item.capo;
+    if (item.tun && item.tun !== "std" && item.tun !== "custom") p.tun = item.tun;
     const url = shareLinkFromParams(p);
     try { await navigator.clipboard.writeText(url); setToast("Link copied"); } catch (e) { window.prompt("Copy this link", url); }
     track("bank_share", { kind: item.kind });
   }, []);
 
+  /* one-shot position restore for Bank opens: the reset effects below clear
+     scale/arp position on any scale change, so a bank open stashes the wanted
+     position here and bumps the nonce to let the matching effect apply it. */
+  const restorePosRef = useRef(null);
+  const [posNonce, setPosNonce] = useState(0);
   const openBankItem = useCallback((item) => {
-    if (item.kind === "chord") { setChordRoot(item.root); setChordId(item.chordId); setMode("chord"); }
-    else if (item.kind === "scale") { setScaleRoot(item.root); setScaleId(item.scaleId); setScalePos(item.pos == null ? null : item.pos); setMode("scale"); }
-    else if (item.kind === "arp") { setArpRoot(item.root); setArpId(item.arpId); if (item.dir) setArpDir(item.dir); setMode("arp"); }
+    if (item.kind === "chord") { setChordRoot(item.root); setChordId(item.chordId); setCapo(item.capo || 0); setMode("chord"); }
+    else if (item.kind === "scale") { restorePosRef.current = { kind: "scale", pos: item.pos == null ? null : item.pos }; setPosNonce((k) => k + 1); setScaleRoot(item.root); setScaleId(item.scaleId); setMode("scale"); }
+    else if (item.kind === "arp") { restorePosRef.current = { kind: "arp", pos: item.pos == null ? null : item.pos }; setPosNonce((k) => k + 1); setArpRoot(item.root); setArpId(item.arpId); if (item.dir) setArpDir(item.dir); setMode("arp"); }
     else if (item.kind === "prog") {
       setProgRoot(item.root);
       if (PROGRESSIONS.some((x) => x.id === item.progId) || customProgs.some((x) => x.id === item.progId)) setProgId(item.progId);
-      else if (item.bars) { setBuilder({ bars: item.bars, name: item.label, sections: item.sections || {} }); setProgId("custom"); }
+      else if (item.bars) { setBuilder({ bars: item.bars, name: item.name || item.label, sections: item.sections || {} }); setProgId("custom"); }
       setMode("prog");
     }
   }, [customProgs]);
@@ -2406,7 +2418,11 @@ export default function App() {
     return out;
   }, [scaleDef, scaleRoot, midis, fretCount, capo]);
 
-  useEffect(() => { setScalePos(null); }, [scaleId, scaleRoot, settings.tuningId, capo]);
+  useEffect(() => {
+    const r = restorePosRef.current;
+    if (r && r.kind === "scale") { setScalePos(r.pos); restorePosRef.current = null; return; }
+    setScalePos(null);
+  }, [scaleId, scaleRoot, settings.tuningId, capo, fretCount, posNonce]);
   const chordDef = CHORDS.find((c) => c.id === chordId) || CHORDS[0];
   const arpDef = CHORDS.find((c) => c.id === arpId) || CHORDS[0];
   const arpPositions = useMemo(() => {
@@ -2420,7 +2436,11 @@ export default function App() {
     }
     return out;
   }, [arpDef, arpRoot, midis, fretCount, capo]);
-  useEffect(() => { setArpPos(null); }, [arpId, arpRoot, settings.tuningId, capo]);
+  useEffect(() => {
+    const r = restorePosRef.current;
+    if (r && r.kind === "arp") { setArpPos(r.pos); restorePosRef.current = null; return; }
+    setArpPos(null);
+  }, [arpId, arpRoot, settings.tuningId, capo, fretCount, posNonce]);
   useEffect(() => {
     if (settings.simple && (arpDir === "thirds" || arpDir === "pedal")) setArpDir("up");
   }, [settings.simple, arpDir]);
@@ -2647,8 +2667,7 @@ export default function App() {
           const chordSet = new Set(chordPcs);
           const covers = pcs.every((pc) => chordSet.has(pc));
           if (!covers) continue;
-          const isRoot = pcs.includes(root);
-          const entry = { root, id: c.id, name: `${nameOf(root, chordSet.has(5) && FLAT_MAJORS.has(root) ? true : false)}${c.suffix}`, size: chordPcs.length, bass: bassKey && bassKey.pc === root };
+          const entry = { root, id: c.id, name: `${nameOf(root, keyPrefersFlats(root, c.iv))}${c.suffix}`, size: chordPcs.length, bass: bassKey && bassKey.pc === root };
           if (chordSet.size === pcSet.size) exact.push(entry);
           else partial.push(entry);
         }
@@ -2680,8 +2699,14 @@ export default function App() {
         : quiz.source === "chord"
         ? keyPrefersFlats(chordRoot, chordDef.iv)
         : keyPrefersFlats(ivRoot, ivOn);
+    if (mode === "finder") {
+      const best = finderInfo.exact[0] || finderInfo.partial[0];
+      const bestDef = best ? CHORDS.find((x) => x.id === best.id) : null;
+      const r = best ? best.root : finderInfo.bassPc;
+      return r == null ? false : keyPrefersFlats(r, bestDef ? bestDef.iv : [4]);
+    }
     return false;
-  }, [settings.noteNames, mode, scaleRoot, scaleDef, chordRoot, chordDef, progRoot, progDef, ivRoot, ivOn, chg.chords, quiz.source, melKeyHint, arpRoot, arpDef]);
+  }, [settings.noteNames, mode, scaleRoot, scaleDef, chordRoot, chordDef, progRoot, progDef, ivRoot, ivOn, chg.chords, quiz.source, melKeyHint, arpRoot, arpDef, finderInfo]);
 
   /* per-item spelling for saved things rendered outside their own key context */
   const flatsFor = useCallback(
@@ -2766,10 +2791,21 @@ export default function App() {
     if (mode === "arp") {
       const set = new Set(arpDef.iv.map((i) => i % 12));
       const win = arpPos != null ? arpPositions[arpPos] : null;
+      const inWindow = [];
       for (const p of positionsFor(arpRoot, set)) {
         const outside = win && (p.f < win.from || p.f > win.to);
         const state = playing != null ? (p.semis === playing ? "lit" : "dim") : outside ? "dim" : null;
         add(p.s, p.f, p.pc, p.semis, "arp", state);
+        if (!outside) inWindow.push({ key: `${p.s}:${p.f}`, midi: midis[p.s] + p.f });
+      }
+      /* play-order numbers reflect the chosen direction: ascending for up, descending for down */
+      if (arpLabel === "order") {
+        const sorted = [...inWindow].sort((a, b) => a.midi - b.midi);
+        const down = arpDir === "down" || arpDir === "downup";
+        sorted.forEach((nt, idx) => {
+          const m = map.get(nt.key);
+          if (m) m.custom = String(down ? sorted.length - idx : idx + 1);
+        });
       }
     }
 
@@ -2803,7 +2839,7 @@ export default function App() {
     }
 
     return map;
-  }, [mode, scaleDef, scaleRoot, ivRoot, ivOn, activeVoicing, chordRoot, midis, n, quiz, positionsFor, playing, activeProg, activeProgVoicing, scalePos, positions, melSteps, melPlayIdx, melKeyHint, arpRoot, arpDef, arpPos, arpPositions, finderSel, finderInfo]);
+  }, [mode, scaleDef, scaleRoot, ivRoot, ivOn, activeVoicing, chordRoot, midis, n, quiz, positionsFor, playing, activeProg, activeProgVoicing, scalePos, positions, melSteps, melPlayIdx, melKeyHint, arpRoot, arpDef, arpPos, arpPositions, arpLabel, arpDir, finderSel, finderInfo]);
 
   const ghosts = useMemo(() => {
     if (mode !== "chord" || !showAllTones) return null;
@@ -2965,16 +3001,27 @@ export default function App() {
 
   const playScale = useCallback(() => {
     stopPlayback();
-    const STEP = 0.52;
-    const seq = scaleDef.iv.map((i) => i % 12).concat([0]);
-    const rootMidi = midis[0] + ((scaleRoot - (midis[0] % 12) + 24) % 12) + 12;
-    seq.forEach((iv, i) => {
-      const up = i === seq.length - 1 ? 12 : iv;
-      playNote(rootMidi + up, i * STEP);
-      playTimers.current.push(setTimeout(() => setPlaying(iv), i * STEP * 1000));
+    const set = new Set(scaleDef.iv.map((i) => i % 12));
+    const win = scalePos != null ? positions[scalePos] : null;
+    let seq;
+    if (win) {
+      /* play the notes as they lie in the chosen position, low to high */
+      const seen = new Set();
+      seq = positionsFor(scaleRoot, set, win.from, win.to)
+        .map((p) => ({ midi: midis[p.s] + p.f, semis: p.semis }))
+        .filter((nt) => (seen.has(nt.midi) ? false : (seen.add(nt.midi), true)))
+        .sort((a, b) => a.midi - b.midi);
+    } else {
+      const rootMidi = midis[0] + ((scaleRoot - (midis[0] % 12) + 24) % 12) + 12;
+      seq = scaleDef.iv.map((i) => i % 12).concat([0]).map((iv, i, arr) => ({ midi: rootMidi + (i === arr.length - 1 ? 12 : iv), semis: iv }));
+    }
+    const STEP = win ? 0.34 : 0.52;
+    seq.forEach((nt, i) => {
+      playNote(nt.midi, i * STEP);
+      playTimers.current.push(setTimeout(() => setPlaying(nt.semis), i * STEP * 1000));
     });
     playTimers.current.push(setTimeout(() => setPlaying(null), seq.length * STEP * 1000));
-  }, [scaleDef, scaleRoot, midis, playNote, stopPlayback]);
+  }, [scaleDef, scaleRoot, midis, playNote, stopPlayback, scalePos, positions, positionsFor]);
 
   const playProgression = useCallback(() => {
     stopPlayback();
@@ -3017,11 +3064,24 @@ export default function App() {
 
   const playArpeggio = useCallback(() => {
     stopPlayback();
-    let base = midis[0];
-    while (base % 12 !== arpRoot) base++;
-    const up = [];
-    for (let oct = 0; oct < 2; oct++) arpDef.iv.forEach((i) => up.push(base + oct * 12 + i));
-    up.push(base + 24);
+    const set = new Set(arpDef.iv.map((i) => i % 12));
+    const win = arpPos != null ? arpPositions[arpPos] : null;
+    let up;
+    if (win) {
+      /* play the chord tones as they lie in the chosen position, low to high */
+      const seen = new Set();
+      up = positionsFor(arpRoot, set, win.from, win.to)
+        .map((p) => midis[p.s] + p.f)
+        .filter((m) => (seen.has(m) ? false : (seen.add(m), true)))
+        .sort((a, b) => a - b);
+    } else {
+      let base = midis[0];
+      let guard = 0;
+      while (base % 12 !== arpRoot && guard++ < 12) base++;
+      up = [];
+      for (let oct = 0; oct < 2; oct++) arpDef.iv.forEach((i) => up.push(base + oct * 12 + i));
+      up.push(base + 24);
+    }
     let seq = up;
     if (arpDir === "down") seq = [...up].reverse();
     else if (arpDir === "updown") seq = [...up, ...[...up].reverse().slice(1)];
@@ -3038,12 +3098,12 @@ export default function App() {
       playTimers.current.push(
         setTimeout(() => {
           playNote(m);
-          setPlaying(((m - base) % 12 + 12) % 12);
+          setPlaying((((m % 12) - arpRoot) % 12 + 12) % 12);
         }, i * STEP * 1000)
       );
     });
     playTimers.current.push(setTimeout(() => setPlaying(null), seq.length * STEP * 1000));
-  }, [stopPlayback, midis, arpRoot, arpDef, arpDir, settings.bpm, playNote]);
+  }, [stopPlayback, midis, arpRoot, arpDef, arpDir, settings.bpm, playNote, arpPos, arpPositions, positionsFor]);
 
   /* ---- ear training ---- */
   const earPool = useMemo(
@@ -3397,6 +3457,7 @@ export default function App() {
       <ChordDiagram
         key={i}
         voicing={progVoicings[i]}
+        lefty={settings.leftHanded}
         midis={midis}
         rootPc={c.rootPc}
         capo={capo}
@@ -3732,6 +3793,7 @@ export default function App() {
                   root: scaleRoot,
                   scaleId,
                   pos: scalePos,
+                  tun: settings.tuningId,
                   label: `${nameOf(scaleRoot, effFlats)} ${scaleDef.name}${scalePos == null ? "" : ` · pos ${scalePos + 1}`}`,
                 })}
               />
@@ -3756,7 +3818,7 @@ export default function App() {
                     {i + 1}
                   </button>
                 ))}
-                {scalePos != null && (
+                {scalePos != null && positions[scalePos] && (
                   <span className="poshint">
                     Frets {positions[scalePos].from} to {positions[scalePos].to}
                   </span>
@@ -3792,6 +3854,7 @@ export default function App() {
                   <ChordDiagram
                     key={v.key}
                     voicing={v}
+                    lefty={settings.leftHanded}
                     midis={midis}
                     rootPc={chordRoot}
                     capo={capo}
@@ -3868,6 +3931,7 @@ export default function App() {
                     voicing: activeVoicing,
                     midis,
                     capo,
+                    tun: settings.tuningId,
                     label: `${nameOf(chordRoot, effFlats)}${chordDef.suffix}`,
                   })}
                 />
@@ -3923,6 +3987,7 @@ export default function App() {
                   progId,
                   bars: progDef.bars,
                   sections: progDef.sections,
+                  name: progDef.name,
                   label: `${nameOf(progRoot, effFlats)} \u00b7 ${progDef.name}`,
                 })}
               >
@@ -4111,6 +4176,7 @@ export default function App() {
                           {item.kind === "chord" && item.voicing ? (
                             <ChordDiagram
                               voicing={item.voicing}
+                              lefty={settings.leftHanded}
                               midis={item.midis || midis}
                               rootPc={item.root}
                               capo={item.capo || 0}
@@ -4336,6 +4402,7 @@ export default function App() {
                     <ChordDiagram
                       key={i}
                       voicing={chgVoicings[i]}
+                      lefty={settings.leftHanded}
                       midis={midis}
                       rootPc={c.root}
                       capo={0}
@@ -4538,21 +4605,23 @@ export default function App() {
               <button
                 className={`btn primary ${playing != null ? "live" : ""}`}
                 onClick={playing != null ? stopPlayback : () => { track("hear_arp", { arp: arpId, dir: arpDir }); playArpeggio(); }}
-                data-tip="Play the arpeggio over two octaves and light each tone"
+                data-tip="Play the arpeggio and light each tone, following the chosen position and direction"
               >
                 {playing != null ? "Stop" : "Hear it"}
               </button>
               <StarSave
                 label={`${nameOf(arpRoot, effFlats)}${arpDef.suffix} arpeggio`}
-                saved={bank.some((b) => b.sig === `arp:${arpRoot}:${arpId}`)}
+                saved={bank.some((b) => b.sig === `arp:${arpRoot}:${arpId}:${arpDir}:${arpPos == null ? "all" : arpPos}`)}
                 onClick={() => saveToBank({
                   id: `b${Date.now()}`,
-                  sig: `arp:${arpRoot}:${arpId}`,
+                  sig: `arp:${arpRoot}:${arpId}:${arpDir}:${arpPos == null ? "all" : arpPos}`,
                   kind: "arp",
                   root: arpRoot,
                   arpId,
                   dir: arpDir,
-                  label: `${nameOf(arpRoot, effFlats)}${arpDef.suffix} arpeggio`,
+                  pos: arpPos,
+                  tun: settings.tuningId,
+                  label: `${nameOf(arpRoot, effFlats)}${arpDef.suffix} arpeggio${arpPos == null ? "" : ` · pos ${arpPos + 1}`}`,
                 })}
               />
             </div>
@@ -4576,14 +4645,14 @@ export default function App() {
                     {i + 1}
                   </button>
                 ))}
-                {arpPos != null && (
+                {arpPos != null && arpPositions[arpPos] && (
                   <span className="poshint">Frets {arpPositions[arpPos].from} to {arpPositions[arpPos].to}</span>
                 )}
               </div>
             </Field>
             <Field label="Neck shows">
               <Seg small
-                options={[{ v: "both", l: "Degree + note" }, { v: "name", l: "Notes" }, { v: "degree", l: "Degrees" }, { v: "none", l: "Blank" }]}
+                options={[{ v: "both", l: "Degree + note" }, { v: "name", l: "Notes" }, { v: "degree", l: "Degrees" }, { v: "order", l: "Play order" }, { v: "none", l: "Blank" }]}
                 value={arpLabel} onChange={setArpLabel} />
             </Field>
 
