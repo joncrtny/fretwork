@@ -477,7 +477,7 @@ export function ChordDiagram({ voicing, midis, rootPc, capo, selected, onSelect,
   return (
     <button
       className={`voicing ${selected ? "sel" : ""}`}
-      onClick={() => onSelect(voicing)}
+      onClick={() => onSelect?.(voicing)}
       aria-pressed={selected}
       aria-label={`${title || "Chord shape"}${caption ? `, ${caption}` : ""}. ${describeVoicing(voicing, midis, flats)}`}
     >

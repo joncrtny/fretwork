@@ -838,6 +838,7 @@ export default function App() {
     level: "simple", // simple | all
     current: null, // { root, answer }
     picked: null,
+    started: false, // true once the user presses Start, so entering the view does not auto-play
     correct: 0,
     wrong: 0,
     streak: 0,
@@ -900,7 +901,7 @@ export default function App() {
      (which badge tiers and level have already been celebrated so we do not
      re-toast or re-fire GA on reload). Practice minutes come from practiceLog. */
   const [gamify, setGamify] = useState({
-    counters: { earCorrect: 0, earStreakInterval: 0, earStreakChord: 0, tourTaken: 0, triedSimple: 0, tunings: [], metronomeSeconds: 0, chordChangesTotal: 0, chordChangeBest: 0 },
+    counters: { earCorrect: 0, earStreakInterval: 0, earStreakChord: 0, tourTaken: 0, triedSimple: 0, tunings: [], metronomeSeconds: 0, chordChangesTotal: 0, chordChangeBest: 0, bestDayStreak: 0 },
     acked: {},
   });
   const gamifyReadyRef = useRef(false);
@@ -1006,8 +1007,19 @@ export default function App() {
      sync and self-disabling, so if the `gamify` column has not been added yet
      it fails once quietly rather than nagging or breaking the other syncs. */
   const gamifySyncOffRef = useRef(false);
+  /* only push gamify after the account's copy has been folded in, so an empty
+     local default cannot overwrite real server progress before the merge lands */
+  const [gamifyMerged, setGamifyMerged] = useState(false);
+  useEffect(() => { setGamifyMerged(false); }, [authUser && authUser.id]);
+  /* current values for the pagehide keepalive (effect closes over mount-time values) */
+  const gamifyRef = useRef(gamify);
+  const uidRef = useRef(null);
+  const gamifyMergedRef = useRef(false);
+  useEffect(() => { gamifyRef.current = gamify; }, [gamify]);
+  useEffect(() => { uidRef.current = authUser ? authUser.id : null; }, [authUser]);
+  useEffect(() => { gamifyMergedRef.current = gamifyMerged; }, [gamifyMerged]);
   useEffect(() => {
-    if (!loaded || !authUser || gamifySyncOffRef.current) return;
+    if (!loaded || !authUser || gamifySyncOffRef.current || !gamifyMerged) return;
     const t = setTimeout(() => {
       supabase
         .from("user_data")
@@ -1015,7 +1027,7 @@ export default function App() {
         .then(({ error }) => { if (error && /column|gamify|schema/i.test(error.message || "")) gamifySyncOffRef.current = true; });
     }, 900);
     return () => clearTimeout(t);
-  }, [gamify, loaded, authUser]);
+  }, [gamify, loaded, authUser, gamifyMerged]);
 
   /* on sign-in, fold the account's saved progress into the local copy (higher
      counters, union of tunings, highest badge tiers). Guarded so a missing
@@ -1026,10 +1038,11 @@ export default function App() {
     (async () => {
       try {
         const { data, error } = await supabase.from("user_data").select("gamify").eq("user_id", authUser.id).maybeSingle();
-        if (cancelled || error || !data || !data.gamify) return;
-        setGamify((local) => mergeGamify(local, data.gamify));
+        if (!cancelled && !error && data && data.gamify) setGamify((local) => mergeGamify(local, data.gamify));
       } catch (e) {
         /* the gamify column may not exist yet */
+      } finally {
+        if (!cancelled) setGamifyMerged(true);
       }
     })();
     return () => { cancelled = true; };
@@ -1054,6 +1067,15 @@ export default function App() {
             Prefer: "resolution=merge-duplicates",
           },
           body: JSON.stringify({ user_id: entry.uid, [field]: entry.value, updated_at: new Date().toISOString() }),
+        }).catch(() => {});
+      }
+      /* flush the latest gamify too (its sync is a bare debounce, not in syncTimers) */
+      if (uidRef.current && gamifyMergedRef.current && !gamifySyncOffRef.current) {
+        fetch(`${SUPA_URL}/rest/v1/user_data?on_conflict=user_id`, {
+          method: "POST",
+          keepalive: true,
+          headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates" },
+          body: JSON.stringify({ user_id: uidRef.current, gamify: gamifyRef.current, updated_at: new Date().toISOString() }),
         }).catch(() => {});
       }
     };
@@ -1171,6 +1193,22 @@ export default function App() {
     await flushSync();
     await supabase.auth.signOut();
     track("sign_out");
+    /* clear this account's data locally so it cannot bleed into the next
+       sign-in on the same browser (the server copy was just flushed) */
+    setGamify({ counters: { earCorrect: 0, earStreakInterval: 0, earStreakChord: 0, tourTaken: 0, triedSimple: 0, tunings: [], metronomeSeconds: 0, chordChangesTotal: 0, chordChangeBest: 0 }, acked: {} });
+    setPracticeLog({});
+    setBank([]);
+    setChgRecords({});
+    setCustomProgs([]);
+    setMelodies([]);
+    gamifyReadyRef.current = false;
+    gamifySyncOffRef.current = false;
+    store.set("fretboard:gamify", JSON.stringify({ counters: {}, acked: {} })).catch(() => {});
+    store.set("fretboard:practicelog", "{}").catch(() => {});
+    store.set("fretboard:bank", "[]").catch(() => {});
+    store.set("fretboard:changes", "{}").catch(() => {});
+    store.set("fretboard:customprogs", "[]").catch(() => {});
+    store.set("fretboard:melodies", "[]").catch(() => {});
     setAuthMode("signin");
     setLinkEmail("");
     setLinkState("idle");
@@ -1280,8 +1318,8 @@ export default function App() {
     let stream = null;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
-      /* a second press may have won the race during the await; release this one */
-      if (micRef.current) { stream.getTracks().forEach((t) => t.stop()); return; }
+      /* a second press won the race, or the user left the tuner during the await; release this one */
+      if (micRef.current || modeRef.current !== "tuner") { stream.getTracks().forEach((t) => t.stop()); return; }
       const AC = window.AudioContext || window.webkitAudioContext;
       const ac = new AC();
       const src = ac.createMediaStreamSource(stream);
@@ -1497,6 +1535,8 @@ export default function App() {
   const midis = settings.midis;
   const n = midis.length;
   const fretCount = settings.fretCount;
+  /* keep the capo on the neck if the fret count is lowered under it */
+  useEffect(() => { setCapo((c) => Math.min(c, fretCount)); }, [fretCount]);
   const rowToString = useCallback(
     (r) => (settings.highOnTop ? n - 1 - r : r),
     [n, settings.highOnTop]
@@ -1701,10 +1741,16 @@ export default function App() {
       minScale: Math.floor((byMode.scale || 0) / 60),
       minChord: Math.floor((byMode.chord || 0) / 60),
       minArp: Math.floor((byMode.arp || 0) / 60),
-      dayStreak: practiceStats.streak,
+      /* best-ever streak, so the habit badge and points never regress when a streak breaks */
+      dayStreak: Math.max(c.bestDayStreak || 0, practiceStats.streak),
       practiceSeconds: practiceStats.allTime,
     };
   }, [gamify.counters, practiceLog, practiceStats.streak, practiceStats.allTime]);
+
+  /* remember the best day streak reached so a missed day cannot drop points */
+  useEffect(() => {
+    setGamify((g) => (practiceStats.streak > (g.counters.bestDayStreak || 0) ? { ...g, counters: { ...g.counters, bestDayStreak: practiceStats.streak } } : g));
+  }, [practiceStats.streak]);
 
   const gPoints = useMemo(() => pointsFor(gStats), [gStats]);
   const gLevel = useMemo(() => levelProgress(gPoints), [gPoints]);
@@ -1927,7 +1973,7 @@ export default function App() {
       const win = scalePos != null ? positions[scalePos] : null;
       for (const p of positionsFor(scaleRoot, set)) {
         const outside = win && (p.f < win.from || p.f > win.to);
-        const state = playing != null ? (p.semis === playing ? "lit" : "dim") : outside ? "dim" : null;
+        const state = outside ? "dim" : (playing != null ? (p.semis === playing ? "lit" : "dim") : null);
         add(p.s, p.f, p.pc, p.semis, "scale", state);
       }
     }
@@ -1971,7 +2017,7 @@ export default function App() {
       const inWindow = [];
       for (const p of positionsFor(arpRoot, set)) {
         const outside = win && (p.f < win.from || p.f > win.to);
-        const state = playing != null ? (p.semis === playing ? "lit" : "dim") : outside ? "dim" : null;
+        const state = outside ? "dim" : (playing != null ? (p.semis === playing ? "lit" : "dim") : null);
         add(p.s, p.f, p.pc, p.semis, "arp", state);
         if (!outside) inWindow.push({ key: `${p.s}:${p.f}`, midi: midis[p.s] + p.f });
       }
@@ -2096,6 +2142,8 @@ export default function App() {
         playNote(midi);
         return;
       }
+      /* nothing to find (empty selection or round complete): sound the note, do not score */
+      if (quiz.done || quiz.hidden.size === 0) { playNote(midi); return; }
       const k = `${s}:${f}`;
       if (quiz.found.has(k)) return;
       if (quiz.hidden.has(k)) {
@@ -2126,7 +2174,7 @@ export default function App() {
         });
       }
     },
-    [mode, quiz.hidden, quiz.found, capo, playNote, saveStats, settings.sound, melCursor, melBars]
+    [mode, quiz.hidden, quiz.found, quiz.done, capo, playNote, saveStats, settings.sound, melCursor, melBars]
   );
 
   useEffect(() => {
@@ -2191,12 +2239,12 @@ export default function App() {
           /* an uppercase slot (D/U) is an accented, louder strum */
           if (stroke) strumChord(stroke.toLowerCase(), stroke === stroke.toUpperCase());
           /* click on each beat (every second eighth), accented on the downbeat */
-          if (strumClick && sl % 2 === 0) { const ac = ctx(); if (ac) playClick(settings.clickSound, ac.currentTime, sl === 0); }
+          if (strumClick && settings.sound && sl % 2 === 0) { const ac = ctx(); if (ac) playClick(settings.clickSound, ac.currentTime, sl === 0); }
         }, idx * slotSec * 1000));
       }
     }
     playTimers.current.push(setTimeout(() => { setStrumOn(false); setStrumStep(null); }, LOOPS * 8 * slotSec * 1000));
-  }, [activeVoicing, strumPatId, settings.bpm, settings.clickSound, strumClick, stopPlayback, strumChord]);
+  }, [activeVoicing, strumPatId, settings.bpm, settings.clickSound, settings.sound, strumClick, stopPlayback, strumChord]);
 
   const doImportTab = useCallback((text) => {
     /* keep notes on the neck and within the timeline the grid can render */
@@ -2365,7 +2413,7 @@ export default function App() {
     const item = pool[Math.floor(Math.random() * pool.length)];
     const root = 45 + Math.floor(Math.random() * 15); // A2 to B3, guitar-friendly
     const cur = { root, answer: item.v };
-    setEar((e) => ({ ...e, current: cur, picked: null }));
+    setEar((e) => ({ ...e, current: cur, picked: null, started: true }));
     earPlay(root, item.v);
   }, [earPool, earPlay]);
 
@@ -2393,14 +2441,20 @@ export default function App() {
     [ear, settings.sound]
   );
 
-  /* fresh question when the pool changes or after an answer settles */
+  /* fresh question after an answer settles or the pool changes, but only once
+     the user has pressed Start (entering the view must not auto-play) */
   useEffect(() => {
-    if (mode !== "ear" || ear.dir !== "quiz") return;
+    if (mode !== "ear" || ear.dir !== "quiz" || !ear.started) return;
     if (ear.picked == null && ear.current) return;
     const t = setTimeout(() => earNext(), ear.picked != null ? 1100 : 250);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, ear.dir, ear.picked, ear.source, ear.level]);
+  }, [mode, ear.dir, ear.picked, ear.source, ear.level, ear.started]);
+
+  /* leaving ear training ends the session, so returning shows Start again rather than auto-playing */
+  useEffect(() => {
+    if (mode !== "ear") setEar((e) => (e.started || e.current ? { ...e, started: false, current: null, picked: null } : e));
+  }, [mode]);
 
 
   /* metronome: schedule ahead of the audio clock rather than trusting setInterval */
@@ -2424,6 +2478,7 @@ export default function App() {
        subdivision control, so the setting must not act invisibly. */
     const SUBS = { "2": [0.5], swing: [2 / 3], "3": [1 / 3, 2 / 3], "4": [0.25, 0.5, 0.75] };
     const subs = settings.simple ? [] : SUBS[settings.subdiv] || [];
+    const beatTimers = [];
     const id = setInterval(() => {
       const now = ctx();
       if (!now) return;
@@ -2435,13 +2490,14 @@ export default function App() {
         const beatSec = 60 / settings.bpm;
         for (const f of subs) playClick(settings.clickSound, nextClick.current + f * beatSec, false, 0.32, bus);
         const lead = Math.max(0, (nextClick.current - now.currentTime) * 1000);
-        setTimeout(() => setBeat(b), lead);
+        beatTimers.push(setTimeout(() => setBeat(b), lead));
         nextClick.current += beatSec;
         beatCount.current = (b + 1) % settings.beats;
       }
     }, 25);
     return () => {
       clearInterval(id);
+      beatTimers.forEach(clearTimeout);
       bus.disconnect();
     };
   }, [metroOn, settings.bpm, settings.beats, settings.clickSound, settings.accent, settings.subdiv, settings.simple]);
@@ -2810,7 +2866,7 @@ export default function App() {
       } catch (e) {
         seen = false;
       }
-      if (!cancelled && !seen && !hadShareHashRef.current) setTour(0);
+      if (!cancelled && !seen && !hadShareHashRef.current) startTour();
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2946,7 +3002,7 @@ export default function App() {
           </div>
         </div>
       </aside>
-      <div className={`scrim ${drawer ? "on" : ""}`} onClick={() => setDrawer(false)} aria-hidden="true" />
+      <div className={`scrim ${drawer ? "on" : ""}`} onClick={() => { if (burgerRef.current) burgerRef.current.focus(); setDrawer(false); }} aria-hidden="true" />
 
       <div className="stage">
       <header className="chassis">
@@ -4226,7 +4282,9 @@ export default function App() {
                       <button
                         className="melload"
                         onClick={() => {
-                          const steps = m.steps.slice(0, MEL_MAX_BARS * MEL_SLOTS);
+                          /* drop notes that fall off the current tuning/neck (fewer strings or frets) */
+                          const steps = m.steps.slice(0, MEL_MAX_BARS * MEL_SLOTS)
+                            .map((st) => (st && !st.rest && (st.s >= settings.midis.length || st.f > fretCount) ? { rest: true } : st));
                           setMelSteps(steps);
                           setMelBars(Math.max(2, Math.min(MEL_MAX_BARS, m.bars || Math.ceil(steps.length / MEL_SLOTS))));
                           setMelCursor(0);
@@ -4532,7 +4590,7 @@ export default function App() {
           <p className="note">Or set the strings and pick a preset tuning below.</p>
           <div className="grid">
             <Field label="Tuning">
-              <select value={settings.tuningId} onChange={(e) => setTuning(e.target.value)}>
+              <select aria-label="Tuning" value={settings.tuningId} onChange={(e) => setTuning(e.target.value)}>
                 {TUNINGS.map((t) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
@@ -4610,7 +4668,7 @@ export default function App() {
           <div className="grid">
             <Field label="Frets" tip="How many frets the neck shows">
               <input
-                type="range" min="7" max="27" value={settings.fretCount}
+                type="range" min="7" max="27" value={settings.fretCount} aria-label="Frets shown"
                 onChange={(e) => setSettings((s) => ({ ...s, fretCount: +e.target.value }))}
               />
               <output>{settings.fretCount}</output>
@@ -4656,7 +4714,7 @@ export default function App() {
             </Field>
             <Field label="Options shown" tip="Simple keeps only the scales, chords and controls a beginner needs">
               <Seg small options={[{ v: true, l: "Simple" }, { v: false, l: "Everything" }]}
-                value={settings.simple} onChange={(v) => setSettings((s2) => ({ ...s2, simple: v }))} />
+                value={settings.simple} onChange={(v) => { track("simple_toggle", { on: v }); setSettings((s2) => ({ ...s2, simple: v })); setGamify((g) => (g.counters.triedSimple ? g : { ...g, counters: { ...g.counters, triedSimple: 1 } })); }} />
             </Field>
             <Field label="Sound" tip="Note and click playback throughout the app">
               <Seg small options={[{ v: true, l: "On" }, { v: false, l: "Off" }]}

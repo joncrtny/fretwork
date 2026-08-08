@@ -107,7 +107,7 @@ export const TUNINGS = [
 /* which views count as practice time, and how the log names them */
 export const PRACTICE_MODES = {
   scale: "Scales", chord: "Chords", arp: "Arpeggios", prog: "Progressions", interval: "Intervals",
-  quiz: "Fretboard Quiz", changes: "Chord changes", melody: "Melodies", ear: "Ear training",
+  quiz: "Fretboard Quiz", changes: "Chord changes", strum: "Strumming", melody: "Melodies", ear: "Ear training",
 };
 export const localDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 

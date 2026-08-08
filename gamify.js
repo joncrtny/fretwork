@@ -82,6 +82,7 @@ export function mergeGamify(a, b) {
     metronomeSeconds: Math.max(ac.metronomeSeconds || 0, bc.metronomeSeconds || 0),
     chordChangesTotal: Math.max(ac.chordChangesTotal || 0, bc.chordChangesTotal || 0),
     chordChangeBest: Math.max(ac.chordChangeBest || 0, bc.chordChangeBest || 0),
+    bestDayStreak: Math.max(ac.bestDayStreak || 0, bc.bestDayStreak || 0),
   };
   const acked = { ...((a && a.acked) || {}) };
   for (const [k, v] of Object.entries(b.acked || {})) acked[k] = Math.max(acked[k] || 0, v || 0);

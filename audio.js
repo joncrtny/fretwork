@@ -16,6 +16,7 @@ export function ctx() {
 }
 
 export function pluck(midi, when = 0, gain = 0.5) {
+  if (!Number.isFinite(midi)) return;
   const ac = ctx();
   if (!ac) return;
   const freq = 440 * Math.pow(2, (midi - 69) / 12);
