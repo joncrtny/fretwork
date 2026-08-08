@@ -2841,7 +2841,7 @@ export default function App() {
         setChordRoot(p.r); setChordId(p.id); setMode("chord");
       } else if (p.m === "prog" && pc(p.r)) {
         setProgRoot(p.r);
-        if (Array.isArray(p.bars) && p.bars.length && p.bars.every((b) => typeof b === "string" && ROMAN[b])) {
+        if (Array.isArray(p.bars) && p.bars.length && p.bars.every((b) => typeof b === "string" && Object.prototype.hasOwnProperty.call(ROMAN, b))) {
           setBuilder({ bars: p.bars.slice(0, 64), name: typeof p.nm === "string" ? p.nm.slice(0, 40) : "" });
           setProgId("custom");
         } else if (PROGRESSIONS.some((x) => x.id === p.id)) {
@@ -2854,7 +2854,7 @@ export default function App() {
         setMode("interval");
       } else if (p.m === "melody" && Array.isArray(p.steps)) {
         const steps = p.steps
-          .filter((st) => st === null || (Array.isArray(st) && Number.isInteger(st[0]) && Number.isInteger(st[1]) && st[0] >= 0 && st[0] < 9 && st[1] >= 0 && st[1] <= 27))
+          .filter((st) => st === null || (Array.isArray(st) && Number.isInteger(st[0]) && Number.isInteger(st[1]) && st[0] >= 0 && st[0] < settings.midis.length && st[1] >= 0 && st[1] <= fretCount))
           .slice(0, 128)
           .map((st) => (st === null ? { rest: true } : { s: st[0], f: st[1] }));
         if (steps.length) {
@@ -2869,6 +2869,9 @@ export default function App() {
     } catch (e) {
       /* malformed link, ignore */
     }
+    /* apply once: clear the hash so a reload reflects current state, not the link */
+    if (window.history && window.history.replaceState)
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
@@ -2879,7 +2882,7 @@ export default function App() {
   }, [toast]);
 
   useEffect(() => stopPlayback, [stopPlayback]);
-  useEffect(() => { stopPlayback(); }, [mode, scaleId, scaleRoot, progId, progRoot, stopPlayback]);
+  useEffect(() => { stopPlayback(); }, [mode, scaleId, scaleRoot, progId, progRoot, arpRoot, arpId, arpDir, melSteps, stopPlayback]);
 
   /* ---- readout ---- */
   const readout = useMemo(() => {
@@ -3577,6 +3580,7 @@ export default function App() {
                       <button
                         key={pr.id}
                         className={`poschip wide ${on ? "on" : ""}`}
+                        aria-pressed={on}
                         onClick={() => setIvOn(new Set(pr.iv))}
                       >
                         {pr.label}
@@ -3729,7 +3733,9 @@ export default function App() {
                 role="timer"
                 aria-label="Time remaining"
                 className={`chgclock ${
-                  chg.phase === "running" ? (chg.remaining <= 10 ? "low" : "run") : chg.phase === "done" ? "low" : ""
+                  chg.phase === "running"
+                    ? chg.duration === 0 || chg.remaining > 10 ? "run" : "low"
+                    : chg.phase === "done" ? "low" : ""
                 }`}
               >
                 {chg.phase === "done"
