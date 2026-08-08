@@ -759,7 +759,12 @@ const DEFAULT_SETTINGS = {
 };
 
 export default function App() {
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  /* start brand-new visitors in Simple mode (no settings saved yet). Read
+     synchronously so a mount-time persist cannot mask first run. */
+  const [settings, setSettings] = useState(() => {
+    const firstRun = typeof window !== "undefined" && !window.localStorage.getItem("fretboard:settings");
+    return firstRun ? { ...DEFAULT_SETTINGS, simple: true } : DEFAULT_SETTINGS;
+  });
   const [loaded, setLoaded] = useState(false);
   /* true once there is nothing left to reconcile: signed out, or the sign-in
      merge has finished. The badge baseline waits for this so a returning player
@@ -827,6 +832,7 @@ export default function App() {
   const [melRate, setMelRate] = useState(2); // slots per beat on playback (2 = eighths)
   const [melBars, setMelBars] = useState(2); // timeline length in bars
   const [melCursor, setMelCursor] = useState(0); // slot the next tapped note lands on
+  const [melLoop, setMelLoop] = useState(false); // repeat the melody until Stop
   const [strumPatId, setStrumPatId] = useState("oldfaithful");
   const [strumStep, setStrumStep] = useState(null); // current eighth slot during playback
   const [strumOn, setStrumOn] = useState(false);
@@ -905,6 +911,12 @@ export default function App() {
     acked: {},
   });
   const gamifyReadyRef = useRef(false);
+  const [celebrate, setCelebrate] = useState(null); // { type:'badge'|'level', ... } shown as a reward popup
+  useEffect(() => {
+    if (!celebrate) return;
+    const t = setTimeout(() => setCelebrate(null), 3600);
+    return () => clearTimeout(t);
+  }, [celebrate]);
   /* persist gamify only after the initial load, so the empty default never
      overwrites saved progress on mount */
   useEffect(() => { if (loaded) store.set("fretboard:gamify", JSON.stringify(gamify)).catch(() => {}); }, [gamify, loaded]);
@@ -1387,7 +1399,7 @@ export default function App() {
           setSettings((s) => ({ ...s, ...v }));
         }
       } catch (e) {
-        /* first run, nothing stored */
+        /* first run, nothing stored (Simple mode was set in the state initializer) */
       }
       try {
         const r = await store.get("fretboard:bank");
@@ -1784,9 +1796,10 @@ export default function App() {
     });
     newly.forEach(({ b, tier }) => track("badge_earned", { badge: b.id, tier }));
     if (levelUp) track("level_up", { level: gLevel.level });
-    if (levelUp) setToast(`Level up! You reached level ${gLevel.level}`);
-    else if (newly.length === 1) setToast(`Badge earned: ${newly[0].b.name}${newly[0].b.tiers.length > 1 ? ` ${newly[0].tier}` : ""}`);
-    else setToast(`${newly.length} new badges earned!`);
+    /* a proper reward moment: a popup that lingers, not just a fleeting toast */
+    if (levelUp) setCelebrate({ type: "level", level: gLevel.level });
+    else if (newly.length === 1) setCelebrate({ type: "badge", name: newly[0].b.name, tier: newly[0].tier, tiers: newly[0].b.tiers.length });
+    else setCelebrate({ type: "badges", count: newly.length });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gStats, gLevel.level, loaded, progressSynced]);
 
@@ -2203,7 +2216,13 @@ export default function App() {
   }, [activeVoicing, midis, n, playNote]);
 
   const playTimers = useRef([]);
+  const strumLoopRef = useRef(false);
+  const scheduleStrumRef = useRef(() => {});
+  const melLoopRef = useRef(false);
+  const playMelodyRef = useRef(() => {});
   const stopPlayback = useCallback(() => {
+    strumLoopRef.current = false;
+    melLoopRef.current = false;
     playTimers.current.forEach(clearTimeout);
     playTimers.current = [];
     setPlaying(null);
@@ -2223,14 +2242,13 @@ export default function App() {
     seq.forEach((m, i) => playNote(m, at + i * 0.024, gain));
   }, [activeVoicing, midis, n, playNote]);
 
-  const playStrum = useCallback(() => {
-    if (!activeVoicing) return;
-    stopPlayback();
-    setStrumOn(true);
+  /* schedule one cycle of bars, then re-arm the next so the groove loops until
+     Stop (re-syncing to the audio clock each cycle keeps the timing honest) */
+  const scheduleStrumCycle = useCallback(() => {
     const pat = STRUM_PATTERNS.find((p) => p.id === strumPatId) || STRUM_PATTERNS[0];
     const slotSec = 60 / settings.bpm / 2; // an eighth note
-    const LOOPS = 16;
-    for (let loop = 0; loop < LOOPS; loop++) {
+    const BARS = 8;
+    for (let loop = 0; loop < BARS; loop++) {
       for (let sl = 0; sl < 8; sl++) {
         const idx = loop * 8 + sl;
         const stroke = pat.slots[sl];
@@ -2243,8 +2261,17 @@ export default function App() {
         }, idx * slotSec * 1000));
       }
     }
-    playTimers.current.push(setTimeout(() => { setStrumOn(false); setStrumStep(null); }, LOOPS * 8 * slotSec * 1000));
-  }, [activeVoicing, strumPatId, settings.bpm, settings.clickSound, settings.sound, strumClick, stopPlayback, strumChord]);
+    playTimers.current.push(setTimeout(() => { if (strumLoopRef.current) scheduleStrumRef.current(); }, BARS * 8 * slotSec * 1000));
+  }, [strumPatId, settings.bpm, settings.clickSound, settings.sound, strumClick, strumChord]);
+  useEffect(() => { scheduleStrumRef.current = scheduleStrumCycle; }, [scheduleStrumCycle]);
+
+  const playStrum = useCallback(() => {
+    if (!activeVoicing) return;
+    stopPlayback();
+    setStrumOn(true);
+    strumLoopRef.current = true;
+    scheduleStrumCycle();
+  }, [activeVoicing, stopPlayback, scheduleStrumCycle]);
 
   const doImportTab = useCallback((text) => {
     /* keep notes on the neck and within the timeline the grid can render */
@@ -2320,8 +2347,7 @@ export default function App() {
     });
   }, [stopPlayback, settings.bpm, settings.beats, progChords, progVoicings, midis, n, playNote]);
 
-  const playMelody = useCallback(() => {
-    stopPlayback();
+  const scheduleMelody = useCallback(() => {
     if (!melSteps.some((st) => st && !st.rest)) return;
     /* play the whole timeline including trailing empty slots, so rests keep time */
     const total = Math.max(melBars * MEL_SLOTS, melSteps.length);
@@ -2338,8 +2364,19 @@ export default function App() {
         }, i * stepSec * 1000)
       );
     });
-    playTimers.current.push(setTimeout(() => { setMelPlayIdx(null); setFlash(null); }, total * stepSec * 1000));
-  }, [stopPlayback, melSteps, melBars, settings.bpm, settings.midis, melRate, playNote]);
+    playTimers.current.push(setTimeout(() => {
+      if (melLoopRef.current) playMelodyRef.current();
+      else { setMelPlayIdx(null); setFlash(null); }
+    }, total * stepSec * 1000));
+  }, [melSteps, melBars, settings.bpm, settings.midis, melRate, playNote]);
+  useEffect(() => { playMelodyRef.current = scheduleMelody; }, [scheduleMelody]);
+
+  const playMelody = useCallback(() => {
+    stopPlayback();
+    if (!melSteps.some((st) => st && !st.rest)) return;
+    melLoopRef.current = melLoop;
+    scheduleMelody();
+  }, [stopPlayback, scheduleMelody, melLoop, melSteps]);
 
   const playArpeggio = useCallback(() => {
     stopPlayback();
@@ -2766,6 +2803,17 @@ export default function App() {
     });
   };
 
+  /* carry the current root into another view, so one working key flows across
+     Scales, Chords, Arpeggios, Progressions and Intervals */
+  const carryKey = (targetMode, root) => {
+    if (targetMode === "chord") setChordRoot(root);
+    else if (targetMode === "scale") setScaleRoot(root);
+    else if (targetMode === "arp") setArpRoot(root);
+    else if (targetMode === "prog") setProgRoot(root);
+    else if (targetMode === "interval") setIvRoot(root);
+    setMode(targetMode);
+  };
+
   const navItem = (id, label, extra) => (
     <button
       className={`dnav ${mode === id ? "on" : ""}`}
@@ -2817,7 +2865,7 @@ export default function App() {
   /* live-app guided tour: each step sets up the real view, then spotlights it */
   const tourSteps = [
     { title: "Welcome to Fretwork", body: "A quick tour of the neck and the practice tools. About a minute, and you can skip any time.", target: null, before: () => setDrawer(false) },
-    { title: "The menu", body: "Everything lives here, grouped into Learn, Practice, Tools and your Profile.", target: ".drawer", before: () => setDrawer(true) },
+    { title: "The menu", body: "Everything lives here, grouped into Learn, Practice, Tools and your Profile. Simple mode at the top keeps things focused while you find your feet; flip it off any time to unlock everything.", target: ".drawer", before: () => setDrawer(true) },
     { title: "The fretboard", body: "Every view shares this neck. Tap any note to hear it, or drag the capo along the top. It is fully keyboard operable too.", target: ".neckwrap", before: () => { setDrawer(false); setMode("chord"); setOpenPanel(null); } },
     { title: "Pick anything", body: "Choose a root and a chord, scale or arpeggio with the same compact pickers. Tap the star to keep anything in your Bank.", target: ".pane .row.wrap", before: () => { setDrawer(false); setMode("chord"); } },
     { title: "Share it", body: "The share button copies a link to exactly what you are looking at, so you can send a shape or a progression to anyone.", target: ".sharebtn", before: () => { setDrawer(false); setMode("chord"); } },
@@ -3209,6 +3257,12 @@ export default function App() {
                 </span>
               ))}
             </div>
+            <div className="keyjump">
+              <span className="note">In {nameOf(scaleRoot, effFlats)}:</span>
+              <button className="jumpchip" onClick={() => carryKey("chord", scaleRoot)}>Chords</button>
+              <button className="jumpchip" onClick={() => carryKey("arp", scaleRoot)}>Arpeggios</button>
+              {!settings.simple && <button className="jumpchip" onClick={() => carryKey("prog", scaleRoot)}>Progressions</button>}
+            </div>
           </div>
         )}
 
@@ -3312,6 +3366,13 @@ export default function App() {
                 />
               </Field>
               <button className="btn primary" onClick={() => { track("strum_chord", { chord: chordId }); strumVoicing(); }} disabled={!activeVoicing} data-tip="Hear the selected shape">Strum</button>
+            </div>
+
+            <div className="keyjump">
+              <span className="note">In {nameOf(chordRoot, effFlats)}:</span>
+              <button className="jumpchip" onClick={() => carryKey("scale", chordRoot)}>Scale</button>
+              <button className="jumpchip" onClick={() => carryKey("arp", chordRoot)}>Arpeggio</button>
+              <button className="jumpchip" onClick={() => carryKey("strum", chordRoot)}>Strum along</button>
             </div>
 
             {!settings.simple && (
@@ -3895,6 +3956,9 @@ export default function App() {
                 fingerings, intervals, progressions, and practice drills with a metronome. It works offline
                 and you can install it on your home screen.
               </p>
+              <p className="note freeline">
+                Fretwork is, and always will be, free and without ads.
+              </p>
               <p className="note">
                 Fretwork uses Google Analytics, Vercel Analytics and Amplitude to understand how the app is
                 used and improve it. There is no session recording. Feedback sent from this page is stored so
@@ -4000,6 +4064,12 @@ export default function App() {
                   label: `${nameOf(arpRoot, effFlats)}${arpDef.suffix} arpeggio${arpPos == null ? "" : ` · pos ${arpPos + 1}`}`,
                 })}
               />
+            </div>
+
+            <div className="keyjump">
+              <span className="note">In {nameOf(arpRoot, effFlats)}:</span>
+              <button className="jumpchip" onClick={() => carryKey("scale", arpRoot)}>Scale</button>
+              <button className="jumpchip" onClick={() => carryKey("chord", arpRoot)}>Chords</button>
             </div>
 
             <Field label="Position">
@@ -4217,6 +4287,14 @@ export default function App() {
               >
                 {melPlayIdx != null ? "Stop" : "Play"}
               </button>
+              <button
+                className={`btn ${melLoop ? "primary" : "ghost"}`}
+                aria-pressed={melLoop}
+                onClick={() => { const nv = !melLoop; setMelLoop(nv); melLoopRef.current = nv; }}
+                data-tip="Repeat the melody until you press Stop"
+              >
+                Loop: {melLoop ? "on" : "off"}
+              </button>
               <Field label="Speed">
                 <Seg small ariaLabel="Playback speed"
                   options={[{ v: 1, l: "Slow" }, { v: 2, l: "Normal" }, { v: 4, l: "Fast" }]}
@@ -4429,7 +4507,7 @@ export default function App() {
 
                     <h2 className="abouthead">Badges</h2>
                     <div className="badgegrid">
-                      {BADGES.map((b) => {
+                      {[...BADGES].sort((a, b) => (badgeTier(b, gStats) > 0) - (badgeTier(a, gStats) > 0)).map((b) => {
                         const tier = badgeTier(b, gStats);
                         const max = b.tiers.length;
                         const earned = tier > 0;
@@ -4942,6 +5020,21 @@ export default function App() {
       })()}
 
       {toast && <div className="toast" role="status">{toast}</div>}
+
+      {celebrate && (
+        <div className="celebrate" role="status" onClick={() => setCelebrate(null)}>
+          <div className="celebratecard">
+            <svg className="celebratemedal" viewBox="0 0 24 24" width="52" height="52" aria-hidden="true"><path d="M12 2.5l2.7 5.9 6.3.6-4.8 4.3 1.4 6.2L12 16.9 6.2 19.5l1.4-6.2L2.8 9l6.3-.6z" /></svg>
+            {celebrate.type === "level" ? (
+              <><b>Level {celebrate.level}</b><span>Nicely done, keep going</span></>
+            ) : celebrate.type === "badge" ? (
+              <><b>Badge earned</b><span>{celebrate.name}{celebrate.tiers > 1 ? ` · level ${celebrate.tier}` : ""}</span></>
+            ) : (
+              <><b>{celebrate.count} badges earned</b><span>What a run</span></>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -5175,6 +5268,18 @@ const CSS = `
   box-shadow:0 6px 20px rgba(0,0,0,.22); z-index:120; animation:risein .18s ease both;
 }
 @keyframes risein{from{opacity:0; transform:translate(-50%,8px)}to{opacity:1; transform:translate(-50%,0)}}
+
+/* badge / level celebration popup */
+.celebrate{position:fixed; inset:0; z-index:130; display:flex; align-items:center; justify-content:center; background:rgba(8,14,18,.28); animation:fadein .2s ease both; cursor:pointer}
+.celebratecard{background:var(--card); border:1px solid var(--gold); border-radius:16px; padding:26px 34px; text-align:center; display:flex; flex-direction:column; align-items:center; gap:4px; box-shadow:0 12px 40px rgba(0,0,0,.3); animation:pop .35s cubic-bezier(.2,1.3,.4,1) both}
+.celebratemedal{color:var(--gold); animation:spinpop .5s ease both}
+.celebratecard b{font-family:"Antonio",sans-serif; font-size:24px; letter-spacing:.02em}
+.celebratecard span{color:var(--muted); font-size:14px}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+@keyframes pop{from{opacity:0; transform:scale(.86)}to{opacity:1; transform:scale(1)}}
+@keyframes spinpop{from{opacity:0; transform:rotate(-30deg) scale(.5)}to{opacity:1; transform:none}}
+.lowmotion .celebrate,.lowmotion .celebratecard,.lowmotion .celebratemedal{animation:none}
+.freeline{font-weight:600; color:var(--ink)}
 
 .posrow{display:flex; gap:5px; flex-wrap:wrap; align-items:center}
 .poschip{
@@ -5501,6 +5606,13 @@ const CSS = `
 .strumslot.accent::before{content:""; position:absolute; top:3px; left:50%; transform:translateX(-50%); width:5px; height:5px; border-radius:50%; background:var(--gold)}
 .strumslot{position:relative}
 .strumslot.on.accent::before{background:#1A2429}
+
+/* carry-the-key jump chips */
+.keyjump{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:10px}
+.keyjump .note{margin:0}
+.jumpchip{background:var(--paper); border:1px solid var(--line2); border-radius:999px; padding:6px 12px; cursor:pointer; font-family:inherit; font-size:13px; color:var(--ink); transition:border-color .15s ease, background .15s ease}
+.jumpchip:hover{border-color:var(--ink); background:var(--card)}
+.jumpchip:active{transform:scale(.97)}
 
 .romangrid{display:flex; flex-wrap:wrap; gap:4px}
 .romangrid .key{flex:0 0 auto; min-width:52px; padding:8px 10px}
