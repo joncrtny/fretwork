@@ -34,9 +34,14 @@ create table if not exists public.user_data (
   custom_progs jsonb not null default '[]'::jsonb,
   melodies jsonb not null default '[]'::jsonb,
   practice_log jsonb not null default '{}'::jsonb,
+  gamify jsonb,
   settings jsonb,
   updated_at timestamptz not null default now()
 );
+
+-- gamification progress (points/level are derived, so this stores the durable
+-- counters and which badge tiers have been acknowledged). Safe on existing rows.
+alter table public.user_data add column if not exists gamify jsonb;
 
 alter table public.user_data enable row level security;
 

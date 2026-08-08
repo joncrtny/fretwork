@@ -10,6 +10,7 @@ import {
   INTERVAL_PRESETS, TIME_SIGS, FUNC_COLOUR, LOWERED, SINGLE_DOTS, DOUBLE_DOTS,
 } from "./theory.js";
 import { useGeometry, Fretboard, ChordDiagram } from "./fretboard.jsx";
+import { BADGES, badgeTier, pointsFor, levelProgress, mergeGamify } from "./gamify.js";
 
 /* small persistence shim: Claude artifacts expose window.storage,
    everywhere else falls back to localStorage */
@@ -41,7 +42,7 @@ const VIEW_META = {
   changes: { path: "/chord-changes", title: "Chord changes" },
   strum: { path: "/strumming", title: "Strumming" },
   melody: { path: "/melodies", title: "Melodies" },
-  quiz: { path: "/quiz", title: "Quiz" },
+  quiz: { path: "/quiz", title: "Fretboard Quiz" },
   ear: { path: "/ear-training", title: "Ear training" },
   finder: { path: "/chord-finder", title: "Chord finder" },
   tuner: { path: "/tuner", title: "Tuner" },
@@ -490,6 +491,18 @@ const supabase = createClient(SUPA_URL, SUPA_KEY);
 const FAKE_MAIL = "@u.fretwork-practice.app";
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
+/* Where Supabase auth emails (email linking, password reset) should land the
+   user. Always the canonical production domain from any deployment, so a
+   confirmation opened from a vercel.app preview or the raw project URL still
+   returns to www.fretwork-practice.app. Localhost stays local for dev testing.
+   The target must also be on Supabase's Redirect URLs allowlist. */
+const CANONICAL_URL = "https://www.fretwork-practice.app";
+const authRedirect = () => {
+  if (typeof window === "undefined") return CANONICAL_URL;
+  const h = window.location.hostname;
+  return h === "localhost" || h === "127.0.0.1" ? window.location.origin : CANONICAL_URL;
+};
+
 /* Obscene or hateful usernames are blocked. Normalisation catches leetspeak
    and separators; the stems intentionally over-block edge cases. */
 const BLOCKED_STEMS = [
@@ -748,6 +761,10 @@ const DEFAULT_SETTINGS = {
 export default function App() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [loaded, setLoaded] = useState(false);
+  /* true once there is nothing left to reconcile: signed out, or the sign-in
+     merge has finished. The badge baseline waits for this so a returning player
+     on a fresh device is not spammed with toasts for already-earned progress. */
+  const [progressSynced, setProgressSynced] = useState(false);
   const [mode, setMode] = useState("chord");
   useEffect(() => { modeRef.current = mode; }, [mode]);
   const [capo, setCapo] = useState(0);
@@ -813,6 +830,7 @@ export default function App() {
   const [strumPatId, setStrumPatId] = useState("oldfaithful");
   const [strumStep, setStrumStep] = useState(null); // current eighth slot during playback
   const [strumOn, setStrumOn] = useState(false);
+  const [strumClick, setStrumClick] = useState(false); // play the metronome click along with the strum
 
   const [ear, setEar] = useState({
     source: "interval", // interval | chord
@@ -878,6 +896,17 @@ export default function App() {
   const [practiceLog, setPracticeLog] = useState({}); // { 'YYYY-MM-DD': { total, byMode: {} } }
   const lastActiveRef = useRef(Date.now());
   const modeRef = useRef("chord");
+  /* gamification: durable counters that feed points/level/badges, plus `acked`
+     (which badge tiers and level have already been celebrated so we do not
+     re-toast or re-fire GA on reload). Practice minutes come from practiceLog. */
+  const [gamify, setGamify] = useState({
+    counters: { earCorrect: 0, earStreakInterval: 0, earStreakChord: 0, tourTaken: 0, triedSimple: 0, tunings: [], metronomeSeconds: 0, chordChangesTotal: 0, chordChangeBest: 0 },
+    acked: {},
+  });
+  const gamifyReadyRef = useRef(false);
+  /* persist gamify only after the initial load, so the empty default never
+     overwrites saved progress on mount */
+  useEffect(() => { if (loaded) store.set("fretboard:gamify", JSON.stringify(gamify)).catch(() => {}); }, [gamify, loaded]);
 
   const [tour, setTour] = useState(-1);
   const [tourRect, setTourRect] = useState(null);
@@ -920,10 +949,12 @@ export default function App() {
     supabase.auth.getSession().then(({ data }) => {
       authTokenRef.current = data.session ? data.session.access_token : null;
       setAuthUser(data.session ? data.session.user : null);
+      if (!data.session) setProgressSynced(true);
     });
     const { data } = supabase.auth.onAuthStateChange((evt, session) => {
       authTokenRef.current = session ? session.access_token : null;
       setAuthUser(session ? session.user : null);
+      if (!session) setProgressSynced(true);
       if (evt === "PASSWORD_RECOVERY") {
         setRecoveryMode(true);
         setMode("account");
@@ -971,6 +1002,39 @@ export default function App() {
     );
   }, []);
 
+  /* sync gamification progress to the account. Kept separate from the main
+     sync and self-disabling, so if the `gamify` column has not been added yet
+     it fails once quietly rather than nagging or breaking the other syncs. */
+  const gamifySyncOffRef = useRef(false);
+  useEffect(() => {
+    if (!loaded || !authUser || gamifySyncOffRef.current) return;
+    const t = setTimeout(() => {
+      supabase
+        .from("user_data")
+        .upsert({ user_id: authUser.id, gamify, updated_at: new Date().toISOString() })
+        .then(({ error }) => { if (error && /column|gamify|schema/i.test(error.message || "")) gamifySyncOffRef.current = true; });
+    }, 900);
+    return () => clearTimeout(t);
+  }, [gamify, loaded, authUser]);
+
+  /* on sign-in, fold the account's saved progress into the local copy (higher
+     counters, union of tunings, highest badge tiers). Guarded so a missing
+     column cannot break sign-in. */
+  useEffect(() => {
+    if (!authUser) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase.from("user_data").select("gamify").eq("user_id", authUser.id).maybeSingle();
+        if (cancelled || error || !data || !data.gamify) return;
+        setGamify((local) => mergeGamify(local, data.gamify));
+      } catch (e) {
+        /* the gamify column may not exist yet */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [authUser && authUser.id]);
+
   /* on page hide, push pending syncs with keepalive requests that outlive the tab */
   useEffect(() => {
     const onHide = () => {
@@ -1011,6 +1075,7 @@ export default function App() {
       if (cancelled) return;
       if (error) {
         setToast("Could not load synced data");
+        setProgressSynced(true);
         return;
       }
       if (data) {
@@ -1052,6 +1117,7 @@ export default function App() {
           .upsert({ user_id: authUser.id, bank, changes: chgRecords, custom_progs: customProgs, melodies, practice_log: practiceLog });
         setToast(insErr ? "Sync failed, saved locally" : "Account ready, this device's saves are now synced");
       }
+      if (!cancelled) setProgressSynced(true);
     })();
     return () => {
       cancelled = true;
@@ -1121,7 +1187,7 @@ export default function App() {
       return setLinkState("err");
     }
     setLinkState("busy");
-    const { error } = await supabase.auth.updateUser({ email: em });
+    const { error } = await supabase.auth.updateUser({ email: em }, { emailRedirectTo: authRedirect() });
     if (error) {
       setLinkErrMsg(
         isNetErr(error)
@@ -1145,7 +1211,7 @@ export default function App() {
     }
     setAuthBusy(true);
     const { error } = await supabase.auth.resetPasswordForEmail(name.toLowerCase(), {
-      redirectTo: window.location.origin,
+      redirectTo: authRedirect(),
     });
     setAuthBusy(false);
     if (error && isNetErr(error)) {
@@ -1338,6 +1404,20 @@ export default function App() {
         /* none yet */
       }
       try {
+        const r = await store.get("fretboard:gamify");
+        if (!cancelled && r && r.value) {
+          const v = JSON.parse(r.value);
+          if (v && typeof v === "object") {
+            setGamify((g) => ({
+              counters: { ...g.counters, ...(v.counters || {}) },
+              acked: { ...(v.acked || {}) },
+            }));
+          }
+        }
+      } catch (e) {
+        /* no progress yet */
+      }
+      try {
         const r = await store.get("fretboard:changes");
         if (!cancelled && r && r.value) {
           const v = JSON.parse(r.value);
@@ -1469,6 +1549,9 @@ export default function App() {
   useEffect(() => {
     if (settings.simple && (arpDir === "thirds" || arpDir === "pedal")) setArpDir("up");
   }, [settings.simple, arpDir]);
+  useEffect(() => {
+    if (settings.simple) { const p = STRUM_PATTERNS.find((x) => x.id === strumPatId); if (p && !p.simple) setStrumPatId("oldfaithful"); }
+  }, [settings.simple, strumPatId]);
 
   const vopt = useMemo(
     () => ({ span: settings.span, inversions: settings.inversions, barres: settings.barres }),
@@ -1600,6 +1683,68 @@ export default function App() {
     const maxDay = Math.max(60, ...week.map((w) => w.total));
     return { streak, week, weekTotal, allTime, modeRows, maxDay, todayTotal: practiceLog[today] ? practiceLog[today].total : 0 };
   }, [practiceLog]);
+
+  /* the snapshot the gamification module scores: durable counters plus per-mode
+     practice minutes derived from the practice log */
+  const gStats = useMemo(() => {
+    const c = gamify.counters;
+    const byMode = {};
+    for (const day of Object.values(practiceLog)) for (const [m, sec] of Object.entries(day.byMode || {})) byMode[m] = (byMode[m] || 0) + sec;
+    return {
+      earCorrect: c.earCorrect || 0,
+      earStreakInterval: c.earStreakInterval || 0,
+      earStreakChord: c.earStreakChord || 0,
+      tourTaken: c.tourTaken || 0,
+      triedSimple: c.triedSimple || 0,
+      tuningCount: (c.tunings || []).length,
+      metronomeMin: Math.floor((c.metronomeSeconds || 0) / 60),
+      chordChangeBest: c.chordChangeBest || 0,
+      chordChangesTotal: c.chordChangesTotal || 0,
+      minScale: Math.floor((byMode.scale || 0) / 60),
+      minChord: Math.floor((byMode.chord || 0) / 60),
+      minArp: Math.floor((byMode.arp || 0) / 60),
+      dayStreak: practiceStats.streak,
+      practiceSeconds: practiceStats.allTime,
+    };
+  }, [gamify.counters, practiceLog, practiceStats.streak, practiceStats.allTime]);
+
+  const gPoints = useMemo(() => pointsFor(gStats), [gStats]);
+  const gLevel = useMemo(() => levelProgress(gPoints), [gPoints]);
+
+  /* celebrate newly earned badge tiers and level-ups exactly once. On the first
+     pass after load we silently baseline what is already earned so returning
+     players are not spammed for past progress. */
+  useEffect(() => {
+    if (!loaded || !progressSynced) return;
+    if (!gamifyReadyRef.current) {
+      gamifyReadyRef.current = true;
+      setGamify((g) => {
+        const a = { ...g.acked };
+        let ch = false;
+        for (const b of BADGES) { const t = badgeTier(b, gStats); if (t > (a[b.id] || 0)) { a[b.id] = t; ch = true; } }
+        if (gLevel.level > (a.__level || 1)) { a.__level = gLevel.level; ch = true; }
+        return ch ? { ...g, acked: a } : g;
+      });
+      return;
+    }
+    const acked = gamify.acked || {};
+    const newly = [];
+    for (const b of BADGES) { const t = badgeTier(b, gStats); if (t > (acked[b.id] || 0)) newly.push({ b, tier: t }); }
+    const levelUp = gLevel.level > (acked.__level || 1);
+    if (!newly.length && !levelUp) return;
+    setGamify((g) => {
+      const a = { ...g.acked };
+      for (const { b, tier } of newly) a[b.id] = tier;
+      if (levelUp) a.__level = gLevel.level;
+      return { ...g, acked: a };
+    });
+    newly.forEach(({ b, tier }) => track("badge_earned", { badge: b.id, tier }));
+    if (levelUp) track("level_up", { level: gLevel.level });
+    if (levelUp) setToast(`Level up! You reached level ${gLevel.level}`);
+    else if (newly.length === 1) setToast(`Badge earned: ${newly[0].b.name}${newly[0].b.tiers.length > 1 ? ` ${newly[0].tier}` : ""}`);
+    else setToast(`${newly.length} new badges earned!`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gStats, gLevel.level, loaded, progressSynced]);
 
   /* shift every note by semitones on its own string; refuse if any falls off the neck */
   const transposeMelody = useCallback(
@@ -1750,8 +1895,8 @@ export default function App() {
   const activeProgVoicing = progVoicings[Math.min(progIdx, progVoicings.length - 1)] || null;
 
   const playNote = useCallback(
-    (midi, when = 0) => {
-      if (settings.sound) pluck(midi, when);
+    (midi, when = 0, gain = 0.5) => {
+      if (settings.sound) pluck(midi, when, gain);
     },
     [settings.sound]
   );
@@ -2023,12 +2168,13 @@ export default function App() {
   }, []);
 
   /* one strum of the current chord: down runs low string to high, up reverses */
-  const strumChord = useCallback((dir, at = 0) => {
+  const strumChord = useCallback((dir, accent = false, at = 0) => {
     if (!activeVoicing) return;
     const notes = [];
     for (let s = 0; s < n; s++) { const f = activeVoicing.frets[s]; if (f !== null) notes.push(midis[s] + f); }
     const seq = dir === "u" ? notes.slice().reverse() : notes;
-    seq.forEach((m, i) => playNote(m, at + i * 0.024));
+    const gain = accent ? 0.7 : 0.4;
+    seq.forEach((m, i) => playNote(m, at + i * 0.024, gain));
   }, [activeVoicing, midis, n, playNote]);
 
   const playStrum = useCallback(() => {
@@ -2044,12 +2190,15 @@ export default function App() {
         const stroke = pat.slots[sl];
         playTimers.current.push(setTimeout(() => {
           setStrumStep(sl);
-          if (stroke) strumChord(stroke);
+          /* an uppercase slot (D/U) is an accented, louder strum */
+          if (stroke) strumChord(stroke.toLowerCase(), stroke === stroke.toUpperCase());
+          /* click on each beat (every second eighth), accented on the downbeat */
+          if (strumClick && sl % 2 === 0) { const ac = ctx(); if (ac) playClick(settings.clickSound, ac.currentTime, sl === 0); }
         }, idx * slotSec * 1000));
       }
     }
     playTimers.current.push(setTimeout(() => { setStrumOn(false); setStrumStep(null); }, LOOPS * 8 * slotSec * 1000));
-  }, [activeVoicing, strumPatId, settings.bpm, stopPlayback, strumChord]);
+  }, [activeVoicing, strumPatId, settings.bpm, settings.clickSound, strumClick, stopPlayback, strumChord]);
 
   const doImportTab = useCallback((text) => {
     /* keep notes on the neck and within the timeline the grid can render */
@@ -2224,21 +2373,26 @@ export default function App() {
 
   const earAnswer = useCallback(
     (v) => {
-      setEar((e) => {
-        if (!e.current || e.picked != null) return e;
-        const right = v === e.current.answer;
-        track("ear_answer", { source: e.source, right });
-        if (settings.sound) blip(right);
-        return {
-          ...e,
-          picked: v,
-          correct: e.correct + (right ? 1 : 0),
-          wrong: e.wrong + (right ? 0 : 1),
-          streak: right ? e.streak + 1 : 0,
-        };
-      });
+      /* read once, then run side effects exactly once outside the state updater
+         (which can run twice under StrictMode) */
+      if (!ear.current || ear.picked != null) return;
+      const right = v === ear.current.answer;
+      track("ear_answer", { source: ear.source, right });
+      if (settings.sound) blip(right);
+      if (right) {
+        const streak = ear.streak + 1;
+        const key = ear.source === "chord" ? "earStreakChord" : "earStreakInterval";
+        setGamify((g) => ({ ...g, counters: { ...g.counters, earCorrect: (g.counters.earCorrect || 0) + 1, [key]: Math.max(g.counters[key] || 0, streak) } }));
+      }
+      setEar((e) => ({
+        ...e,
+        picked: v,
+        correct: e.correct + (right ? 1 : 0),
+        wrong: e.wrong + (right ? 0 : 1),
+        streak: right ? e.streak + 1 : 0,
+      }));
     },
-    [settings.sound]
+    [ear, settings.sound]
   );
 
   /* fresh question when the pool changes or after an answer settles */
@@ -2293,6 +2447,16 @@ export default function App() {
       bus.disconnect();
     };
   }, [metroOn, settings.bpm, settings.beats, settings.clickSound, settings.accent, settings.subdiv, settings.simple]);
+
+  /* count metronome time towards the "In time" badge while it is running and visible */
+  useEffect(() => {
+    if (!metroOn) return;
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      setGamify((g) => ({ ...g, counters: { ...g.counters, metronomeSeconds: (g.counters.metronomeSeconds || 0) + 10 } }));
+    }, 10000);
+    return () => clearInterval(id);
+  }, [metroOn]);
 
   /* ---- one-minute chord change trainer ---- */
   const chgKey = (chords) => chords.map((c) => `${c.root}:${c.id}`).sort().join(">");
@@ -2360,11 +2524,13 @@ export default function App() {
     setChgRecords(next);
     store.set("fretboard:changes", JSON.stringify(next)).catch(() => {});
     syncField("changes", next);
+    const perMin = chg.duration > 0 ? Math.round((count * 60) / chg.duration) : count;
+    setGamify((g) => ({ ...g, counters: { ...g.counters, chordChangesTotal: (g.counters.chordChangesTotal || 0) + count, chordChangeBest: Math.max(g.counters.chordChangeBest || 0, perMin) } }));
     track("changes_save", { count, new_best: beat });
     setToast(beat && count > 0 ? `New best · ${count} changes` : `Saved · ${count} changes`);
     setChg((c) => ({ ...c, phase: "idle", remaining: c.duration }));
     setChgEntry("");
-  }, [chgEntry, chg.chords, chgRecords, syncField]);
+  }, [chgEntry, chg.chords, chg.duration, chgRecords, syncField]);
 
   const setChgChord = (i, patch) =>
     setChg((c) => ({ ...c, chords: c.chords.map((x, j) => (j === i ? { ...x, ...patch } : x)) }));
@@ -2523,7 +2689,7 @@ export default function App() {
         : quiz.source === "interval"
         ? `${nameOf(ivRoot, effFlats)} · ${[...ivOn].sort((a, b) => a - b).map((i) => DEG[i]).join(" ")}`
         : `${nameOf(chordRoot, effFlats)}${chordDef.suffix || ""}`;
-    return `Quiz · ${src} · ${quiz.hidden ? quiz.hidden.size - quiz.found.size : 0} to find`;
+    return `Fretboard Quiz · ${src} · ${quiz.hidden ? quiz.hidden.size - quiz.found.size : 0} to find`;
   }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, effFlats, quiz, progRoot, progDef, bank.length, chgLabel, authUser, uname, settings.tuningId, melSteps, ear.correct, ear.wrong, arpRoot, arpDef, practiceStats.streak, finderInfo, finderSel.size]);
 
   const total = quiz.correct + quiz.wrong;
@@ -2533,6 +2699,9 @@ export default function App() {
     const t = TUNINGS.find((x) => x.id === id);
     if (!t) return;
     setSettings((s) => ({ ...s, tuningId: id, midis: t.midi }));
+    if (id !== "std" && id !== "custom") {
+      setGamify((g) => (g.counters.tunings.includes(id) ? g : { ...g, counters: { ...g.counters, tunings: [...g.counters.tunings, id] } }));
+    }
   };
 
   const setStringNote = (idx, midi) => {
@@ -2603,7 +2772,7 @@ export default function App() {
     { title: "That is the tour", body: "Have a play. The About page has learning resources and a place to send feedback. Enjoy.", target: null, before: () => setDrawer(false) },
   ];
 
-  const startTour = useCallback(() => { setTour(0); track("tour_start"); }, []);
+  const startTour = useCallback(() => { setTour(0); track("tour_start"); setGamify((g) => (g.counters.tourTaken ? g : { ...g, counters: { ...g.counters, tourTaken: 1 } })); }, []);
   const endTour = useCallback(() => {
     setTour(-1);
     setTourRect(null);
@@ -2697,7 +2866,7 @@ export default function App() {
             className={`simpletoggle ${settings.simple ? "on" : ""}`}
             role="switch"
             aria-checked={settings.simple}
-            onClick={() => { track("simple_toggle", { on: !settings.simple }); setSettings((s) => ({ ...s, simple: !s.simple })); }}
+            onClick={() => { track("simple_toggle", { on: !settings.simple }); setSettings((s) => ({ ...s, simple: !s.simple })); setGamify((g) => (g.counters.triedSimple ? g : { ...g, counters: { ...g.counters, triedSimple: 1 } })); }}
             data-tip="Fewer menus and options, for starting out"
           >
             <span className="simplelabel">Simple mode</span>
@@ -2727,7 +2896,7 @@ export default function App() {
               {navItem("changes", "Chord changes")}
               {navItem("strum", "Strumming")}
               {navItem("melody", "Melodies", melodies.length > 0 ? <span className="badge">{melodies.length}</span> : null)}
-              {navItem("quiz", "Quiz")}
+              {navItem("quiz", "Fretboard Quiz")}
               {(!settings.simple || mode === "ear") && navItem("ear", "Ear training")}
             </div>
           )}
@@ -3863,7 +4032,7 @@ export default function App() {
 
             <Field label="Pattern">
               <div className="row wrap">
-                {STRUM_PATTERNS.map((p) => (
+                {STRUM_PATTERNS.filter((p) => !settings.simple || p.simple).map((p) => (
                   <button
                     key={p.id}
                     aria-pressed={strumPatId === p.id}
@@ -3876,13 +4045,17 @@ export default function App() {
               </div>
             </Field>
 
-            <div className="strumbar" role="group" aria-label="Strum pattern">
-              {(STRUM_PATTERNS.find((p) => p.id === strumPatId) || STRUM_PATTERNS[0]).slots.map((st, i) => (
-                <div key={i} className={`strumslot ${strumStep === i ? "on" : ""} ${i % 2 === 0 ? "beat" : ""}`}>
-                  <span className="strumarrow" aria-hidden="true">{st === "d" ? "↓" : st === "u" ? "↑" : ""}</span>
-                  <span className="strumcount">{i % 2 === 0 ? String(i / 2 + 1) : "&"}</span>
-                </div>
-              ))}
+            <div className="strumbar" role="group" aria-label="Strum pattern. Bold arrows are accented.">
+              {(STRUM_PATTERNS.find((p) => p.id === strumPatId) || STRUM_PATTERNS[0]).slots.map((st, i) => {
+                const dir = st ? st.toLowerCase() : null;
+                const accent = st && st === st.toUpperCase();
+                return (
+                  <div key={i} className={`strumslot ${strumStep === i ? "on" : ""} ${i % 2 === 0 ? "beat" : ""} ${accent ? "accent" : ""}`}>
+                    <span className="strumarrow" aria-hidden="true">{dir === "d" ? "↓" : dir === "u" ? "↑" : ""}</span>
+                    <span className="strumcount">{i % 2 === 0 ? String(i / 2 + 1) : "&"}</span>
+                  </div>
+                );
+              })}
             </div>
 
             <div className="row wrap actions">
@@ -3900,6 +4073,14 @@ export default function App() {
                   <button className="mini" aria-label="Faster" onClick={() => setSettings((s) => ({ ...s, bpm: Math.min(240, s.bpm + 5) }))}>+5</button>
                 </div>
               </Field>
+              <button
+                className={`btn ${strumClick ? "primary" : "ghost"}`}
+                aria-pressed={strumClick}
+                onClick={() => setStrumClick((v) => !v)}
+                data-tip="Play the metronome click on each beat, at this tempo"
+              >
+                Click: {strumClick ? "on" : "off"}
+              </button>
             </div>
           </div>
         )}
@@ -4085,17 +4266,17 @@ export default function App() {
               <Field label="Direction" tip="Identify what you hear, or choose a sound and listen to it">
                 <Seg small ariaLabel="Ear training direction"
                   options={[{ v: "quiz", l: "Hear and identify" }, { v: "explore", l: "Choose and hear" }]}
-                  value={ear.dir} onChange={(v) => setEar((e) => ({ ...e, dir: v, current: null, picked: null }))} />
+                  value={ear.dir} onChange={(v) => setEar((e) => ({ ...e, dir: v, current: null, picked: null, streak: 0 }))} />
               </Field>
               <Field label="Sounds">
                 <Seg small ariaLabel="Interval or chord sounds"
                   options={[{ v: "interval", l: "Intervals" }, { v: "chord", l: "Chord types" }]}
-                  value={ear.source} onChange={(v) => setEar((e) => ({ ...e, source: v, current: null, picked: null }))} />
+                  value={ear.source} onChange={(v) => setEar((e) => ({ ...e, source: v, current: null, picked: null, streak: 0 }))} />
               </Field>
               <Field label="Range">
                 <Seg small ariaLabel="Difficulty"
                   options={[{ v: "simple", l: "Common" }, { v: "all", l: "Everything" }]}
-                  value={ear.level} onChange={(v) => setEar((e) => ({ ...e, level: v, current: null, picked: null }))} />
+                  value={ear.level} onChange={(v) => setEar((e) => ({ ...e, level: v, current: null, picked: null, streak: 0 }))} />
               </Field>
             </div>
 
@@ -4174,6 +4355,45 @@ export default function App() {
               };
               return (
                 <>
+                  <section className="progress">
+                    <div className="levelcard">
+                      <div className="levelring">
+                        <svg viewBox="0 0 44 44" width="72" height="72" aria-hidden="true">
+                          <circle cx="22" cy="22" r="19" className="lr-track" />
+                          <circle cx="22" cy="22" r="19" className="lr-fill" style={{ strokeDasharray: `${(gLevel.pct / 100) * 119.4} 119.4` }} />
+                        </svg>
+                        <div className="levelnum"><b>{gLevel.level}</b><span>level</span></div>
+                      </div>
+                      <div className="levelmeta">
+                        <div className="levelpts">{gPoints.toLocaleString("en-GB")} <span>points</span></div>
+                        <div className="levelbar"><div className="levelbarfill" style={{ width: `${gLevel.pct}%` }} /></div>
+                        <div className="levelnext">{gLevel.toNext.toLocaleString("en-GB")} points to level {gLevel.level + 1}</div>
+                      </div>
+                    </div>
+
+                    <h2 className="abouthead">Badges</h2>
+                    <div className="badgegrid">
+                      {BADGES.map((b) => {
+                        const tier = badgeTier(b, gStats);
+                        const max = b.tiers.length;
+                        const earned = tier > 0;
+                        const nextAt = tier < max ? b.tiers[tier] : null;
+                        return (
+                          <div key={b.id} className={`badge2 ${earned ? "earned" : "locked"}`}>
+                            <svg className="badgemedal" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+                              <path d="M12 2.5l2.7 5.9 6.3.6-4.8 4.3 1.4 6.2L12 16.9 6.2 19.5l1.4-6.2L2.8 9l6.3-.6z" />
+                            </svg>
+                            <b className="badgename">{b.name}</b>
+                            <span className="badgetier">
+                              {!earned ? `Reach ${b.tiers[0]} ${b.unit}` : max > 1 ? (tier < max ? `Level ${tier} of ${max}` : "Maxed") : "Earned"}
+                            </span>
+                            {nextAt != null && earned && <span className="badgenext">Next at {nextAt} {b.unit}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+
                   <div className="scoreboard">
                     <div className="score"><b>{practiceStats.streak}</b><span>day streak</span></div>
                     <div className="score"><b>{fmt(practiceStats.todayTotal)}</b><span>today</span></div>
@@ -5011,6 +5231,33 @@ const CSS = `
 
 .scoreboard{display:grid; grid-template-columns:repeat(auto-fit,minmax(78px,1fr)); gap:8px}
 .score{background:var(--paper); border:1px solid var(--line); border-radius:4px; padding:9px 6px; text-align:center}
+
+/* gamification: level and badges */
+.progress{margin-bottom:14px}
+.levelcard{display:flex; align-items:center; gap:16px; background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:14px 16px}
+.levelring{position:relative; flex:none; width:72px; height:72px}
+.levelring svg{transform:rotate(-90deg)}
+.lr-track{fill:none; stroke:var(--line2); stroke-width:3.5}
+.lr-fill{fill:none; stroke:var(--gold); stroke-width:3.5; stroke-linecap:round; transition:stroke-dasharray .5s ease}
+.levelnum{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; line-height:1}
+.levelnum b{font-family:"Antonio",sans-serif; font-size:24px}
+.levelnum span{font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted)}
+.levelmeta{flex:1; min-width:0}
+.levelpts{font-family:"Antonio",sans-serif; font-size:22px}
+.levelpts span{font-family:inherit; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted)}
+.levelbar{height:8px; background:var(--line2); border-radius:4px; overflow:hidden; margin:8px 0 6px}
+.levelbarfill{height:100%; background:var(--gold); border-radius:4px; transition:width .5s ease}
+.levelnext{font-size:12px; color:var(--muted)}
+.badgegrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:8px}
+.badge2{display:flex; flex-direction:column; align-items:center; text-align:center; gap:3px; padding:12px 8px; border-radius:8px; border:1px solid var(--line); background:var(--card)}
+.badge2.locked{opacity:.55}
+.badge2.earned{border-color:var(--gold); background:var(--paper)}
+.badgemedal{color:var(--line2)}
+.badge2.earned .badgemedal{color:var(--gold)}
+.badgename{font-size:13px}
+.badgetier{font-size:11px; color:var(--muted)}
+.badge2.earned .badgetier{color:var(--ink)}
+.badgenext{font-size:10px; color:var(--muted); font-family:"IBM Plex Mono",monospace}
 .score b{display:block; font-family:"IBM Plex Mono",monospace; font-size:20px; color:var(--ink)}
 .score b.bad{color:var(--red)}
 .score span{font-family:"Antonio",sans-serif; font-size:10px; letter-spacing:.11em; text-transform:uppercase; color:var(--muted)}
@@ -5188,6 +5435,10 @@ const CSS = `
 .strumslot.on{background:var(--gold)}
 .strumslot.on .strumarrow{color:#1A2429}
 .strumslot.on .strumcount{color:#1A2429; opacity:.8}
+.strumslot.accent .strumarrow{font-size:27px; text-shadow:0 0 1px currentColor}
+.strumslot.accent::before{content:""; position:absolute; top:3px; left:50%; transform:translateX(-50%); width:5px; height:5px; border-radius:50%; background:var(--gold)}
+.strumslot{position:relative}
+.strumslot.on.accent::before{background:#1A2429}
 
 .romangrid{display:flex; flex-wrap:wrap; gap:4px}
 .romangrid .key{flex:0 0 auto; min-width:52px; padding:8px 10px}

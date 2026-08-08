@@ -107,7 +107,7 @@ export const TUNINGS = [
 /* which views count as practice time, and how the log names them */
 export const PRACTICE_MODES = {
   scale: "Scales", chord: "Chords", arp: "Arpeggios", prog: "Progressions", interval: "Intervals",
-  quiz: "Quiz", changes: "Chord changes", melody: "Melodies", ear: "Ear training",
+  quiz: "Fretboard Quiz", changes: "Chord changes", melody: "Melodies", ear: "Ear training",
 };
 export const localDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
@@ -211,13 +211,21 @@ export const MEL_SLOTS = 8;
 export const MEL_MAX_BARS = 8;
 
 /* strumming patterns over one bar of eighth notes (1 & 2 & 3 & 4 &).
-   d = downstroke, u = upstroke, null = no strum on that eighth. */
+   d = downstroke, u = upstroke, null = no strum on that eighth. An uppercase
+   D or U is the same stroke played with an accent (louder). Patterns without
+   `simple: true` are the advanced set, hidden in Simple mode. */
 export const STRUM_PATTERNS = [
-  { id: "downs", name: "Down beats", slots: ["d", null, "d", null, "d", null, "d", null] },
-  { id: "eighths", name: "All eighths", slots: ["d", "u", "d", "u", "d", "u", "d", "u"] },
-  { id: "oldfaithful", name: "D DU UDU", slots: ["d", null, "d", "u", null, "u", "d", "u"] },
-  { id: "folkrock", name: "D DU D DU", slots: ["d", null, "d", "u", "d", null, "d", "u"] },
-  { id: "offbeats", name: "Off-beats", slots: [null, "u", null, "u", null, "u", null, "u"] },
+  { id: "downs", name: "Down beats", simple: true, slots: ["d", null, "d", null, "d", null, "d", null] },
+  { id: "eighths", name: "All eighths", simple: true, slots: ["d", "u", "d", "u", "d", "u", "d", "u"] },
+  { id: "oldfaithful", name: "D DU UDU", simple: true, slots: ["d", null, "d", "u", null, "u", "d", "u"] },
+  { id: "folkrock", name: "D DU D DU", simple: true, slots: ["d", null, "d", "u", "d", null, "d", "u"] },
+  { id: "offbeats", name: "Off-beats", simple: true, slots: [null, "u", null, "u", null, "u", null, "u"] },
+  /* advanced: accents mixed in */
+  { id: "backbeat", name: "Backbeat", slots: ["d", null, "D", "u", "d", null, "D", "u"] },
+  { id: "driving", name: "Driving", slots: ["D", "u", "d", "u", "D", "u", "d", "u"] },
+  { id: "syncopated", name: "Syncopated", slots: ["d", null, "d", "U", null, "U", "d", "u"] },
+  { id: "reggae", name: "Reggae skank", slots: [null, "U", null, "U", null, "U", null, "U"] },
+  { id: "anthem", name: "Anthem", slots: ["D", null, "d", "u", "D", "u", "d", "U"] },
 ];
 export const simpleList = (arr, allow, on, keepId) =>
   on ? arr.filter((x) => allow.has(x.id) || x.id === keepId) : arr;
