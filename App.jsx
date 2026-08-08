@@ -1408,10 +1408,8 @@ export default function App() {
         if (!cancelled && r && r.value) {
           const v = JSON.parse(r.value);
           if (v && typeof v === "object") {
-            setGamify((g) => ({
-              counters: { ...g.counters, ...(v.counters || {}) },
-              acked: { ...(v.acked || {}) },
-            }));
+            /* max-merge so a counter bumped before this async load resolves is not clobbered */
+            setGamify((g) => mergeGamify(g, v));
           }
         }
       } catch (e) {
