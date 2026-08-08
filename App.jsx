@@ -104,6 +104,13 @@ const TUNINGS = [
 ];
 
 /* roman numeral -> [semitones above the key root, chord id] */
+/* which views count as practice time, and how the log names them */
+const PRACTICE_MODES = {
+  scale: "Scales", chord: "Chords", arp: "Arpeggios", prog: "Progressions", interval: "Intervals",
+  quiz: "Quiz", changes: "Chord changes", melody: "Melodies", ear: "Ear training",
+};
+const localDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
 /* ear training pools */
 const EAR_INTERVALS = [
   { v: 1, l: "Minor 2nd" }, { v: 2, l: "Major 2nd" }, { v: 3, l: "Minor 3rd" }, { v: 4, l: "Major 3rd" },
@@ -1683,6 +1690,7 @@ export default function App() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [loaded, setLoaded] = useState(false);
   const [mode, setMode] = useState("chord");
+  useEffect(() => { modeRef.current = mode; }, [mode]);
   const [capo, setCapo] = useState(0);
   const [openPanel, setOpenPanel] = useState(null);
   const [drawer, setDrawer] = useState(false);
@@ -1789,6 +1797,10 @@ export default function App() {
   const [tuner, setTuner] = useState({ on: false, note: null, cents: 0, freq: 0, error: null });
   const micRef = useRef(null); // { stream, ctx, raf }
 
+  const [practiceLog, setPracticeLog] = useState({}); // { 'YYYY-MM-DD': { total, byMode: {} } }
+  const lastActiveRef = useRef(Date.now());
+  const modeRef = useRef("chord");
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       authTokenRef.current = data.session ? data.session.access_token : null;
@@ -1878,7 +1890,7 @@ export default function App() {
     (async () => {
       const { data, error } = await supabase
         .from("user_data")
-        .select("bank,changes,custom_progs,melodies")
+        .select("bank,changes,custom_progs,melodies,practice_log")
         .eq("user_id", authUser.id)
         .maybeSingle();
       if (cancelled) return;
@@ -1903,11 +1915,22 @@ export default function App() {
           setMelodies(data.melodies);
           store.set("fretboard:melodies", JSON.stringify(data.melodies)).catch(() => {});
         }
+        if (data.practice_log && typeof data.practice_log === "object" && !Array.isArray(data.practice_log)) {
+          /* merge server and local by taking the higher total per day */
+          setPracticeLog((local) => {
+            const merged = { ...local };
+            for (const [k, v] of Object.entries(data.practice_log)) {
+              if (!merged[k] || v.total > merged[k].total) merged[k] = v;
+            }
+            store.set("fretboard:practicelog", JSON.stringify(merged)).catch(() => {});
+            return merged;
+          });
+        }
         setToast("Synced");
       } else {
         const { error: insErr } = await supabase
           .from("user_data")
-          .upsert({ user_id: authUser.id, bank, changes: chgRecords, custom_progs: customProgs, melodies });
+          .upsert({ user_id: authUser.id, bank, changes: chgRecords, custom_progs: customProgs, melodies, practice_log: practiceLog });
         setToast(insErr ? "Sync failed, saved locally" : "Account ready, this device's saves are now synced");
       }
     })();
@@ -2169,6 +2192,22 @@ export default function App() {
         /* none yet */
       }
       try {
+        const r = await store.get("fretboard:practicelog");
+        if (!cancelled && r && r.value) {
+          const v = JSON.parse(r.value);
+          if (v && typeof v === "object" && !Array.isArray(v)) {
+            /* max-merge so this cannot clobber a sign-in merge that raced ahead */
+            setPracticeLog((cur) => {
+              const merged = { ...cur };
+              for (const [k, dv] of Object.entries(v)) if (!merged[k] || dv.total > merged[k].total) merged[k] = dv;
+              return merged;
+            });
+          }
+        }
+      } catch (e) {
+        /* none yet */
+      }
+      try {
         const r = await store.get("fretboard:changes");
         if (!cancelled && r && r.value) {
           const v = JSON.parse(r.value);
@@ -2290,6 +2329,76 @@ export default function App() {
     store.set("fretboard:melodies", JSON.stringify(next)).catch(() => {});
     syncField("melodies", next);
   }, [syncField]);
+
+  const savePracticeLog = useRef(null);
+  useEffect(() => {
+    savePracticeLog.current = (next) => {
+      store.set("fretboard:practicelog", JSON.stringify(next)).catch(() => {});
+      syncField("practice_log", next);
+    };
+  }, [syncField]);
+
+  /* accumulate practice time: count a tick only when the tab is visible, the
+     user has interacted recently, and the current view is a practice activity */
+  useEffect(() => {
+    const bump = () => { lastActiveRef.current = Date.now(); };
+    window.addEventListener("pointerdown", bump);
+    window.addEventListener("keydown", bump);
+    const TICK = 10;
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      if (Date.now() - lastActiveRef.current > 120000) return;
+      const m = modeRef.current;
+      if (!PRACTICE_MODES[m]) return;
+      setPracticeLog((log) => {
+        const key = localDay(new Date());
+        const day = log[key] || { total: 0, byMode: {} };
+        const next = {
+          ...log,
+          [key]: { total: day.total + TICK, byMode: { ...day.byMode, [m]: (day.byMode[m] || 0) + TICK } },
+        };
+        if (savePracticeLog.current) savePracticeLog.current(next);
+        return next;
+      });
+    }, TICK * 1000);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("pointerdown", bump);
+      window.removeEventListener("keydown", bump);
+    };
+  }, []);
+
+  /* derived practice stats */
+  const practiceStats = useMemo(() => {
+    const days = Object.keys(practiceLog).sort();
+    const today = localDay(new Date());
+    let streak = 0;
+    for (let i = 0; ; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const k = localDay(d);
+      if (practiceLog[k] && practiceLog[k].total >= 30) streak++;
+      else if (k !== today) break;
+      else break;
+    }
+    const week = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const k = localDay(d);
+      week.push({ k, total: practiceLog[k] ? practiceLog[k].total : 0, label: d.toLocaleDateString("en-GB", { weekday: "short" }) });
+    }
+    const byMode = {};
+    let allTime = 0;
+    for (const k of days) {
+      allTime += practiceLog[k].total;
+      for (const [m, sec] of Object.entries(practiceLog[k].byMode || {})) byMode[m] = (byMode[m] || 0) + sec;
+    }
+    const weekTotal = week.reduce((a, b) => a + b.total, 0);
+    const modeRows = Object.entries(byMode).sort((a, b) => b[1] - a[1]);
+    const maxDay = Math.max(60, ...week.map((w) => w.total));
+    return { streak, week, weekTotal, allTime, modeRows, maxDay, todayTotal: practiceLog[today] ? practiceLog[today].total : 0 };
+  }, [practiceLog]);
 
   /* shift every note by semitones on its own string; refuse if any falls off the neck */
   const transposeMelody = useCallback(
@@ -2995,6 +3104,7 @@ export default function App() {
       return `${nameOf(arpRoot, effFlats)}${arpDef.suffix || ""} arpeggio \u00b7 ${arpDef.iv.length} tones`;
     if (mode === "ear")
       return `Ear training \u00b7 ${ear.correct + ear.wrong ? Math.round((ear.correct / (ear.correct + ear.wrong)) * 100) + "%" : "ready"}`;
+    if (mode === "plog") return `Practice log \u00b7 ${practiceStats.streak} day streak`;
     if (mode === "settings") return "Settings";
     if (mode === "tuner") {
       const t = TUNINGS.find((x) => x.id === settings.tuningId);
@@ -3008,7 +3118,7 @@ export default function App() {
         ? `${nameOf(ivRoot, effFlats)} · ${[...ivOn].sort((a, b) => a - b).map((i) => DEG[i]).join(" ")}`
         : `${nameOf(chordRoot, effFlats)}${chordDef.suffix || ""}`;
     return `Quiz · ${src} · ${quiz.hidden ? quiz.hidden.size - quiz.found.size : 0} to find`;
-  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, effFlats, quiz, progRoot, progDef, bank.length, chgLabel, authUser, uname, settings.tuningId, melSteps.length, ear.correct, ear.wrong, arpRoot, arpDef]);
+  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, effFlats, quiz, progRoot, progDef, bank.length, chgLabel, authUser, uname, settings.tuningId, melSteps.length, ear.correct, ear.wrong, arpRoot, arpDef, practiceStats.streak]);
 
   const total = quiz.correct + quiz.wrong;
   const accuracy = total ? Math.round((quiz.correct / total) * 100) : 0;
@@ -3093,6 +3203,7 @@ export default function App() {
           <p className="dhead"><HeadIcon kind="profile" />Profile</p>
           {navItem("account", authUser ? "Account" : "Create account", authUser ? <span className="badge">{uname}</span> : null)}
           {navItem("bank", "Bank", bank.length > 0 ? <span className="badge">{bank.length}</span> : null)}
+          {navItem("plog", "Practice log", practiceStats.streak > 0 ? <span className="badge">{practiceStats.streak}d</span> : null)}
           {navItem("settings", "Settings")}
 
 
@@ -3202,7 +3313,7 @@ export default function App() {
         </section>
       )}
 
-      {!["changes", "about", "account", "settings", "tuner", "ear"].includes(mode) && (
+      {!["changes", "about", "account", "settings", "tuner", "ear", "plog"].includes(mode) && (
       <section className="neckwrap">
         <div className="neckscroll">
           <Fretboard
@@ -4272,6 +4383,60 @@ export default function App() {
           </div>
         )}
 
+        {mode === "plog" && (
+          <div className="pane about">
+            {(() => {
+              const fmt = (sec) => {
+                const m = Math.round(sec / 60);
+                if (m < 60) return `${m} min`;
+                return `${Math.floor(m / 60)}h ${m % 60}m`;
+              };
+              return (
+                <>
+                  <div className="scoreboard">
+                    <div className="score"><b>{practiceStats.streak}</b><span>day streak</span></div>
+                    <div className="score"><b>{fmt(practiceStats.todayTotal)}</b><span>today</span></div>
+                    <div className="score"><b>{fmt(practiceStats.weekTotal)}</b><span>this fortnight</span></div>
+                    <div className="score"><b>{fmt(practiceStats.allTime)}</b><span>all time</span></div>
+                  </div>
+
+                  <section className="aboutblock">
+                    <h2 className="abouthead">Last 14 days</h2>
+                    <div className="plogbars" role="img" aria-label={`Practice minutes over the last fourteen days, ${fmt(practiceStats.weekTotal)} total`}>
+                      {practiceStats.week.map((d, i) => (
+                        <div className="plogday" key={d.k} title={`${d.label}: ${fmt(d.total)}`}>
+                          <div className="plogbarwrap">
+                            <div className="plogbar" style={{ height: `${d.total ? Math.max(4, (d.total / practiceStats.maxDay) * 100) : 0}%` }} />
+                          </div>
+                          <span className="ploglabel">{i % 2 === 0 ? d.label[0] : ""}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  {practiceStats.modeRows.length > 0 ? (
+                    <section className="aboutblock">
+                      <h2 className="abouthead">By activity</h2>
+                      <div className="plogmodes">
+                        {practiceStats.modeRows.map(([m, sec]) => (
+                          <div className="plogmode" key={m}>
+                            <span className="plogmname">{PRACTICE_MODES[m] || m}</span>
+                            <div className="plogtrack"><div className="plogfill" style={{ width: `${(sec / practiceStats.modeRows[0][1]) * 100}%` }} /></div>
+                            <span className="plogmtime">{fmt(sec)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  ) : (
+                    <p className="note">No practice recorded yet. Time spent in Scales, Chords, drills and the other practice views is logged here automatically, so you can see your streak build.</p>
+                  )}
+                  <p className="note">Practice is counted only while the app is open and you are active in a practice view. {authUser ? "Your log syncs to your account." : "Sign in to sync your log across devices."}</p>
+                </>
+              );
+            })()}
+          </div>
+        )}
+
         {mode === "tuner" && (
           <div className="pane">
             <div className="tunerbox">
@@ -5075,6 +5240,19 @@ const CSS = `
 
 /* selected state for ghost preset buttons */
 .btn.ghost.sel{background:var(--ink); color:var(--onink); border-color:var(--ink)}
+
+/* practice log */
+.plogbars{display:flex; align-items:flex-end; gap:5px; height:130px; padding:6px 0}
+.plogday{flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; height:100%}
+.plogbarwrap{flex:1; width:100%; display:flex; align-items:flex-end}
+.plogbar{width:100%; background:var(--teal); border-radius:3px 3px 0 0; min-height:0; transition:height .3s ease}
+.ploglabel{font-family:"IBM Plex Mono",monospace; font-size:10px; color:var(--muted); height:12px}
+.plogmodes{display:grid; gap:8px}
+.plogmode{display:grid; grid-template-columns:110px 1fr 64px; align-items:center; gap:10px}
+.plogmname{font-size:13px; color:var(--ink)}
+.plogtrack{height:10px; background:var(--paper); border:1px solid var(--line); border-radius:5px; overflow:hidden}
+.plogfill{height:100%; background:var(--gold); border-radius:5px}
+.plogmtime{font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--muted); text-align:right}
 
 /* mic tuner */
 .tunerbox{display:flex; flex-direction:column; align-items:center; gap:14px; padding:12px 0 6px; text-align:center}

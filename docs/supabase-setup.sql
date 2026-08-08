@@ -33,7 +33,7 @@ create table if not exists public.user_data (
   changes jsonb not null default '{}'::jsonb,
   custom_progs jsonb not null default '[]'::jsonb,
   melodies jsonb not null default '[]'::jsonb,
-  practice_log jsonb not null default '[]'::jsonb,
+  practice_log jsonb not null default '{}'::jsonb,
   settings jsonb,
   updated_at timestamptz not null default now()
 );
