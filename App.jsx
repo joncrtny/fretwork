@@ -1448,6 +1448,18 @@ function usernameProblem(u) {
   return null;
 }
 
+/* which open string a detected pitch is closest to, and which way to tune */
+function nearestStringTarget(midi, midis) {
+  let best = null;
+  for (let i = 0; i < midis.length; i++) {
+    const diff = midi - midis[i];
+    if (!best || Math.abs(diff) < Math.abs(best.diff)) best = { i, diff, target: midis[i] };
+  }
+  if (!best) return null;
+  const roundedDiff = Math.round(best.diff);
+  return { label: `string ${midis.length - best.i}`, diff: Math.abs(roundedDiff) <= 0 ? 0 : roundedDiff };
+}
+
 /* auth calls fail very differently offline; say so instead of blaming the password */
 function isNetErr(er) {
   return !!er && (er.status === 0 || er.name === "AuthRetryableFetchError" || /fetch|network/i.test(er.message || ""));
@@ -1773,6 +1785,10 @@ export default function App() {
   const syncTimers = useRef({});
   const authTokenRef = useRef(null);
 
+  /* mic tuner: nothing here touches the microphone until the user starts it */
+  const [tuner, setTuner] = useState({ on: false, note: null, cents: 0, freq: 0, error: null });
+  const micRef = useRef(null); // { stream, ctx, raf }
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       authTokenRef.current = data.session ? data.session.access_token : null;
@@ -2011,6 +2027,82 @@ export default function App() {
     setRecoveryMode(false);
     setToast("Password updated");
   };
+
+  /* autocorrelation pitch detection over a mono buffer */
+  const detectPitch = (buf, sr) => {
+    let rms = 0;
+    for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
+    rms = Math.sqrt(rms / buf.length);
+    if (rms < 0.01) return -1; // too quiet
+    let r1 = 0, r2 = buf.length - 1;
+    const thr = 0.2;
+    for (let i = 0; i < buf.length / 2; i++) if (Math.abs(buf[i]) < thr) { r1 = i; break; }
+    for (let i = 1; i < buf.length / 2; i++) if (Math.abs(buf[buf.length - i]) < thr) { r2 = buf.length - i; break; }
+    const b = buf.slice(r1, r2);
+    const c = new Array(b.length).fill(0);
+    for (let lag = 0; lag < b.length; lag++)
+      for (let i = 0; i < b.length - lag; i++) c[lag] += b[i] * b[i + lag];
+    let d = 0;
+    while (d < b.length - 1 && c[d] > c[d + 1]) d++;
+    let maxv = -1, maxp = -1;
+    for (let i = d; i < b.length; i++) if (c[i] > maxv) { maxv = c[i]; maxp = i; }
+    if (maxp <= 0) return -1;
+    // parabolic interpolation around the peak
+    const x1 = c[maxp - 1] || 0, x2 = c[maxp], x3 = c[maxp + 1] || 0;
+    const a = (x1 + x3 - 2 * x2) / 2, bb = (x3 - x1) / 2;
+    const period = a ? maxp - bb / (2 * a) : maxp;
+    return sr / period;
+  };
+
+  const stopTuner = useCallback(() => {
+    const m = micRef.current;
+    if (m) {
+      cancelAnimationFrame(m.raf);
+      if (m.stream) m.stream.getTracks().forEach((t) => t.stop());
+      if (m.ctx && m.ctx.state !== "closed") m.ctx.close();
+      micRef.current = null;
+    }
+    setTuner({ on: false, note: null, cents: 0, freq: 0, error: null });
+  }, []);
+
+  const startTuner = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+      const AC = window.AudioContext || window.webkitAudioContext;
+      const ac = new AC();
+      const src = ac.createMediaStreamSource(stream);
+      const an = ac.createAnalyser();
+      an.fftSize = 2048;
+      src.connect(an);
+      const buf = new Float32Array(an.fftSize);
+      micRef.current = { stream, ctx: ac, raf: 0 };
+      setTuner((t) => ({ ...t, on: true, error: null }));
+      track("tuner_start");
+      let smooth = 0;
+      const tick = () => {
+        an.getFloatTimeDomainData(buf);
+        const f = detectPitch(buf, ac.sampleRate);
+        if (f > 40 && f < 1200) {
+          smooth = smooth ? smooth * 0.8 + f * 0.2 : f;
+          const midi = 69 + 12 * Math.log2(smooth / 440);
+          const nearest = Math.round(midi);
+          const cents = Math.round((midi - nearest) * 100);
+          setTuner((t) => ({ ...t, note: nearest, cents, freq: Math.round(smooth) }));
+        }
+        if (micRef.current) micRef.current.raf = requestAnimationFrame(tick);
+      };
+      micRef.current.raf = requestAnimationFrame(tick);
+    } catch (e) {
+      setTuner({ on: false, note: null, cents: 0, freq: 0, error: e && e.name === "NotAllowedError" ? "Microphone permission was declined." : "Could not access the microphone." });
+    }
+  }, []);
+
+  /* release the mic whenever the tuner view is left or the app unmounts */
+  useEffect(() => {
+    if (mode !== "tuner") stopTuner();
+    return () => stopTuner();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   /* fonts */
   useEffect(() => {
@@ -4182,10 +4274,50 @@ export default function App() {
 
         {mode === "tuner" && (
           <div className="pane">
-          <p className="note">
-            Set each string, or pick a preset tuning. A microphone tuner that listens to your guitar is
-            planned to live here too.
-          </p>
+            <div className="tunerbox">
+              {!tuner.on ? (
+                <>
+                  <p className="note">
+                    Listen to your guitar and tune by ear-free feedback. The microphone is only used while you
+                    are tuning, and nothing is recorded or sent anywhere.
+                  </p>
+                  <button className="btn primary" onClick={startTuner}>Start listening</button>
+                  {tuner.error && <p className="empty" role="status">{tuner.error}</p>}
+                </>
+              ) : (
+                <>
+                  {(() => {
+                    const target = tuner.note != null ? nearestStringTarget(tuner.note, settings.midis) : null;
+                    const inTune = tuner.note != null && Math.abs(tuner.cents) <= 5;
+                    return (
+                      <div className="tunelive" role="status" aria-live="polite">
+                        <div className={`tunenote ${inTune ? "intune" : ""}`}>
+                          {tuner.note != null ? nameOf(tuner.note % 12, effFlats) : "\u2014"}
+                          <span className="tuneoct">{tuner.note != null ? Math.floor(tuner.note / 12) - 1 : ""}</span>
+                        </div>
+                        <div className="tunemeter" aria-hidden="true">
+                          <div className="tunescale">
+                            <span className="tunetick c" />
+                            <div className="tuneneedle" style={{ left: `${50 + Math.max(-50, Math.min(50, tuner.cents)) }%` }} />
+                          </div>
+                          <div className="tunecents">
+                            {tuner.note == null ? "listening" : inTune ? "in tune" : `${tuner.cents > 0 ? "+" : ""}${tuner.cents} cents ${tuner.cents > 0 ? "sharp" : "flat"}`}
+                          </div>
+                        </div>
+                        {target && (
+                          <p className="note">
+                            Closest string: {target.label}. {target.diff === 0 ? "In tune." : target.diff > 0 ? "Tune down." : "Tune up."}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  <button className="btn ghost danger" onClick={stopTuner}>Stop listening</button>
+                </>
+              )}
+            </div>
+
+          <p className="note">Or set the strings and pick a preset tuning below.</p>
           <div className="grid">
             <Field label="Tuning">
               <select value={settings.tuningId} onChange={(e) => setTuning(e.target.value)}>
@@ -4943,6 +5075,21 @@ const CSS = `
 
 /* selected state for ghost preset buttons */
 .btn.ghost.sel{background:var(--ink); color:var(--onink); border-color:var(--ink)}
+
+/* mic tuner */
+.tunerbox{display:flex; flex-direction:column; align-items:center; gap:14px; padding:12px 0 6px; text-align:center}
+.tunelive{display:flex; flex-direction:column; align-items:center; gap:12px}
+.tunenote{
+  font-family:"Antonio",sans-serif; font-weight:600; font-size:84px; line-height:1; color:var(--ink);
+  display:inline-flex; align-items:flex-start; gap:4px;
+}
+.tunenote.intune{color:var(--teal)}
+.tuneoct{font-size:26px; color:var(--muted); margin-top:8px}
+.tunemeter{width:min(420px, 90vw)}
+.tunescale{position:relative; height:34px; border:1px solid var(--line2); border-radius:8px; background:var(--paper); overflow:hidden}
+.tunetick.c{position:absolute; left:50%; top:4px; bottom:4px; width:2px; background:var(--teal); transform:translateX(-1px)}
+.tuneneedle{position:absolute; top:2px; bottom:2px; width:3px; border-radius:2px; background:var(--gold); transform:translateX(-1.5px); transition:left .08s linear}
+.tunecents{margin-top:6px; font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em}
 
 /* share */
 .sharebtn{display:inline-flex; align-items:center; gap:7px; flex:none}
