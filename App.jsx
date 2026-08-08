@@ -200,6 +200,11 @@ const PROGRESSIONS = [
 const SIMPLE_SCALES = new Set(["major", "minor", "majpent", "minpent", "blues"]);
 const SIMPLE_CHORDS = new Set(["maj", "min", "5", "sus4", "7", "m7", "maj7"]);
 const SIMPLE_PROGS = new Set(["p1564", "p145", "p1645", "pblues", "pm1637"]);
+/* views hidden from the nav in Simple mode (kept: scales, chords, arpeggios,
+   chord changes, quiz, melodies, tuner, metronome) */
+const SIMPLE_HIDDEN = new Set(["interval", "prog", "ear", "finder"]);
+/* which accordion each view lives under, so the active view's group can open */
+const CAT_OF = { scale: "learn", arp: "learn", interval: "learn", chord: "learn", prog: "learn", changes: "practice", melody: "practice", quiz: "practice", ear: "practice", tuner: "tools", finder: "tools", account: "profile", plog: "profile", settings: "profile" };
 const simpleList = (arr, allow, on, keepId) =>
   on ? arr.filter((x) => allow.has(x.id) || x.id === keepId) : arr;
 
@@ -1801,6 +1806,13 @@ export default function App() {
   const [capo, setCapo] = useState(0);
   const [openPanel, setOpenPanel] = useState(null);
   const [drawer, setDrawer] = useState(false);
+  /* nav accordions: Learn open by default to cut the visual noise */
+  const [openCats, setOpenCats] = useState({ learn: true, practice: false, tools: false, profile: false });
+  const toggleCat = (c) => setOpenCats((o) => ({ ...o, [c]: !o[c] }));
+  /* Simple mode turning on leaves any now-hidden view; opening the menu reveals
+     the active view's group so you can always see where you are. */
+  useEffect(() => { if (settings.simple && SIMPLE_HIDDEN.has(mode)) setMode("chord"); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [settings.simple]);
+  useEffect(() => { if (drawer) { const c = CAT_OF[mode]; if (c) setOpenCats((o) => (o[c] ? o : { ...o, [c]: true })); } /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [drawer]);
   const burgerRef = useRef(null);
   const [scalePos, setScalePos] = useState(null);
   const [chordArea, setChordArea] = useState(null);
@@ -3666,34 +3678,73 @@ export default function App() {
 
       <aside className={`drawer ${drawer ? "open" : ""}`} aria-label="Main menu" inert={drawer ? undefined : ""}>
         <div className="dinner">
-          <p className="dhead"><HeadIcon kind="learn" />Learn</p>
-          {navItem("scale", "Scales")}
-          {navItem("arp", "Arpeggios")}
-          {navItem("interval", "Intervals")}
-          {navItem("chord", "Chords")}
-          {navItem("prog", "Progressions")}
-
-          <p className="dhead" data-tour="practice"><HeadIcon kind="practice" />Practice</p>
-          {navItem("changes", "Chord changes")}
-          {navItem("melody", "Melodies", melodies.length > 0 ? <span className="badge">{melodies.length}</span> : null)}
-          {navItem("quiz", "Quiz")}
-          {navItem("ear", "Ear training")}
-
-          <p className="dhead" data-tour="tools"><HeadIcon kind="tools" />Tools</p>
           <button
-            className={`dnav ${openPanel === "metro" ? "on" : ""}`}
-            onClick={() => { setOpenPanel((v) => (v === "metro" ? null : "metro")); closeNav(); }}
+            className={`simpletoggle ${settings.simple ? "on" : ""}`}
+            role="switch"
+            aria-checked={settings.simple}
+            onClick={() => { track("simple_toggle", { on: !settings.simple }); setSettings((s) => ({ ...s, simple: !s.simple })); }}
+            data-tip="Fewer menus and options, for starting out"
           >
-            Metronome
-            {metroOn && <span className="badge">{settings.bpm}</span>}
+            <span className="simplelabel">Simple mode</span>
+            <span className="simpletrack" aria-hidden="true"><span className="simpleknob" /></span>
           </button>
-          {navItem("tuner", "Tuner")}
-          {navItem("finder", "Chord finder")}
 
-          <p className="dhead"><HeadIcon kind="profile" />Profile</p>
-          {navItem("account", authUser ? "Account" : "Create account", authUser ? <span className="badge">{uname}</span> : null)}
-          {navItem("plog", "Practice log", practiceStats.streak > 0 ? <span className="badge">{practiceStats.streak}d</span> : null)}
-          {navItem("settings", "Settings")}
+          <button className="dhead dcat" aria-expanded={openCats.learn} onClick={() => toggleCat("learn")}>
+            <HeadIcon kind="learn" />Learn
+            <span className={`dcaret ${openCats.learn ? "open" : ""}`} aria-hidden="true">&#8250;</span>
+          </button>
+          {openCats.learn && (
+            <div className="dcatbody">
+              {navItem("scale", "Scales")}
+              {navItem("arp", "Arpeggios")}
+              {!settings.simple && navItem("interval", "Intervals")}
+              {navItem("chord", "Chords")}
+              {!settings.simple && navItem("prog", "Progressions")}
+            </div>
+          )}
+
+          <button className="dhead dcat" data-tour="practice" aria-expanded={openCats.practice} onClick={() => toggleCat("practice")}>
+            <HeadIcon kind="practice" />Practice
+            <span className={`dcaret ${openCats.practice ? "open" : ""}`} aria-hidden="true">&#8250;</span>
+          </button>
+          {openCats.practice && (
+            <div className="dcatbody">
+              {navItem("changes", "Chord changes")}
+              {navItem("melody", "Melodies", melodies.length > 0 ? <span className="badge">{melodies.length}</span> : null)}
+              {navItem("quiz", "Quiz")}
+              {!settings.simple && navItem("ear", "Ear training")}
+            </div>
+          )}
+
+          <button className="dhead dcat" data-tour="tools" aria-expanded={openCats.tools} onClick={() => toggleCat("tools")}>
+            <HeadIcon kind="tools" />Tools
+            <span className={`dcaret ${openCats.tools ? "open" : ""}`} aria-hidden="true">&#8250;</span>
+          </button>
+          {openCats.tools && (
+            <div className="dcatbody">
+              <button
+                className={`dnav ${openPanel === "metro" ? "on" : ""}`}
+                onClick={() => { setOpenPanel((v) => (v === "metro" ? null : "metro")); closeNav(); }}
+              >
+                Metronome
+                {metroOn && <span className="badge">{settings.bpm}</span>}
+              </button>
+              {navItem("tuner", "Tuner")}
+              {!settings.simple && navItem("finder", "Chord finder")}
+            </div>
+          )}
+
+          <button className="dhead dcat" aria-expanded={openCats.profile} onClick={() => toggleCat("profile")}>
+            <HeadIcon kind="profile" />Profile
+            <span className={`dcaret ${openCats.profile ? "open" : ""}`} aria-hidden="true">&#8250;</span>
+          </button>
+          {openCats.profile && (
+            <div className="dcatbody">
+              {navItem("account", authUser ? "Account" : "Create account", authUser ? <span className="badge">{uname}</span> : null)}
+              {navItem("plog", "Practice log", practiceStats.streak > 0 ? <span className="badge">{practiceStats.streak}d</span> : null)}
+              {navItem("settings", "Settings")}
+            </div>
+          )}
 
           <div className="dbank">
             {navItem("bank", "Bank", bank.length > 0 ? <span className="badge">{bank.length}</span> : null)}
@@ -3931,31 +3982,54 @@ export default function App() {
               </p>
             ) : (
               <div className="voicings">
-                {shownVoicings.map((v, i) => (
-                  <ChordDiagram
-                    key={v.key}
-                    voicing={v}
-                    lefty={settings.leftHanded}
-                    midis={midis}
-                    rootPc={chordRoot}
-                    capo={capo}
-                    flats={effFlats}
-                    showDegrees={settings.labelMode === "degree"}
-                    selected={i === Math.min(voiceIdx, shownVoicings.length - 1)}
-                    onSelect={() => {
-                      setVoiceIdx(i);
-                      if (settings.sound) {
-                        let j = 0;
-                        for (let st = 0; st < n; st++) {
-                          const f = v.frets[st];
-                          if (f === null) continue;
-                          pluck(midis[st] + f, j * 0.035);
-                          j++;
-                        }
-                      }
-                    }}
-                  />
-                ))}
+                {shownVoicings.map((v, i) => {
+                  const vsig = `chord:${chordRoot}:${chordId}:${v.key || ""}`;
+                  const label = `${nameOf(chordRoot, effFlats)}${chordDef.suffix} shape ${i + 1}`;
+                  return (
+                    <div key={v.key} className="voicewrap">
+                      <ChordDiagram
+                        voicing={v}
+                        lefty={settings.leftHanded}
+                        midis={midis}
+                        rootPc={chordRoot}
+                        capo={capo}
+                        flats={effFlats}
+                        showDegrees={settings.labelMode === "degree"}
+                        selected={i === Math.min(voiceIdx, shownVoicings.length - 1)}
+                        onSelect={() => {
+                          setVoiceIdx(i);
+                          if (settings.sound) {
+                            let j = 0;
+                            for (let st = 0; st < n; st++) {
+                              const f = v.frets[st];
+                              if (f === null) continue;
+                              pluck(midis[st] + f, j * 0.035);
+                              j++;
+                            }
+                          }
+                        }}
+                      />
+                      <span className="voicestar">
+                        <StarSave
+                          label={label}
+                          saved={bank.some((b) => b.sig === vsig)}
+                          onClick={() => saveToBank({
+                            id: `b${Date.now()}`,
+                            sig: vsig,
+                            kind: "chord",
+                            root: chordRoot,
+                            chordId,
+                            voicing: v,
+                            midis,
+                            capo,
+                            tun: settings.tuningId,
+                            label: `${nameOf(chordRoot, effFlats)}${chordDef.suffix}`,
+                          })}
+                        />
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -3999,24 +4073,6 @@ export default function App() {
                 />
               </Field>
               <button className="btn primary" onClick={() => { track("strum_chord", { chord: chordId }); strumVoicing(); }} disabled={!activeVoicing} data-tip="Hear the selected shape">Strum</button>
-              {activeVoicing && (
-                <StarSave
-                  label={`${nameOf(chordRoot, effFlats)}${chordDef.suffix}`}
-                  saved={bank.some((b) => b.sig === `chord:${chordRoot}:${chordId}:${activeVoicing.key || ""}`)}
-                  onClick={() => saveToBank({
-                    id: `b${Date.now()}`,
-                    sig: `chord:${chordRoot}:${chordId}:${activeVoicing.key || ""}`,
-                    kind: "chord",
-                    root: chordRoot,
-                    chordId,
-                    voicing: activeVoicing,
-                    midis,
-                    capo,
-                    tun: settings.tuningId,
-                    label: `${nameOf(chordRoot, effFlats)}${chordDef.suffix}`,
-                  })}
-                />
-              )}
             </div>
 
             {!settings.simple && (
@@ -5520,6 +5576,29 @@ const CSS = `
 .dnav .badge{margin-left:auto}
 .dstate{margin-left:auto; font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--muted)}
 .dnav.on .dstate{color:var(--onink); opacity:.75}
+
+/* nav accordions */
+.dcat{width:100%; background:transparent; border:0; cursor:pointer; padding:7px 6px; margin:8px 0 2px; border-radius:6px; transition:background .15s ease, color .15s ease}
+.dcat:hover{color:var(--ink); background:var(--paper)}
+.dcaret{margin-left:auto; font-size:20px; line-height:1; color:var(--muted); transition:transform .18s ease}
+.dcaret.open{transform:rotate(90deg)}
+.dcatbody{display:grid; gap:2px; animation:catopen .18s ease}
+@keyframes catopen{from{opacity:0; transform:translateY(-3px)} to{opacity:1; transform:none}}
+.lowmotion .dcatbody{animation:none}
+
+/* simple mode toggle */
+.simpletoggle{
+  width:100%; display:flex; align-items:center; gap:10px; cursor:pointer;
+  background:var(--paper); border:1px solid var(--line); border-radius:8px;
+  padding:9px 12px; margin-bottom:12px; color:var(--ink); font-family:inherit; font-size:14px;
+  transition:border-color .15s ease;
+}
+.simpletoggle:hover{border-color:var(--line2)}
+.simplelabel{font-weight:600}
+.simpletrack{margin-left:auto; width:38px; height:22px; border-radius:11px; background:var(--line2); position:relative; transition:background .18s ease; flex:none}
+.simpleknob{position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:transform .18s ease}
+.simpletoggle.on .simpletrack{background:var(--gold)}
+.simpletoggle.on .simpleknob{transform:translateX(16px)}
 .scrim{display:none; position:fixed; inset:0; z-index:70; background:rgba(8,14,18,.42); opacity:0; pointer-events:none; transition:opacity .24s ease}
 .scrim.on{opacity:1; pointer-events:auto}
 
@@ -5775,6 +5854,10 @@ const CSS = `
 .chip b{font-size:11px}
 
 .voicings{display:flex; gap:10px; overflow-x:auto; padding:4px 2px 8px}
+.voicewrap{flex:none; display:grid; gap:5px; justify-items:center}
+.voicewrap .voicing{width:100%}
+.voicestar .starsave{width:30px; height:30px}
+.voicestar .starsave svg{width:15px; height:15px}
 .voicing{flex:none; background:var(--card); border:1px solid var(--line); border-radius:5px; padding:8px 6px 6px; cursor:pointer; display:grid; gap:2px; justify-items:center}
 .voicing:hover{border-color:var(--line2)}
 .voicing.sel{border-color:var(--ink); box-shadow:0 0 0 1px var(--ink)}
