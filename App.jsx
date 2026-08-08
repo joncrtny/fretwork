@@ -205,6 +205,10 @@ const SIMPLE_PROGS = new Set(["p1564", "p145", "p1645", "pblues", "pm1637"]);
 const SIMPLE_HIDDEN = new Set(["interval", "prog", "ear", "finder"]);
 /* which accordion each view lives under, so the active view's group can open */
 const CAT_OF = { scale: "learn", arp: "learn", interval: "learn", chord: "learn", prog: "learn", changes: "practice", melody: "practice", quiz: "practice", ear: "practice", tuner: "tools", finder: "tools", account: "profile", plog: "profile", settings: "profile" };
+
+/* melody timeline: eighth-note slots per bar (4/4), and a bar cap */
+const MEL_SLOTS = 8;
+const MEL_MAX_BARS = 8;
 const simpleList = (arr, allow, on, keepId) =>
   on ? arr.filter((x) => allow.has(x.id) || x.id === keepId) : arr;
 
@@ -1860,7 +1864,9 @@ export default function App() {
   const [melImportText, setMelImportText] = useState("");
   const [melodies, setMelodies] = useState([]);
   const [melPlayIdx, setMelPlayIdx] = useState(null);
-  const [melRate, setMelRate] = useState(2); // notes per beat
+  const [melRate, setMelRate] = useState(2); // slots per beat on playback (2 = eighths)
+  const [melBars, setMelBars] = useState(2); // timeline length in bars
+  const [melCursor, setMelCursor] = useState(0); // slot the next tapped note lands on
 
   const [ear, setEar] = useState({
     source: "interval", // interval | chord
@@ -2882,22 +2888,18 @@ export default function App() {
     }
 
     if (mode === "melody") {
-      const occ = new Map();
-      melSteps.forEach((st, i) => {
-        if (st.rest) return;
-        const k = `${st.s}:${st.f}`;
-        if (!occ.has(k)) occ.set(k, []);
-        occ.get(k).push(i + 1);
-      });
-      const curStep = melPlayIdx != null ? melSteps[melPlayIdx] : null;
-      const curKey = curStep && !curStep.rest ? `${curStep.s}:${curStep.f}` : null;
-      for (const [k, orders] of occ) {
-        const [ms, mf] = k.split(":").map(Number);
-        const pc = (midis[ms] + mf) % 12;
-        const semis = (pc - (melKeyHint ? melKeyHint.root : 0) + 12) % 12;
-        const custom = orders.length <= 3 ? orders.join("\u00b7") : `${orders.slice(0, 2).join("\u00b7")}+${orders.length - 2}`;
-        add(ms, mf, pc, semis, "melody", k === curKey ? "lit" : "on");
-        map.get(k).custom = custom;
+      /* the neck is just the note picker now: highlight the note sitting on the
+         selected slot, and the note playing back. The sequence lives in the
+         timeline below, so no more order numbers scattered across the board. */
+      const cur = melSteps[melCursor];
+      if (cur && !cur.rest) {
+        const pc = (midis[cur.s] + cur.f) % 12;
+        add(cur.s, cur.f, pc, (pc - (melKeyHint ? melKeyHint.root : 0) + 12) % 12, "melody", "on");
+      }
+      const p = melPlayIdx != null ? melSteps[melPlayIdx] : null;
+      if (p && !p.rest) {
+        const pc = (midis[p.s] + p.f) % 12;
+        add(p.s, p.f, pc, (pc - (melKeyHint ? melKeyHint.root : 0) + 12) % 12, "melody", "lit");
       }
     }
 
@@ -2911,7 +2913,7 @@ export default function App() {
     }
 
     return map;
-  }, [mode, scaleDef, scaleRoot, ivRoot, ivOn, activeVoicing, chordRoot, midis, n, quiz, positionsFor, playing, activeProg, activeProgVoicing, scalePos, positions, melSteps, melPlayIdx, melKeyHint, arpRoot, arpDef, arpPos, arpPositions, arpLabel, arpDir, finderSel, finderInfo]);
+  }, [mode, scaleDef, scaleRoot, ivRoot, ivOn, activeVoicing, chordRoot, midis, n, quiz, positionsFor, playing, activeProg, activeProgVoicing, scalePos, positions, melSteps, melPlayIdx, melCursor, melKeyHint, arpRoot, arpDef, arpPos, arpPositions, arpLabel, arpDir, finderSel, finderInfo]);
 
   const ghosts = useMemo(() => {
     if (mode !== "chord" || !showAllTones) return null;
@@ -2963,7 +2965,11 @@ export default function App() {
       if (capo > 0 && f > 0 && f < capo) return;
       if (mode === "melody") {
         playNote(midi);
-        setMelSteps((st) => (st.length >= 128 ? st : [...st, { s, f }]));
+        const i = melCursor;
+        setMelSteps((st) => { const n = st.slice(); while (n.length <= i) n.push({ rest: true }); n[i] = { s, f }; return n; });
+        const total = melBars * MEL_SLOTS;
+        if (i + 1 >= total && melBars < MEL_MAX_BARS) setMelBars(melBars + 1);
+        setMelCursor(Math.min(i + 1, (melBars < MEL_MAX_BARS ? melBars + 1 : melBars) * MEL_SLOTS - 1));
         return;
       }
       if (mode === "finder") {
@@ -3011,7 +3017,7 @@ export default function App() {
         });
       }
     },
-    [mode, quiz.hidden, quiz.found, capo, playNote, saveStats, settings.sound]
+    [mode, quiz.hidden, quiz.found, capo, playNote, saveStats, settings.sound, melCursor, melBars]
   );
 
   useEffect(() => {
@@ -3053,6 +3059,8 @@ export default function App() {
     if (!steps.length) { setToast("Could not read a tab there. Check the format."); return; }
     stopPlayback();
     setMelSteps(steps);
+    setMelBars(Math.max(2, Math.min(MEL_MAX_BARS, Math.ceil(steps.length / MEL_SLOTS))));
+    setMelCursor(Math.min(steps.length, MEL_MAX_BARS * MEL_SLOTS - 1));
     setMelImport(false);
     setMelImportText("");
     track("melody_import", { notes: steps.length });
@@ -3118,9 +3126,12 @@ export default function App() {
 
   const playMelody = useCallback(() => {
     stopPlayback();
-    if (!melSteps.length) return;
+    if (!melSteps.some((st) => st && !st.rest)) return;
+    /* play the whole timeline including trailing empty slots, so rests keep time */
+    const total = Math.max(melBars * MEL_SLOTS, melSteps.length);
+    const grid = Array.from({ length: total }, (_, i) => melSteps[i] || { rest: true });
     const stepSec = 60 / settings.bpm / melRate;
-    melSteps.forEach((st, i) => {
+    grid.forEach((st, i) => {
       playTimers.current.push(
         setTimeout(() => {
           if (!st.rest) {
@@ -3131,8 +3142,8 @@ export default function App() {
         }, i * stepSec * 1000)
       );
     });
-    playTimers.current.push(setTimeout(() => { setMelPlayIdx(null); setFlash(null); }, melSteps.length * stepSec * 1000));
-  }, [stopPlayback, melSteps, settings.bpm, settings.midis, melRate, playNote]);
+    playTimers.current.push(setTimeout(() => { setMelPlayIdx(null); setFlash(null); }, total * stepSec * 1000));
+  }, [stopPlayback, melSteps, melBars, settings.bpm, settings.midis, melRate, playNote]);
 
   const playArpeggio = useCallback(() => {
     stopPlayback();
@@ -3433,6 +3444,8 @@ export default function App() {
           .map((st) => (st === null ? { rest: true } : { s: st[0], f: st[1] }));
         if (steps.length) {
           setMelSteps(steps);
+          setMelBars(Math.max(2, Math.min(MEL_MAX_BARS, Math.ceil(steps.length / MEL_SLOTS))));
+          setMelCursor(0);
           if (typeof p.nm === "string") setMelName(p.nm.slice(0, 60));
           setMode("melody"); pvMode = "melody";
         }
@@ -3488,7 +3501,7 @@ export default function App() {
     if (mode === "changes")
       return `Chord changes · ${chgLabel}`;
     if (mode === "about") return "About Fretwork";
-    if (mode === "melody") return `Melody \u00b7 ${melSteps.length} ${melSteps.length === 1 ? "note" : "notes"}`;
+    if (mode === "melody") { const nn = melSteps.filter((s) => s && !s.rest).length; return `Melody \u00b7 ${nn} ${nn === 1 ? "note" : "notes"}`; }
     if (mode === "arp")
       return `${nameOf(arpRoot, effFlats)}${arpDef.suffix || ""} arpeggio \u00b7 ${arpDef.iv.length} tones`;
     if (mode === "ear")
@@ -3509,7 +3522,7 @@ export default function App() {
         ? `${nameOf(ivRoot, effFlats)} · ${[...ivOn].sort((a, b) => a - b).map((i) => DEG[i]).join(" ")}`
         : `${nameOf(chordRoot, effFlats)}${chordDef.suffix || ""}`;
     return `Quiz · ${src} · ${quiz.hidden ? quiz.hidden.size - quiz.found.size : 0} to find`;
-  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, effFlats, quiz, progRoot, progDef, bank.length, chgLabel, authUser, uname, settings.tuningId, melSteps.length, ear.correct, ear.wrong, arpRoot, arpDef, practiceStats.streak, finderInfo, finderSel.size]);
+  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, effFlats, quiz, progRoot, progDef, bank.length, chgLabel, authUser, uname, settings.tuningId, melSteps, ear.correct, ear.wrong, arpRoot, arpDef, practiceStats.streak, finderInfo, finderSel.size]);
 
   const total = quiz.correct + quiz.wrong;
   const accuracy = total ? Math.round((quiz.correct / total) * 100) : 0;
@@ -4812,12 +4825,120 @@ export default function App() {
         {mode === "melody" && (
           <div className="pane">
             <p className="note">
-              Tap notes on the neck (or focus it and use the arrow keys and Enter) to write a melody, or paste
-              a tab you found online. Play it back, speed it up, transpose it, and save it for practice.
+              Tap notes on the neck to drop them onto the timeline below, one eighth-note slot at a time. Tap a
+              slot to move the cursor there, or tap a filled slot again to clear it back to a rest. An empty slot
+              is a rest, the same note in two slots is a repeat.
             </p>
 
+            <Field label={`Timeline \u00b7 ${melSteps.filter((s) => s && !s.rest).length} ${melSteps.filter((s) => s && !s.rest).length === 1 ? "note" : "notes"}`}>
+              <div className="timeline" role="group" aria-label="Melody timeline. Tap the neck to add a note at the cursor.">
+                {Array.from({ length: melBars }, (_, b) => (
+                  <div className="tbar" key={b}>
+                    {Array.from({ length: MEL_SLOTS }, (_, sc) => {
+                      const i = b * MEL_SLOTS + sc;
+                      const cell = melSteps[i];
+                      const filled = cell && !cell.rest;
+                      const nm = filled ? nameOf((settings.midis[cell.s] + cell.f) % 12, effFlats) : "";
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          className={`tslot ${filled ? "filled" : "rest"} ${i === melCursor ? "cursor" : ""} ${melPlayIdx === i ? "playing" : ""} ${sc % 2 === 0 ? "beat" : ""}`}
+                          aria-label={filled ? `Slot ${i + 1}, ${nm}. Tap to select, tap again to clear.` : `Slot ${i + 1}, rest. Tap to select.`}
+                          aria-current={i === melCursor ? "true" : undefined}
+                          onClick={() => {
+                            if (i === melCursor && filled) {
+                              setMelSteps((st) => { const n = st.slice(); while (n.length <= i) n.push({ rest: true }); n[i] = { rest: true }; return n; });
+                            } else {
+                              setMelCursor(i);
+                              if (filled) playNote(settings.midis[cell.s] + cell.f);
+                            }
+                          }}
+                        >
+                          <span className="tslotname">{nm}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </Field>
+
+            <div className="row wrap barctl">
+              <span className="note">Bars</span>
+              <button
+                className="mini"
+                aria-label="Remove a bar"
+                disabled={melBars <= 1}
+                onClick={() => { const nb = Math.max(1, melBars - 1); setMelBars(nb); setMelSteps((st) => st.slice(0, nb * MEL_SLOTS)); setMelCursor((c) => Math.min(c, nb * MEL_SLOTS - 1)); }}
+              >{"\u2212"}</button>
+              <b className="barcount">{melBars}</b>
+              <button className="mini" aria-label="Add a bar" disabled={melBars >= MEL_MAX_BARS} onClick={() => setMelBars((b) => Math.min(MEL_MAX_BARS, b + 1))}>+</button>
+              <button
+                className="btn ghost"
+                onClick={() => { setMelSteps((st) => { const n = st.slice(); while (n.length <= melCursor) n.push({ rest: true }); n[melCursor] = { rest: true }; return n; }); setMelCursor((c) => Math.min(c + 1, melBars * MEL_SLOTS - 1)); }}
+              >Add rest</button>
+              <button
+                className="btn ghost"
+                disabled={melCursor === 0}
+                onClick={() => { const j = Math.max(0, melCursor - 1); setMelSteps((st) => { if (j >= st.length) return st; const n = st.slice(); n[j] = { rest: true }; return n; }); setMelCursor(j); }}
+              >Back</button>
+            </div>
+
+            {melKeyHint && (
+              <p className="note" role="status">
+                {melKeyHint.loose ? "Mostly fits" : "Fits"} {nameOf(melKeyHint.root, keyPrefersFlats(melKeyHint.root, [0, 2, 4, 5, 7, 9, 11]))} major
+                {" / "}{nameOf((melKeyHint.root + 9) % 12, keyPrefersFlats(melKeyHint.root, [0, 2, 4, 5, 7, 9, 11]))} minor.
+              </p>
+            )}
+
+            <div className="row wrap actions">
+              <button
+                className={`btn primary ${melPlayIdx != null ? "live" : ""}`}
+                onClick={melPlayIdx != null ? stopPlayback : playMelody}
+                disabled={!melSteps.some((s) => s && !s.rest)}
+              >
+                {melPlayIdx != null ? "Stop" : "Play"}
+              </button>
+              <Field label="Speed">
+                <Seg small ariaLabel="Playback speed"
+                  options={[{ v: 1, l: "Slow" }, { v: 2, l: "Normal" }, { v: 4, l: "Fast" }]}
+                  value={melRate} onChange={setMelRate} />
+              </Field>
+              <Field label="Transpose">
+                <div className="row">
+                  <button className="mini" aria-label="Down one semitone" onClick={() => transposeMelody(-1)} disabled={!melSteps.some((s) => s && !s.rest)}>{"\u2212"}1</button>
+                  <button className="mini" aria-label="Up one semitone" onClick={() => transposeMelody(1)} disabled={!melSteps.some((s) => s && !s.rest)}>+1</button>
+                </div>
+              </Field>
+              <span className="actspacer" aria-hidden="true" />
+              <button className="btn ghost danger" onClick={() => { setMelSteps([]); setMelBars(2); setMelCursor(0); }} disabled={!melSteps.length}>Clear</button>
+            </div>
+
             <div className="row wrap">
-              <button className="btn" onClick={importTabFromClipboard}>Import tab from clipboard</button>
+              <Field id="melname" label="Name">
+                <input
+                  id="melname" type="text" value={melName} maxLength={60} placeholder="Riff I am learning"
+                  onChange={(e) => setMelName(e.target.value)}
+                  className="melinput"
+                />
+              </Field>
+              <button
+                className="btn"
+                disabled={!melSteps.some((s) => s && !s.rest) || !melName.trim()}
+                onClick={() => {
+                  saveMelodies([{ id: `m${Date.now()}`, name: melName.trim(), steps: melSteps, bars: melBars }, ...melodies]);
+                  track("melody_save", { notes: melSteps.filter((s) => s && !s.rest).length });
+                  setToast("Melody saved");
+                  setMelName("");
+                }}
+              >
+                Save melody
+              </button>
+            </div>
+
+            <div className="row wrap">
+              <button className="btn ghost" onClick={importTabFromClipboard}>Import tab from clipboard</button>
               <button className="btn ghost" onClick={() => setMelImport((v) => !v)}>{melImport ? "Hide paste box" : "Paste a tab"}</button>
             </div>
             {melImport && (
@@ -4836,77 +4957,6 @@ export default function App() {
               </Field>
             )}
 
-            <Field label={`Melody \u00b7 ${melSteps.length} ${melSteps.length === 1 ? "note" : "notes"}`}>
-              <div className="barstrip">
-                {melSteps.length === 0 && <span className="note">Nothing yet. Tap the fretboard to add notes.</span>}
-                {melSteps.map((st, i) => (
-                  <button
-                    key={i}
-                    className={`barchip ${melPlayIdx === i ? "hot" : ""} ${st.rest ? "restchip" : ""}`}
-                    onClick={() => setMelSteps((arr) => arr.filter((_, j) => j !== i))}
-                    aria-label={st.rest ? `Remove rest at position ${i + 1}` : `Remove note ${i + 1}, ${nameOf((settings.midis[st.s] + st.f) % 12, effFlats)}`}
-                  >
-                    {st.rest ? "rest" : nameOf((settings.midis[st.s] + st.f) % 12, effFlats)}
-                    {!st.rest && <em>{st.f}</em>}
-                  </button>
-                ))}
-              </div>
-            </Field>
-
-            {melKeyHint && (
-              <p className="note" role="status">
-                {melKeyHint.loose ? "Mostly fits" : "Fits"} {nameOf(melKeyHint.root, keyPrefersFlats(melKeyHint.root, [0, 2, 4, 5, 7, 9, 11]))} major
-                {" / "}{nameOf((melKeyHint.root + 9) % 12, keyPrefersFlats(melKeyHint.root, [0, 2, 4, 5, 7, 9, 11]))} minor.
-              </p>
-            )}
-
-            <div className="row wrap actions">
-              <button
-                className={`btn primary ${melPlayIdx != null ? "live" : ""}`}
-                onClick={melPlayIdx != null ? stopPlayback : playMelody}
-                disabled={!melSteps.length}
-              >
-                {melPlayIdx != null ? "Stop" : "Play"}
-              </button>
-              <Field label="Speed">
-                <Seg small ariaLabel="Notes per beat"
-                  options={[{ v: 1, l: "1 per beat" }, { v: 2, l: "2" }, { v: 4, l: "4" }]}
-                  value={melRate} onChange={setMelRate} />
-              </Field>
-              <Field label="Transpose">
-                <div className="row">
-                  <button className="mini" aria-label="Down one semitone" onClick={() => transposeMelody(-1)} disabled={!melSteps.length}>{"\u2212"}1</button>
-                  <button className="mini" aria-label="Up one semitone" onClick={() => transposeMelody(1)} disabled={!melSteps.length}>+1</button>
-                </div>
-              </Field>
-              <button className="btn ghost" onClick={() => setMelSteps((st) => (st.length >= 128 ? st : [...st, { rest: true }]))}>Add rest</button>
-              <span className="actspacer" aria-hidden="true" />
-              <button className="btn ghost" onClick={() => setMelSteps((arr) => arr.slice(0, -1))} disabled={!melSteps.length}>Undo note</button>
-              <button className="btn ghost danger" onClick={() => setMelSteps([])} disabled={!melSteps.length}>Clear</button>
-            </div>
-
-            <div className="row wrap">
-              <Field id="melname" label="Name">
-                <input
-                  id="melname" type="text" value={melName} maxLength={60} placeholder="Riff I am learning"
-                  onChange={(e) => setMelName(e.target.value)}
-                  className="melinput"
-                />
-              </Field>
-              <button
-                className="btn"
-                disabled={!melSteps.length || !melName.trim()}
-                onClick={() => {
-                  saveMelodies([{ id: `m${Date.now()}`, name: melName.trim(), steps: melSteps }, ...melodies]);
-                  track("melody_save", { notes: melSteps.length });
-                  setToast("Melody saved");
-                  setMelName("");
-                }}
-              >
-                Save melody
-              </button>
-            </div>
-
             {melodies.length > 0 && (
               <Field label="Saved melodies">
                 <div className="mellist">
@@ -4914,10 +4964,16 @@ export default function App() {
                     <div className="melitem" key={m.id}>
                       <button
                         className="melload"
-                        onClick={() => { setMelSteps(m.steps); setMelName(m.name); setToast(`Loaded ${m.name}`); }}
+                        onClick={() => {
+                          setMelSteps(m.steps);
+                          setMelBars(m.bars || Math.max(2, Math.min(MEL_MAX_BARS, Math.ceil(m.steps.length / MEL_SLOTS))));
+                          setMelCursor(0);
+                          setMelName(m.name);
+                          setToast(`Loaded ${m.name}`);
+                        }}
                       >
                         <b>{m.name}</b>
-                        <em>{m.steps.length} notes</em>
+                        <em>{m.steps.filter((s) => s && !s.rest).length} notes</em>
                       </button>
                       <button
                         className="mini"
@@ -6016,6 +6072,28 @@ const CSS = `
 .barchip span{color:var(--muted); font-weight:400}
 .barchip:hover{border-color:var(--red)}
 .barchip:hover span{color:var(--red)}
+
+/* melody timeline: bars of eighth-note slots */
+.timeline{display:flex; gap:10px; overflow-x:auto; padding:4px 2px 8px}
+.tbar{display:flex; gap:0; flex:none; border:1px solid var(--line2); border-radius:6px; overflow:hidden; background:var(--card)}
+.tslot{
+  width:38px; height:52px; flex:none; display:flex; align-items:center; justify-content:center;
+  background:transparent; border:0; border-left:1px solid var(--line); cursor:pointer; padding:0;
+  font-family:"IBM Plex Mono",monospace; font-size:13px; font-weight:600; color:var(--ink);
+  transition:background .12s ease;
+}
+.tslot:first-child{border-left:0}
+.tslot.beat{border-left:1px solid var(--line2)}
+.tbar .tslot:first-child.beat{border-left:0}
+.tslot.rest .tslotname::before{content:"·"; color:var(--muted); opacity:.5}
+.tslot.filled{background:var(--paper)}
+.tslot:hover{background:var(--line)}
+.tslot.cursor{box-shadow:inset 0 0 0 2px var(--ink)}
+.tslot.playing{background:var(--gold); color:#1A2429}
+.tslotname{pointer-events:none}
+.barctl{align-items:center; gap:8px}
+.barctl .barcount{font-family:"IBM Plex Mono",monospace; min-width:18px; text-align:center}
+
 .romangrid{display:flex; flex-wrap:wrap; gap:4px}
 .romangrid .key{flex:0 0 auto; min-width:52px; padding:8px 10px}
 .builderbox input{
