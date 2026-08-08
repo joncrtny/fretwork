@@ -1796,6 +1796,8 @@ export default function App() {
   /* mic tuner: nothing here touches the microphone until the user starts it */
   const [tuner, setTuner] = useState({ on: false, note: null, cents: 0, freq: 0, error: null });
   const micRef = useRef(null); // { stream, ctx, raf }
+  const [capoShape, setCapoShape] = useState(7); // chords you know (G shapes)
+  const [capoTarget, setCapoTarget] = useState(9); // key you want to hear (A)
 
   const [practiceLog, setPracticeLog] = useState({}); // { 'YYYY-MM-DD': { total, byMode: {} } }
   const lastActiveRef = useRef(Date.now());
@@ -1803,6 +1805,10 @@ export default function App() {
 
   const [tour, setTour] = useState(-1);
   const [tourRect, setTourRect] = useState(null);
+  const tourRef = useRef(-1);
+  useEffect(() => { tourRef.current = tour; }, [tour]);
+  const tourCardRef = useRef(null);
+  const hadShareHashRef = useRef(typeof window !== "undefined" && /^#s=/.test(window.location.hash || ""));
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -1922,10 +1928,14 @@ export default function App() {
           /* merge server and local by taking the higher total per day */
           setPracticeLog((local) => {
             const merged = { ...local };
+            let localWonADay = false;
             for (const [k, v] of Object.entries(data.practice_log)) {
               if (!merged[k] || v.total > merged[k].total) merged[k] = v;
             }
+            for (const k of Object.keys(local)) if (!data.practice_log[k] || local[k].total > (data.practice_log[k].total || 0)) localWonADay = true;
             store.set("fretboard:practicelog", JSON.stringify(merged)).catch(() => {});
+            /* if the local copy had days the server lacked or beat, push the reconciled log back now */
+            if (localWonADay) syncField("practice_log", merged);
             return merged;
           });
         }
@@ -2065,13 +2075,15 @@ export default function App() {
     for (let i = 0; i < buf.length / 2; i++) if (Math.abs(buf[i]) < thr) { r1 = i; break; }
     for (let i = 1; i < buf.length / 2; i++) if (Math.abs(buf[buf.length - i]) < thr) { r2 = buf.length - i; break; }
     const b = buf.slice(r1, r2);
-    const c = new Array(b.length).fill(0);
-    for (let lag = 0; lag < b.length; lag++)
+    /* only correlate lags in the guitar band (about 40 to 1200 Hz), which cuts
+       the work from O(n^2) to a narrow strip */
+    const minLag = Math.max(1, Math.floor(sr / 1200));
+    const maxLag = Math.min(b.length - 1, Math.ceil(sr / 40));
+    const c = new Array(maxLag + 1).fill(0);
+    for (let lag = minLag; lag <= maxLag; lag++)
       for (let i = 0; i < b.length - lag; i++) c[lag] += b[i] * b[i + lag];
-    let d = 0;
-    while (d < b.length - 1 && c[d] > c[d + 1]) d++;
     let maxv = -1, maxp = -1;
-    for (let i = d; i < b.length; i++) if (c[i] > maxv) { maxv = c[i]; maxp = i; }
+    for (let i = minLag; i <= maxLag; i++) if (c[i] > maxv) { maxv = c[i]; maxp = i; }
     if (maxp <= 0) return -1;
     // parabolic interpolation around the peak
     const x1 = c[maxp - 1] || 0, x2 = c[maxp], x3 = c[maxp + 1] || 0;
@@ -2092,8 +2104,12 @@ export default function App() {
   }, []);
 
   const startTuner = useCallback(async () => {
+    if (micRef.current) return; // already listening: ignore a second press
+    let stream = null;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+      /* a second press may have won the race during the await; release this one */
+      if (micRef.current) { stream.getTracks().forEach((t) => t.stop()); return; }
       const AC = window.AudioContext || window.webkitAudioContext;
       const ac = new AC();
       const src = ac.createMediaStreamSource(stream);
@@ -2105,20 +2121,25 @@ export default function App() {
       setTuner((t) => ({ ...t, on: true, error: null }));
       track("tuner_start");
       let smooth = 0;
+      let frame = 0;
       const tick = () => {
-        an.getFloatTimeDomainData(buf);
-        const f = detectPitch(buf, ac.sampleRate);
-        if (f > 40 && f < 1200) {
-          smooth = smooth ? smooth * 0.8 + f * 0.2 : f;
-          const midi = 69 + 12 * Math.log2(smooth / 440);
-          const nearest = Math.round(midi);
-          const cents = Math.round((midi - nearest) * 100);
-          setTuner((t) => ({ ...t, note: nearest, cents, freq: Math.round(smooth) }));
+        if (!micRef.current) return;
+        if (frame++ % 2 === 0) { // detection every other frame is plenty and halves the CPU
+          an.getFloatTimeDomainData(buf);
+          const f = detectPitch(buf, ac.sampleRate);
+          if (f > 40 && f < 1200) {
+            smooth = smooth ? smooth * 0.8 + f * 0.2 : f;
+            const midi = 69 + 12 * Math.log2(smooth / 440);
+            const nearest = Math.round(midi);
+            const cents = Math.round((midi - nearest) * 100);
+            setTuner((t) => ({ ...t, note: nearest, cents, freq: Math.round(smooth) }));
+          }
         }
-        if (micRef.current) micRef.current.raf = requestAnimationFrame(tick);
+        micRef.current.raf = requestAnimationFrame(tick);
       };
       micRef.current.raf = requestAnimationFrame(tick);
     } catch (e) {
+      if (stream) stream.getTracks().forEach((t) => t.stop()); // release an orphaned mic on any post-acquire failure
       setTuner({ on: false, note: null, cents: 0, freq: 0, error: e && e.name === "NotAllowedError" ? "Microphone permission was declined." : "Could not access the microphone." });
     }
   }, []);
@@ -2381,7 +2402,7 @@ export default function App() {
       d.setDate(d.getDate() - i);
       const k = localDay(d);
       if (practiceLog[k] && practiceLog[k].total >= 30) streak++;
-      else if (k !== today) break;
+      else if (k === today) continue; // today not practised yet: the streak still stands from yesterday
       else break;
     }
     const week = [];
@@ -3208,7 +3229,7 @@ export default function App() {
     { title: "The menu", body: "Everything lives here, grouped into Learn, Practice, Profile and Tools.", target: ".drawer", before: () => setDrawer(true) },
     { title: "The fretboard", body: "Every view shares this neck. Tap any note to hear it, or drag the capo along the top. It is fully keyboard operable too.", target: ".neckwrap", before: () => { setDrawer(false); setMode("chord"); setOpenPanel(null); } },
     { title: "Pick anything", body: "Choose a root and a chord, scale, or arpeggio. Every pane uses the same compact pickers.", target: ".pane .row.wrap", before: () => { setDrawer(false); setMode("chord"); } },
-    { title: "Practise", body: "Quiz yourself, drill chord changes against a timer, train your ear, and write out melodies. Your practice time is logged into a streak.", target: ".dnav", before: () => setDrawer(true) },
+    { title: "Practise", body: "Quiz yourself, drill chord changes against a timer, train your ear, and write out melodies. Your practice time is logged into a streak.", target: "[data-tour=practice]", before: () => setDrawer(true) },
     { title: "Tools", body: "A metronome with subdivisions, and a real microphone tuner that listens to your guitar.", target: ".drawer", before: () => setDrawer(true) },
     { title: "That is the tour", body: "Have a play. The About page has learning resources and a place to send feedback. Enjoy.", target: null, before: () => setDrawer(false) },
   ];
@@ -3240,15 +3261,42 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tour]);
 
-  /* offer the tour once, after first load */
+  /* offer the tour once, after first load. Branch on the resolved value, not on
+     a rejection, so it works on every storage backend; skip it for share links. */
   useEffect(() => {
     if (!loaded) return;
-    store.get("fretboard:tourdone").then(() => {}).catch(() => {
-      /* never seen: start it, but not if a share link is opening a specific view */
-      if (!window.location.hash) setTour(0);
-    });
+    let cancelled = false;
+    (async () => {
+      let seen = false;
+      try {
+        const r = await store.get("fretboard:tourdone");
+        seen = !!(r && r.value);
+      } catch (e) {
+        seen = false;
+      }
+      if (!cancelled && !seen && !hadShareHashRef.current) setTour(0);
+    })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
+
+  /* tour as an operable modal: focus in, trap Tab, Escape closes */
+  useEffect(() => {
+    if (tour < 0) return;
+    const t = setTimeout(() => { if (tourCardRef.current) tourCardRef.current.focus(); }, 60);
+    const onKey = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); endTour(); return; }
+      if (e.key !== "Tab" || !tourCardRef.current) return;
+      const f = tourCardRef.current.querySelectorAll("button");
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => { clearTimeout(t); window.removeEventListener("keydown", onKey); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tour]);
 
   const closeNav = () => {
     if (typeof window === "undefined" || !window.matchMedia("(max-width: 700px)").matches) return;
@@ -3260,7 +3308,7 @@ export default function App() {
   useEffect(() => {
     if (!drawer) return;
     const onKey = (e) => {
-      if (e.key !== "Escape") return;
+      if (e.key !== "Escape" || tourRef.current >= 0) return; // the tour handles Escape while it is open
       setDrawer(false);
       if (burgerRef.current) burgerRef.current.focus();
     };
@@ -3283,7 +3331,7 @@ export default function App() {
           {navItem("prog", "Progressions")}
           {navItem("interval", "Intervals")}
 
-          <p className="dhead"><HeadIcon kind="practice" />Practice</p>
+          <p className="dhead" data-tour="practice"><HeadIcon kind="practice" />Practice</p>
           {navItem("quiz", "Quiz")}
           {navItem("changes", "Chord changes")}
           {navItem("melody", "Melodies", melodies.length > 0 ? <span className="badge">{melodies.length}</span> : null)}
@@ -4654,6 +4702,24 @@ export default function App() {
               </button>
             </div>
           </div>
+
+          <div className="capocalc">
+            <span className="flabel">Capo calculator</span>
+            <div className="row wrap">
+              <Field label="Chords you play"><KeyPicker value={capoShape} onChange={setCapoShape} flats={effFlats} /></Field>
+              <Field label="Key you want to hear"><KeyPicker value={capoTarget} onChange={setCapoTarget} flats={effFlats} /></Field>
+            </div>
+            {(() => {
+              const fret = ((capoTarget - capoShape) % 12 + 12) % 12;
+              return (
+                <p className="note">
+                  {fret === 0
+                    ? `Play ${nameOf(capoShape, effFlats)} shapes with no capo to hear ${nameOf(capoTarget, effFlats)}.`
+                    : `Play ${nameOf(capoShape, effFlats)} shapes with a capo at fret ${fret} to hear ${nameOf(capoTarget, effFlats)}.`}
+                </p>
+              );
+            })()}
+          </div>
         </div>
         )}
 
@@ -4907,9 +4973,16 @@ export default function App() {
         }
         return (
           <div className="tour" role="dialog" aria-modal="true" aria-label="Guided tour">
-            <div className="tourscrim" onClick={endTour} />
+            <div
+              className="tourscrim"
+              onClick={(e) => {
+                /* clicking the highlighted control should not dismiss the tour */
+                if (spot && e.clientX >= spot.left && e.clientX <= spot.left + spot.width && e.clientY >= spot.top && e.clientY <= spot.top + spot.height) return;
+                endTour();
+              }}
+            />
             {spot && <div className="tourspot" style={spot} />}
-            <div className="tourcard" style={cardStyle}>
+            <div className="tourcard" style={cardStyle} ref={tourCardRef} tabIndex={-1}>
               <p className="tourstep">Step {tour + 1} of {tourSteps.length}</p>
               <h3 className="tourtitle">{step.title}</h3>
               <p className="tourbody">{step.body}</p>
@@ -5440,6 +5513,8 @@ const CSS = `
 .plogtrack{height:10px; background:var(--paper); border:1px solid var(--line); border-radius:5px; overflow:hidden}
 .plogfill{height:100%; background:var(--gold); border-radius:5px}
 .plogmtime{font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--muted); text-align:right}
+
+.capocalc{display:grid; gap:8px; border-top:1px solid var(--line); padding-top:16px}
 
 /* mic tuner */
 .tunerbox{display:flex; flex-direction:column; align-items:center; gap:14px; padding:12px 0 6px; text-align:center}
