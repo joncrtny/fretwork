@@ -1749,6 +1749,7 @@ export default function App() {
     wrong: 0,
     streak: 0,
   });
+  const [finderSel, setFinderSel] = useState(new Set()); // "s:f" positions tapped in the chord finder
 
   const [bank, setBank] = useState([]);
   const [metroOn, setMetroOn] = useState(false);
@@ -2507,6 +2508,35 @@ export default function App() {
   }, [melSteps, settings.midis]);
 
   /* effective accidental spelling: Auto follows the key of whatever is on screen */
+  /* chord finder: turn the tapped positions into pitch classes and name any chords that fit */
+  const finderInfo = useMemo(() => {
+    const positionsList = [...finderSel];
+    const pcs = [...new Set(positionsList.map((k) => { const [s, f] = k.split(":").map(Number); return (midis[s] + f) % 12; }))];
+    const pcSet = new Set(pcs);
+    const bassKey = positionsList
+      .map((k) => { const [s, f] = k.split(":").map(Number); return { pc: (midis[s] + f) % 12, midi: midis[s] + f }; })
+      .sort((a, b) => a.midi - b.midi)[0];
+    const exact = [];
+    const partial = [];
+    if (pcs.length >= 2) {
+      for (let root = 0; root < 12; root++) {
+        for (const c of CHORDS) {
+          const chordPcs = c.iv.map((i) => (root + i) % 12);
+          const chordSet = new Set(chordPcs);
+          const covers = pcs.every((pc) => chordSet.has(pc));
+          if (!covers) continue;
+          const isRoot = pcs.includes(root);
+          const entry = { root, id: c.id, name: `${nameOf(root, chordSet.has(5) && FLAT_MAJORS.has(root) ? true : false)}${c.suffix}`, size: chordPcs.length, bass: bassKey && bassKey.pc === root };
+          if (chordSet.size === pcSet.size) exact.push(entry);
+          else partial.push(entry);
+        }
+      }
+    }
+    /* prefer chords whose root is the lowest note, then the smallest superset */
+    const rank = (a, b) => (b.bass - a.bass) || (a.size - b.size);
+    return { pcs, exact: exact.sort(rank).slice(0, 6), partial: partial.sort(rank).slice(0, 6), bassPc: bassKey ? bassKey.pc : null };
+  }, [finderSel, midis]);
+
   const effFlats = useMemo(() => {
     if (settings.noteNames === "sharps") return false;
     if (settings.noteNames === "flats") return true;
@@ -2639,8 +2669,17 @@ export default function App() {
       }
     }
 
+    if (mode === "finder") {
+      const rootPc = finderInfo.exact[0] ? finderInfo.exact[0].root : finderInfo.bassPc;
+      for (const k of finderSel) {
+        const [fs, ff] = k.split(":").map(Number);
+        const pc = (midis[fs] + ff) % 12;
+        add(fs, ff, pc, rootPc == null ? pc : (pc - rootPc + 12) % 12, "chord", "lit");
+      }
+    }
+
     return map;
-  }, [mode, scaleDef, scaleRoot, ivRoot, ivOn, activeVoicing, chordRoot, midis, n, quiz, positionsFor, playing, activeProg, activeProgVoicing, scalePos, positions, melSteps, melPlayIdx, melKeyHint, arpRoot, arpDef]);
+  }, [mode, scaleDef, scaleRoot, ivRoot, ivOn, activeVoicing, chordRoot, midis, n, quiz, positionsFor, playing, activeProg, activeProgVoicing, scalePos, positions, melSteps, melPlayIdx, melKeyHint, arpRoot, arpDef, finderSel, finderInfo]);
 
   const ghosts = useMemo(() => {
     if (mode !== "chord" || !showAllTones) return null;
@@ -2693,6 +2732,17 @@ export default function App() {
       if (mode === "melody") {
         playNote(midi);
         setMelSteps((st) => (st.length >= 128 ? st : [...st, { s, f }]));
+        return;
+      }
+      if (mode === "finder") {
+        playNote(midi);
+        const k = `${s}:${f}`;
+        setFinderSel((sel) => {
+          const next = new Set(sel);
+          if (next.has(k)) next.delete(k);
+          else next.add(k);
+          return next;
+        });
         return;
       }
       if (mode !== "quiz" || !quiz.hidden) {
@@ -3144,6 +3194,8 @@ export default function App() {
     if (mode === "ear")
       return `Ear training \u00b7 ${ear.correct + ear.wrong ? Math.round((ear.correct / (ear.correct + ear.wrong)) * 100) + "%" : "ready"}`;
     if (mode === "plog") return `Practice log \u00b7 ${practiceStats.streak} day streak`;
+    if (mode === "finder")
+      return finderInfo.exact.length ? `Chord finder \u00b7 ${finderInfo.exact[0].name}` : finderSel.size ? "Chord finder \u00b7 no exact match" : "Chord finder";
     if (mode === "settings") return "Settings";
     if (mode === "tuner") {
       const t = TUNINGS.find((x) => x.id === settings.tuningId);
@@ -3157,7 +3209,7 @@ export default function App() {
         ? `${nameOf(ivRoot, effFlats)} · ${[...ivOn].sort((a, b) => a - b).map((i) => DEG[i]).join(" ")}`
         : `${nameOf(chordRoot, effFlats)}${chordDef.suffix || ""}`;
     return `Quiz · ${src} · ${quiz.hidden ? quiz.hidden.size - quiz.found.size : 0} to find`;
-  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, effFlats, quiz, progRoot, progDef, bank.length, chgLabel, authUser, uname, settings.tuningId, melSteps.length, ear.correct, ear.wrong, arpRoot, arpDef, practiceStats.streak]);
+  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, effFlats, quiz, progRoot, progDef, bank.length, chgLabel, authUser, uname, settings.tuningId, melSteps.length, ear.correct, ear.wrong, arpRoot, arpDef, practiceStats.streak, finderInfo, finderSel.size]);
 
   const total = quiz.correct + quiz.wrong;
   const accuracy = total ? Math.round((quiz.correct / total) * 100) : 0;
@@ -3326,15 +3378,15 @@ export default function App() {
         <div className="dinner">
           <p className="dhead"><HeadIcon kind="learn" />Learn</p>
           {navItem("scale", "Scales")}
-          {navItem("chord", "Chords")}
           {navItem("arp", "Arpeggios")}
-          {navItem("prog", "Progressions")}
           {navItem("interval", "Intervals")}
+          {navItem("chord", "Chords")}
+          {navItem("prog", "Progressions")}
 
           <p className="dhead" data-tour="practice"><HeadIcon kind="practice" />Practice</p>
-          {navItem("quiz", "Quiz")}
           {navItem("changes", "Chord changes")}
           {navItem("melody", "Melodies", melodies.length > 0 ? <span className="badge">{melodies.length}</span> : null)}
+          {navItem("quiz", "Quiz")}
           {navItem("ear", "Ear training")}
 
           <p className="dhead"><HeadIcon kind="tools" />Tools</p>
@@ -3346,22 +3398,28 @@ export default function App() {
             {metroOn && <span className="badge">{settings.bpm}</span>}
           </button>
           {navItem("tuner", "Tuner")}
+          {navItem("finder", "Chord finder")}
 
           <p className="dhead"><HeadIcon kind="profile" />Profile</p>
           {navItem("account", authUser ? "Account" : "Create account", authUser ? <span className="badge">{uname}</span> : null)}
-          {navItem("bank", "Bank", bank.length > 0 ? <span className="badge">{bank.length}</span> : null)}
           {navItem("plog", "Practice log", practiceStats.streak > 0 ? <span className="badge">{practiceStats.streak}d</span> : null)}
           {navItem("settings", "Settings")}
 
+          <div className="dbank">
+            {navItem("bank", "Bank", bank.length > 0 ? <span className="badge">{bank.length}</span> : null)}
+          </div>
 
           <div className="dspacer" aria-hidden="true" />
-          <button
-            className={`dnav dark ${mode === "about" ? "on" : ""}`}
-            aria-current={mode === "about" ? "page" : undefined}
-            onClick={() => { setMode("about"); setOpenPanel(null); track("view_mode", { mode: "about" }); closeNav(); }}
-          >
-            About Fretwork
-          </button>
+          <div className="dfoot">
+            <button
+              className={`dnav soft ${mode === "about" ? "on" : ""}`}
+              aria-current={mode === "about" ? "page" : undefined}
+              onClick={() => { setMode("about"); setOpenPanel(null); track("view_mode", { mode: "about" }); closeNav(); }}
+            >
+              About Fretwork
+            </button>
+            <button className="dnav soft" onClick={() => { startTour(); closeNav(); }}>Tour</button>
+          </div>
         </div>
       </aside>
       <div className={`scrim ${drawer ? "on" : ""}`} onClick={() => setDrawer(false)} aria-hidden="true" />
@@ -3392,7 +3450,7 @@ export default function App() {
               <circle cx="4" cy="8" r="2.2" /><circle cx="12" cy="3.5" r="2.2" /><circle cx="12" cy="12.5" r="2.2" />
               <path d="M6 7l4-2.6M6 9l4 2.6" />
             </svg>
-            Share
+            <span className="sharetxt">Share</span>
           </button>
         )}
       </header>
@@ -4602,6 +4660,54 @@ export default function App() {
           </div>
         )}
 
+        {mode === "finder" && (
+          <div className="pane">
+            <p className="note">
+              Tap the notes of a chord on the neck (or focus it and use the arrow keys and Enter) and Fretwork
+              names it. Handy for the unfamiliar shapes you meet in tab.
+            </p>
+            <div className="degrees">
+              {finderInfo.pcs.length === 0 ? (
+                <span className="note">No notes selected yet.</span>
+              ) : (
+                finderInfo.pcs.map((pc) => (
+                  <span key={pc} className="chip"><b>{nameOf(pc, effFlats)}</b></span>
+                ))
+              )}
+            </div>
+
+            {finderInfo.exact.length > 0 ? (
+              <Field label="This chord is">
+                <div className="finderhits">
+                  {finderInfo.exact.map((m) => (
+                    <button key={`${m.root}${m.id}`} className="btn" onClick={() => { setChordRoot(m.root); setChordId(m.id); setMode("chord"); track("finder_open", { chord: m.id }); }}>
+                      {nameOf(m.root, effFlats)}{(CHORDS.find((c) => c.id === m.id) || {}).suffix}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+            ) : finderInfo.partial.length > 0 ? (
+              <Field label="Could be part of">
+                <div className="finderhits">
+                  {finderInfo.partial.map((m) => (
+                    <button key={`${m.root}${m.id}`} className="btn ghost" onClick={() => { setChordRoot(m.root); setChordId(m.id); setMode("chord"); }}>
+                      {nameOf(m.root, effFlats)}{(CHORDS.find((c) => c.id === m.id) || {}).suffix}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+            ) : finderInfo.pcs.length >= 2 ? (
+              <p className="empty" role="status">No standard chord matches those notes. Try adding or removing one.</p>
+            ) : (
+              <p className="note">Add at least two notes to name a chord.</p>
+            )}
+
+            <div className="row">
+              <button className="btn ghost danger" onClick={() => setFinderSel(new Set())} disabled={finderSel.size === 0}>Clear</button>
+            </div>
+          </div>
+        )}
+
         {mode === "tuner" && (
           <div className="pane">
             <div className="tunerbox">
@@ -5257,7 +5363,7 @@ const CSS = `
 }
 .panel{margin:12px 18px 0; background:var(--card); border:1px solid var(--line); border-radius:6px; padding:18px}
 .setup .grid,.pane .grid,.toggles{max-width:1240px}
-.pane{display:grid; gap:16px}
+.pane{display:grid; grid-template-columns:minmax(0,1fr); gap:16px}
 .row{display:flex; gap:14px; align-items:flex-start; flex-wrap:nowrap}
 .row > .btn{align-self:flex-end}
 .row.wrap{flex-wrap:wrap}
@@ -5360,9 +5466,12 @@ const CSS = `
   .drawer{position:fixed; left:0; top:0; height:100dvh; z-index:80; width:280px; max-width:85vw; flex:0 0 0;
     transform:translateX(-100%); transition:transform .28s cubic-bezier(.22,1,.36,1); overflow-y:auto}
   .drawer.open{transform:translateX(0); flex:0 0 0; width:280px; box-shadow:0 0 44px rgba(0,0,0,.4)}
-  .dinner{width:100%; padding-top:70px}
-  .chassis{z-index:90}
-  .readout{min-width:0; flex:1 1 90px}
+  .dinner{width:100%; padding-top:60px}
+  .chassis{z-index:90; flex-wrap:nowrap; gap:8px; padding:10px 12px}
+  .brand h1{font-size:17px}
+  .readout{min-width:0; flex:1 1 40px; padding:7px 10px; font-size:11px}
+  .sharebtn .sharetxt{display:none}
+  .sharebtn{padding:8px 9px; flex:none}
   .scrim{display:block}
   .chassis .modes{gap:6px}
   .chassis .modes .seg{flex:1 1 auto}
@@ -5515,6 +5624,7 @@ const CSS = `
 .plogmtime{font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--muted); text-align:right}
 
 .capocalc{display:grid; gap:8px; border-top:1px solid var(--line); padding-top:16px}
+.finderhits{display:flex; flex-wrap:wrap; gap:8px}
 
 /* mic tuner */
 .tunerbox{display:flex; flex-direction:column; align-items:center; gap:14px; padding:12px 0 6px; text-align:center}
@@ -5623,9 +5733,12 @@ const CSS = `
 /* nav: spacer pushes About Fretwork to the bottom of the visible column */
 .dinner{display:flex; flex-direction:column; height:100%; overflow-y:auto; position:static}
 .dspacer{flex:1 1 auto; min-height:18px}
-.dnav.dark{background:var(--ink); color:var(--onink); margin-top:8px; flex:none}
-.dnav.dark:hover{background:var(--ink); opacity:.88}
-.dnav.dark.on{box-shadow:inset 3px 0 0 var(--gold)}
+.dbank{flex:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--line)}
+.dbank .dnav{font-weight:600}
+.dfoot{flex:none; display:flex; gap:6px; margin-top:8px; padding-top:8px; border-top:1px solid var(--line)}
+.dfoot .dnav.soft{flex:1 1 auto; font-size:12.5px; color:var(--muted); padding:8px 10px}
+.dfoot .dnav.soft:hover{color:var(--ink)}
+.dfoot .dnav.soft.on{background:var(--paper); color:var(--ink)}
 
 /* high contrast: stronger borders, darker secondary text, thicker focus */
 .app.hc{--line:#97A5AB; --line2:#4C5B63; --muted:#39474E; --red:#B03A35}
