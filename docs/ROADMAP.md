@@ -15,7 +15,11 @@ Delivered in reviewed, tested, deployed waves. Status as of 2026-08-08.
 
 ## Later tier (worth having, no rush)
 
-Not yet built: reverse chord lookup (click a shape, name it); note-finding against a clock; triads on three-string sets; tempo ramping on the metronome; print or export a diagram.
+Not yet built: note-finding against a clock; triads on three-string sets; tempo ramping on the metronome; print or export a diagram. (Reverse chord lookup shipped as the Chord finder; the strum trainer shipped, see below.)
+
+## 2026-08-08 session
+
+Shipped: nav accordions with a Simple-mode toggle (hides Intervals, Progressions, Ear training, Chord finder for beginners); per-shape save stars on chords; Vercel Speed Insights; SPA page_view tracking for GA4/Amplitude (fixes 0% engagement); the melody screen redesigned as a fretboard plus an eighth-note bar timeline; a strum-pattern trainer under Practice. Refactor: App.jsx split into theory.js, voicings.js, audio.js and fretboard.jsx. All reviewed by an adversarial agent workflow (nine findings fixed) and deployed.
 
 ## House rules
 
