@@ -492,6 +492,18 @@ function BulbSave({ known, onClick, label }) {
   );
 }
 
+/* the same "known" toggle, but labelled and prominent at the top of a view */
+function KnownButton({ known, onClick }) {
+  return (
+    <button type="button" className={`knownbtn ${known ? "on" : ""}`} aria-pressed={known} onClick={onClick}>
+      <svg viewBox="0 0 24 24" width="17" height="17" fill={known ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
+        <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.6 1 1.3 1 2.1v.4h6v-.4c0-.8.3-1.5 1-2.1A6 6 0 0 0 12 3z" />
+      </svg>
+      {known ? "You know this" : "Mark as known"}
+    </button>
+  );
+}
+
 /* ============================================================
    ABOUT: resources, feedback, donate
    ============================================================ */
@@ -1730,15 +1742,14 @@ export default function App() {
   }, [syncField]);
 
   /* accumulate practice time: count a tick only when the tab is visible, the
-     user has interacted recently, and the current view is a practice activity */
+     view is a practice activity, and the player actually did something musical
+     recently (played a note, strummed, ran the metronome or a drill). Merely
+     sitting on a screen does not tick up, which keeps points honest. */
   useEffect(() => {
-    const bump = () => { lastActiveRef.current = Date.now(); };
-    window.addEventListener("pointerdown", bump);
-    window.addEventListener("keydown", bump);
     const TICK = 10;
     const id = setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
-      if (Date.now() - lastActiveRef.current > 120000) return;
+      if (Date.now() - lastActiveRef.current > 45000) return;
       const m = modeRef.current;
       if (!PRACTICE_MODES[m]) return;
       setPracticeLog((log) => {
@@ -1752,11 +1763,7 @@ export default function App() {
         return next;
       });
     }, TICK * 1000);
-    return () => {
-      clearInterval(id);
-      window.removeEventListener("pointerdown", bump);
-      window.removeEventListener("keydown", bump);
-    };
+    return () => clearInterval(id);
   }, []);
 
   /* derived practice stats */
@@ -2010,6 +2017,7 @@ export default function App() {
 
   const playNote = useCallback(
     (midi, when = 0, gain = 0.5) => {
+      lastActiveRef.current = Date.now(); // playing a note counts as active practice
       if (settings.sound) pluck(midi, when, gain);
     },
     [settings.sound]
@@ -2489,6 +2497,7 @@ export default function App() {
 
   const earPlay = useCallback(
     (root, answer) => {
+      lastActiveRef.current = Date.now();
       if (ear.source === "interval") {
         pluck(root, 0, 0.5);
         pluck(root + answer, 0.55, 0.5);
@@ -2577,6 +2586,7 @@ export default function App() {
       const now = ctx();
       if (!now) return;
       while (nextClick.current < now.currentTime + 0.15) {
+        lastActiveRef.current = Date.now();
         const b = beatCount.current;
         const isAccent =
           settings.accent === "down" ? b === 0 : settings.accent === "back" ? b % 2 === 1 : false;
@@ -2640,6 +2650,7 @@ export default function App() {
     if (mode !== "changes" || chg.phase !== "running" || chg.duration === 0) return;
     const end = performance.now() + chg.remaining * 1000;
     const id = setInterval(() => {
+      lastActiveRef.current = Date.now(); // a running changes drill is active practice
       const rem = Math.max(0, Math.ceil((end - performance.now()) / 1000));
       if (rem <= 0) {
         clearInterval(id);
@@ -3328,6 +3339,12 @@ export default function App() {
       <main className="panel" key={mode}>
         {mode === "scale" && (
           <div className="pane">
+            <div className="knownrow">
+              <KnownButton
+                known={known.some((k) => k.sig === `k-scale:${scaleRoot}:${scaleId}`)}
+                onClick={() => toggleKnown({ sig: `k-scale:${scaleRoot}:${scaleId}`, kind: "scale", root: scaleRoot, id: scaleId, label: `${nameOf(scaleRoot, effFlats)} ${scaleDef.name}` })}
+              />
+            </div>
             <div className="row wrap">
               <Field label="Key"><KeyPicker value={scaleRoot} onChange={setScaleRoot} flats={effFlats} /></Field>
               <Field label="Scale">
@@ -3358,11 +3375,6 @@ export default function App() {
                   tun: settings.tuningId,
                   label: `${nameOf(scaleRoot, effFlats)} ${scaleDef.name}${scalePos == null ? "" : ` · pos ${scalePos + 1}`}`,
                 })}
-              />
-              <BulbSave
-                label={`${nameOf(scaleRoot, effFlats)} ${scaleDef.name}`}
-                known={known.some((k) => k.sig === `k-scale:${scaleRoot}:${scaleId}`)}
-                onClick={() => toggleKnown({ sig: `k-scale:${scaleRoot}:${scaleId}`, kind: "scale", root: scaleRoot, id: scaleId, label: `${nameOf(scaleRoot, effFlats)} ${scaleDef.name}` })}
               />
             </div>
 
@@ -3416,6 +3428,12 @@ export default function App() {
 
         {mode === "chord" && (
           <div className="pane">
+            <div className="knownrow">
+              <KnownButton
+                known={known.some((k) => k.sig === `k-chord:${chordRoot}:${chordId}`)}
+                onClick={() => toggleKnown({ sig: `k-chord:${chordRoot}:${chordId}`, kind: "chord", root: chordRoot, id: chordId, label: `${nameOf(chordRoot, effFlats)}${chordDef.suffix}` })}
+              />
+            </div>
             {shownVoicings.length === 0 ? (
               <p className="empty">
                 No playable shape for {nameOf(chordRoot, effFlats)}{chordDef.suffix} in this tuning at this
@@ -3438,6 +3456,7 @@ export default function App() {
                         showDegrees={settings.labelMode === "degree"}
                         selected={i === Math.min(voiceIdx, shownVoicings.length - 1)}
                         onSelect={() => {
+                          lastActiveRef.current = Date.now();
                           setVoiceIdx(i);
                           if (settings.sound) {
                             let j = 0;
@@ -3514,11 +3533,6 @@ export default function App() {
                 />
               </Field>
               <button className="btn primary" onClick={() => { track("strum_chord", { chord: chordId }); strumVoicing(); }} disabled={!activeVoicing} data-tip="Hear the selected shape">Strum</button>
-              <BulbSave
-                label={`${nameOf(chordRoot, effFlats)}${chordDef.suffix}`}
-                known={known.some((k) => k.sig === `k-chord:${chordRoot}:${chordId}`)}
-                onClick={() => toggleKnown({ sig: `k-chord:${chordRoot}:${chordId}`, kind: "chord", root: chordRoot, id: chordId, label: `${nameOf(chordRoot, effFlats)}${chordDef.suffix}` })}
-              />
             </div>
 
             <div className="keyjump">
@@ -4193,6 +4207,12 @@ export default function App() {
 
         {mode === "arp" && (
           <div className="pane">
+            <div className="knownrow">
+              <KnownButton
+                known={known.some((k) => k.sig === `k-arp:${arpRoot}:${arpId}`)}
+                onClick={() => toggleKnown({ sig: `k-arp:${arpRoot}:${arpId}`, kind: "arp", root: arpRoot, id: arpId, label: `${nameOf(arpRoot, effFlats)}${arpDef.suffix} arpeggio` })}
+              />
+            </div>
             <div className="row wrap">
               <Field label="Root"><KeyPicker value={arpRoot} onChange={setArpRoot} flats={effFlats} /></Field>
               <Field label="Arpeggio">
@@ -4232,11 +4252,6 @@ export default function App() {
                   tun: settings.tuningId,
                   label: `${nameOf(arpRoot, effFlats)}${arpDef.suffix} arpeggio${arpPos == null ? "" : ` · pos ${arpPos + 1}`}`,
                 })}
-              />
-              <BulbSave
-                label={`${nameOf(arpRoot, effFlats)}${arpDef.suffix} arpeggio`}
-                known={known.some((k) => k.sig === `k-arp:${arpRoot}:${arpId}`)}
-                onClick={() => toggleKnown({ sig: `k-arp:${arpRoot}:${arpId}`, kind: "arp", root: arpRoot, id: arpId, label: `${nameOf(arpRoot, effFlats)}${arpDef.suffix} arpeggio` })}
               />
             </div>
 
@@ -5971,6 +5986,10 @@ const CSS = `
 .bulbsave:hover{background:var(--paper); color:var(--teal); border-color:var(--teal)}
 .bulbsave:active{transform:scale(.9)}
 .bulbsave.on{background:var(--teal); border-color:var(--teal); color:#08211C}
+.knownrow{display:flex; margin-bottom:10px}
+.knownbtn{display:inline-flex; align-items:center; gap:8px; padding:8px 15px; border-radius:999px; border:1px solid var(--line2); background:var(--card); color:var(--muted); cursor:pointer; font-family:inherit; font-size:13px; font-weight:600; transition:background .15s ease, color .15s ease, border-color .15s ease}
+.knownbtn:hover{border-color:var(--teal); color:var(--teal)}
+.knownbtn.on{background:var(--teal); border-color:var(--teal); color:#08211C}
 
 /* bank sections */
 .banksec{display:grid; gap:10px; margin-bottom:8px}
