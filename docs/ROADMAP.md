@@ -11,6 +11,7 @@ Delivered in reviewed, tested, deployed waves. Status as of 2026-08-08.
 - Wave 2.5: categorized pickers everywhere; dual-thumb quiz range; button hierarchy; Tuner as its own view; accessibility pass (high contrast, reduced motion, zoom, keyboard-operable fretboard with announcements, statement on About); Search Console verified.
 - Wave 3: accounts and sync. Username-only Supabase auth, obscenity moderation, no-recovery warning, optional email linking with real password reset, Profile nav section, server-wins sync of Bank, chord-change records, custom progressions, melodies and practice log.
 - Wave 4: Melodies (write on the neck with play-order marks, repeats, rests, transpose, key hint, save, sync, share); Ear training (identify and explore, intervals and chord types); Arpeggios; Share links; Custom progressions and song sheets (sections); Microphone tuner (mic only on start, released on stop or leave); Practice log (auto-tracked time, streak, breakdown, sync); guided tour (live app, operable modal); capo calculator.
+- Refinements (2026-08-08): chord diagrams put low E on the left; arpeggio Play-order labels follow the chosen direction (ascending for Up, descending for Down) within the picked position; Hear it plays the selected neck position for scales and arpeggios; Bank restores saved scale/arpeggio positions and chord capo, and Bank shares carry the tuning; chord finder uses key-aware sharp/flat spelling.
 
 ## Later tier (worth having, no rush)
 
