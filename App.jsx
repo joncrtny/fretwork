@@ -1022,7 +1022,7 @@ function ChordDiagram({ voicing, midis, rootPc, capo, selected, onSelect, flats,
             <g key={`d${i}`}>
               <circle cx={x} cy={y} r={R} fill={isRoot ? "#E9A824" : "var(--dotplain)"} stroke="var(--board)" strokeWidth="1" />
               <text x={x} y={y + 3.6} textAnchor="middle" fontSize={8 * S} className="dotlabel" fill={isRoot ? "#26200C" : "var(--onink)"}>
-                {showDegrees ? DEG[semis] : voicing.fingering[st] || ""}
+                {showDegrees ? DEG[semis] : (voicing.fingering && voicing.fingering[st]) || ""}
               </text>
             </g>
           );
@@ -1409,6 +1409,33 @@ function DualRange({ min, max, lo, hi, onChange }) {
       {thumb("lo", lo, "Lowest fret")}
       {thumb("hi", hi, "Highest fret")}
     </div>
+  );
+}
+
+/* ============================================================
+   BANK: star-save and sharing helpers
+   ============================================================ */
+
+function shareLinkFromParams(p) {
+  const enc = btoa(encodeURIComponent(JSON.stringify(p))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `${window.location.origin}/#s=${enc}`;
+}
+
+/* round star button: fills when the current thing is already in the Bank */
+function StarSave({ saved, onClick, label }) {
+  return (
+    <button
+      type="button"
+      className={`starsave ${saved ? "on" : ""}`}
+      onClick={onClick}
+      aria-pressed={saved}
+      data-tip={saved ? "In your Bank" : "Save to Bank"}
+      aria-label={saved ? `${label} is saved to your Bank` : `Save ${label} to your Bank`}
+    >
+      <svg viewBox="0 0 24 24" width="18" height="18" fill={saved ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" aria-hidden="true">
+        <path d="M12 3.2l2.6 5.7 6.2.6-4.7 4.2 1.4 6.1L12 16.8 6.5 19.8l1.4-6.1L3.2 9.5l6.2-.6z" />
+      </svg>
+    </button>
   );
 }
 
@@ -2267,6 +2294,41 @@ export default function App() {
     store.set("fretboard:bank", JSON.stringify(next)).catch(() => {});
     syncField("bank", next);
   }, [syncField]);
+
+  const saveToBank = useCallback((item) => {
+    if (bank.some((b) => b.sig === item.sig)) { setToast("Already in your Bank"); return; }
+    saveBank([item, ...bank]);
+    track("bank_save", { kind: item.kind });
+    setToast("Saved to Bank");
+  }, [bank, saveBank]);
+
+  const shareBankItem = useCallback(async (item) => {
+    const p = {};
+    if (item.kind === "chord") Object.assign(p, { m: "chord", r: item.root, id: item.chordId });
+    else if (item.kind === "scale") Object.assign(p, { m: "scale", r: item.root, id: item.scaleId });
+    else if (item.kind === "arp") Object.assign(p, { m: "arp", r: item.root, id: item.arpId });
+    else if (item.kind === "prog") {
+      Object.assign(p, { m: "prog", r: item.root, id: item.progId });
+      const isPreset = PROGRESSIONS.some((x) => x.id === item.progId);
+      if (!isPreset && item.bars) Object.assign(p, { bars: item.bars, nm: item.label, sec: item.sections });
+    }
+    if (item.capo) p.capo = item.capo;
+    const url = shareLinkFromParams(p);
+    try { await navigator.clipboard.writeText(url); setToast("Link copied"); } catch (e) { window.prompt("Copy this link", url); }
+    track("bank_share", { kind: item.kind });
+  }, []);
+
+  const openBankItem = useCallback((item) => {
+    if (item.kind === "chord") { setChordRoot(item.root); setChordId(item.chordId); setMode("chord"); }
+    else if (item.kind === "scale") { setScaleRoot(item.root); setScaleId(item.scaleId); setScalePos(item.pos == null ? null : item.pos); setMode("scale"); }
+    else if (item.kind === "arp") { setArpRoot(item.root); setArpId(item.arpId); if (item.dir) setArpDir(item.dir); setMode("arp"); }
+    else if (item.kind === "prog") {
+      setProgRoot(item.root);
+      if (PROGRESSIONS.some((x) => x.id === item.progId) || customProgs.some((x) => x.id === item.progId)) setProgId(item.progId);
+      else if (item.bars) { setBuilder({ bars: item.bars, name: item.label, sections: item.sections || {} }); setProgId("custom"); }
+      setMode("prog");
+    }
+  }, [customProgs]);
 
   /* derived */
   const midis = settings.midis;
@@ -3574,6 +3636,19 @@ export default function App() {
               >
                 {playing != null ? "Stop" : "Hear it"}
               </button>
+              <StarSave
+                label={`${nameOf(scaleRoot, effFlats)} ${scaleDef.name}`}
+                saved={bank.some((b) => b.sig === `scale:${scaleRoot}:${scaleId}:${scalePos == null ? "all" : scalePos}`)}
+                onClick={() => saveToBank({
+                  id: `b${Date.now()}`,
+                  sig: `scale:${scaleRoot}:${scaleId}:${scalePos == null ? "all" : scalePos}`,
+                  kind: "scale",
+                  root: scaleRoot,
+                  scaleId,
+                  pos: scalePos,
+                  label: `${nameOf(scaleRoot, effFlats)} ${scaleDef.name}${scalePos == null ? "" : ` · pos ${scalePos + 1}`}`,
+                })}
+              />
             </div>
 
             <Field label="Position">
@@ -3694,30 +3769,23 @@ export default function App() {
                 />
               </Field>
               <button className="btn primary" onClick={() => { track("strum_chord", { chord: chordId }); strumVoicing(); }} disabled={!activeVoicing} data-tip="Hear the selected shape">Strum</button>
-              <button
-                className="btn ghost"
-                disabled={!activeVoicing}
-                onClick={() => {
-                  if (!activeVoicing) return;
-                  saveBank([
-                    {
-                      id: `b${Date.now()}`,
-                      kind: "chord",
-                      root: chordRoot,
-                      chordId,
-                      voicing: activeVoicing,
-                      midis,
-                      capo,
-                      label: `${nameOf(chordRoot, effFlats)}${chordDef.suffix}`,
-                    },
-                    ...bank,
-                  ]);
-                  track("bank_save", { kind: "chord" });
-                  setToast("Saved to bank");
-                }}
-              >
-                Save
-              </button>
+              {activeVoicing && (
+                <StarSave
+                  label={`${nameOf(chordRoot, effFlats)}${chordDef.suffix}`}
+                  saved={bank.some((b) => b.sig === `chord:${chordRoot}:${chordId}:${activeVoicing.key || ""}`)}
+                  onClick={() => saveToBank({
+                    id: `b${Date.now()}`,
+                    sig: `chord:${chordRoot}:${chordId}:${activeVoicing.key || ""}`,
+                    kind: "chord",
+                    root: chordRoot,
+                    chordId,
+                    voicing: activeVoicing,
+                    midis,
+                    capo,
+                    label: `${nameOf(chordRoot, effFlats)}${chordDef.suffix}`,
+                  })}
+                />
+              )}
             </div>
 
             {!settings.simple && (
@@ -3761,16 +3829,18 @@ export default function App() {
               <span className="actspacer" aria-hidden="true" />
               <button
                 className="btn ghost iconbtn"
-                onClick={() => {
-                  saveBank([
-                    { id: `b${Date.now()}`, kind: "prog", root: progRoot, progId, label: `${nameOf(progRoot, effFlats)} \u00b7 ${progDef.name}` },
-                    ...bank,
-                  ]);
-                  track("bank_save", { kind: "prog" });
-                  setToast("Saved to bank");
-                }}
+                onClick={() => saveToBank({
+                  id: `b${Date.now()}`,
+                  sig: `prog:${progRoot}:${progId}:${progDef.bars.join(",")}`,
+                  kind: "prog",
+                  root: progRoot,
+                  progId,
+                  bars: progDef.bars,
+                  sections: progDef.sections,
+                  label: `${nameOf(progRoot, effFlats)} \u00b7 ${progDef.name}`,
+                })}
               >
-                <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true"><path d="M4 2h8v12l-4-3-4 3z" /></svg>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill={bank.some((b) => b.sig === `prog:${progRoot}:${progId}:${progDef.bars.join(",")}`) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" aria-hidden="true"><path d="M12 3.2l2.6 5.7 6.2.6-4.7 4.2 1.4 6.1L12 16.8 6.5 19.8l1.4-6.1L3.2 9.5l6.2-.6z" /></svg>
                 Save to bank
               </button>
               <button
@@ -3934,56 +4004,50 @@ export default function App() {
           <div className="pane">
             {bank.length === 0 ? (
               <p className="note">
-                Nothing saved yet. Save a voicing from Chords, or a progression from Progressions, and it
-                will be waiting here for practice.
+                Nothing saved yet. Tap the star on a chord, scale, arpeggio or progression to keep it here,
+                grouped by type and ready to practise. You can share any saved item from here too.
               </p>
             ) : (
-              <div className="banklist">
-                {bank.map((item) => (
-                  <div className="bankitem" key={item.id}>
-                    {item.kind === "chord" && item.voicing ? (
-                      <ChordDiagram
-                        voicing={item.voicing}
-                        midis={item.midis || midis}
-                        rootPc={item.root}
-                        capo={item.capo || 0}
-                        flats={flatsFor(item.root, (CHORDS.find((c) => c.id === item.chordId) || CHORDS[0]).iv)}
-                        showDegrees={false}
-                        selected={false}
-                        onSelect={() => {
-                          setChordRoot(item.root);
-                          setChordId(item.chordId);
-                          setMode("chord");
-                        }}
-                      />
-                    ) : null}
-                    <div className="bankmeta">
-                      <b>{item.label}</b>
-                      <div className="row wrap">
-                        <button
-                          className="mini"
-                          onClick={() => {
-                            if (item.kind === "prog") {
-                              setProgRoot(item.root);
-                              setProgId(item.progId);
-                              setMode("prog");
-                            } else {
-                              setChordRoot(item.root);
-                              setChordId(item.chordId);
-                              setMode("chord");
-                            }
-                          }}
-                        >
-                          Load
-                        </button>
-                        <button className="mini" onClick={() => saveBank(bank.filter((b) => b.id !== item.id))}>
-                          Remove
-                        </button>
-                      </div>
+              [
+                { kind: "chord", label: "Chords" },
+                { kind: "scale", label: "Scales" },
+                { kind: "arp", label: "Arpeggios" },
+                { kind: "prog", label: "Progressions" },
+              ].map((group) => {
+                const items = bank.filter((b) => (b.kind || "chord") === group.kind);
+                if (!items.length) return null;
+                return (
+                  <section className="banksec" key={group.kind}>
+                    <h2 className="abouthead">{group.label}</h2>
+                    <div className="banklist">
+                      {items.map((item) => (
+                        <div className="bankitem" key={item.id}>
+                          {item.kind === "chord" && item.voicing ? (
+                            <ChordDiagram
+                              voicing={item.voicing}
+                              midis={item.midis || midis}
+                              rootPc={item.root}
+                              capo={item.capo || 0}
+                              flats={flatsFor(item.root, (CHORDS.find((c) => c.id === item.chordId) || CHORDS[0]).iv)}
+                              showDegrees={false}
+                              selected={false}
+                              onSelect={() => openBankItem(item)}
+                            />
+                          ) : null}
+                          <div className="bankmeta">
+                            <b>{item.label}</b>
+                            <div className="row wrap">
+                              <button className="mini" onClick={() => openBankItem(item)}>Open</button>
+                              <button className="mini" onClick={() => shareBankItem(item)} aria-label={`Share ${item.label}`}>Share</button>
+                              <button className="mini" onClick={() => saveBank(bank.filter((b) => b.id !== item.id))} aria-label={`Remove ${item.label}`}>Remove</button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
-                ))}
-              </div>
+                  </section>
+                );
+              })
             )}
           </div>
         )}
@@ -4392,6 +4456,19 @@ export default function App() {
               >
                 {playing != null ? "Stop" : "Hear it"}
               </button>
+              <StarSave
+                label={`${nameOf(arpRoot, effFlats)}${arpDef.suffix} arpeggio`}
+                saved={bank.some((b) => b.sig === `arp:${arpRoot}:${arpId}`)}
+                onClick={() => saveToBank({
+                  id: `b${Date.now()}`,
+                  sig: `arp:${arpRoot}:${arpId}`,
+                  kind: "arp",
+                  root: arpRoot,
+                  arpId,
+                  dir: arpDir,
+                  label: `${nameOf(arpRoot, effFlats)}${arpDef.suffix} arpeggio`,
+                })}
+              />
             </div>
 
             <div className="degrees">
@@ -5625,6 +5702,20 @@ const CSS = `
 
 .capocalc{display:grid; gap:8px; border-top:1px solid var(--line); padding-top:16px}
 .finderhits{display:flex; flex-wrap:wrap; gap:8px}
+
+/* star save button */
+.starsave{
+  width:40px; height:40px; flex:none; align-self:flex-end; border-radius:50%;
+  display:inline-flex; align-items:center; justify-content:center; cursor:pointer;
+  background:var(--card); border:1px solid var(--line2); color:var(--muted);
+  transition:background .15s ease, color .15s ease, border-color .15s ease, transform .1s ease;
+}
+.starsave:hover{background:var(--paper); color:var(--gold); border-color:var(--gold)}
+.starsave:active{transform:scale(.9)}
+.starsave.on{background:var(--gold); border-color:var(--gold); color:#26200C}
+
+/* bank sections */
+.banksec{display:grid; gap:10px; margin-bottom:8px}
 
 /* mic tuner */
 .tunerbox{display:flex; flex-direction:column; align-items:center; gap:14px; padding:12px 0 6px; text-align:center}
