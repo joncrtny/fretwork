@@ -1,6 +1,6 @@
 # Fretwork
 
-Single-page React 18 + Vite app. Almost everything lives in `App.jsx` (~4k lines, by design); styles are the `CSS` template literal at the bottom of that file. `docs/DESIGN.md` holds the design system and house style, `docs/ROADMAP.md` the plan, `docs/SETUP.md` the external services.
+Single-page React 18 + Vite app. `App.jsx` holds the main component, its state and all the view panes; styles are the `CSS` template literal at the bottom of that file. Shared, pure code is split into modules imported by `App.jsx`: `theory.js` (notes, scales, chords, tunings, progressions, ear/picker sets, the tab parser and music helpers), `voicings.js` (the chord-voicing engine), `audio.js` (the Web Audio layer: pluck, metronome clicks, blips) and `fretboard.jsx` (neck geometry, the `Fretboard` SVG and `ChordDiagram`). Keep new pure theory/data, audio or rendering code in those modules rather than growing `App.jsx`. `docs/DESIGN.md` holds the design system and house style, `docs/ROADMAP.md` the plan, `docs/SETUP.md` the external services.
 
 ## Hard rules
 
