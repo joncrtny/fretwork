@@ -146,6 +146,12 @@ function Seg({ options, value, onChange, small, responsive = true, ariaLabel }) 
 }
 
 function Field({ label, children, id, tip }) {
+  /* Borrow the Field's label for a Seg child that has no ariaLabel of its own, so
+     its mobile <select> and its button group are named for screen readers. */
+  const kid =
+    React.isValidElement(children) && children.type === Seg && !children.props.ariaLabel && typeof label === "string"
+      ? React.cloneElement(children, { ariaLabel: label })
+      : children;
   return (
     <div className="field">
       {id ? (
@@ -153,7 +159,7 @@ function Field({ label, children, id, tip }) {
       ) : (
         <span className="flabel" data-tip={tip}>{label}</span>
       )}
-      {children}
+      {kid}
     </div>
   );
 }
@@ -221,13 +227,14 @@ function KeyPicker({ value, onChange, flats, tip }) {
         className={`pickbtn ${open ? "open" : ""}`}
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
+        aria-haspopup="listbox"
         data-tip={tip}
       >
         <span>{nameOf(value, flats)}</span>
         <i className="caret" aria-hidden="true" />
       </button>
       {open && (
-        <div className={`pickmenu ${upK ? "up" : ""}`} role="listbox">
+        <div className={`pickmenu ${upK ? "up" : ""}`} role="listbox" aria-label="Notes">
           {Array.from({ length: 12 }, (_, i) => i).map((pc) => (
             <button
               key={pc}
@@ -895,10 +902,11 @@ function FeedbackForm() {
   return (
     <form className="feedback" onSubmit={submit}>
       <Field label="Name (optional)">
-        <input type="text" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
+        <input type="text" aria-label="Name (optional)" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
       </Field>
       <Field label="Suggestion or feedback">
         <textarea
+          aria-label="Suggestion or feedback"
           value={message}
           required
           maxLength={2000}
@@ -1179,12 +1187,19 @@ export default function App() {
     }
   }, []);
 
-  /* Publish FAQPage structured data built from the same FAQS the Help & FAQ view
-     renders, so the schema always matches the visible content (one source of
-     truth). Google renders client JS and reads dynamically-added JSON-LD. The
-     static WebApplication schema stays in index.html. Runs once on mount. */
+  /* Publish FAQPage structured data ONLY while the Help & FAQ view is showing, so
+     the markup is present exactly when its questions are in the DOM. Google
+     requires FAQ structured data to match content visible on the page, and this
+     is a single-page app, so tying the schema to the view keeps them honest and
+     in step. Built from the same FAQS the view renders. The static
+     WebApplication schema in index.html always applies. */
   useEffect(() => {
     if (typeof document === "undefined") return;
+    const existing = document.getElementById("faq-jsonld");
+    if (mode !== "faq") {
+      if (existing) existing.remove();
+      return;
+    }
     const data = {
       "@context": "https://schema.org",
       "@type": "FAQPage",
@@ -1194,7 +1209,7 @@ export default function App() {
         acceptedAnswer: { "@type": "Answer", text: f.a },
       })),
     };
-    let el = document.getElementById("faq-jsonld");
+    let el = existing;
     if (!el) {
       el = document.createElement("script");
       el.type = "application/ld+json";
@@ -1202,7 +1217,18 @@ export default function App() {
       document.head.appendChild(el);
     }
     el.textContent = JSON.stringify(data);
-  }, []);
+  }, [mode]);
+
+  /* Give each in-app view its own browser tab and history title. The default
+     landing (chord) keeps the keyword-rich homepage title so search results are
+     not weakened; other views read "<View> · Fretwork". */
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const m = VIEW_META[mode];
+    document.title = mode === "chord"
+      ? "Fretwork: Guitar Fretboard Trainer for Scales and Chords"
+      : m ? `${m.title} · Fretwork` : "Fretwork";
+  }, [mode]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -3139,7 +3165,7 @@ export default function App() {
     store.set("fretboard:routineratings", JSON.stringify(next)).catch(() => {});
     track("routine_done", { minutes: routine ? routine.duration : 0, stars });
     setRoutine(null);
-    setToast(stars >= 3 ? "Great session!" : stars === 2 ? "Good work, keep at it" : "Noted, we'll revisit those");
+    setToast(stars >= 3 ? "Great session!" : stars === 2 ? "Good work, keep at it" : "Noted, those will come round again");
   };
 
   /* count the current segment down; advance or finish at zero */
@@ -3312,7 +3338,7 @@ export default function App() {
     <div className={`app ${settings.dark ? "dark" : ""} ${settings.highContrast ? "hc" : ""} ${settings.lowMotion ? "lowmotion" : ""}`}>
       <style>{CSS}</style>
 
-      <aside className={`drawer ${drawer ? "open" : ""}`} aria-label="Main menu" inert={drawer ? undefined : ""}>
+      <nav className={`drawer ${drawer ? "open" : ""}`} aria-label="Main menu" inert={drawer ? undefined : ""}>
         <div className="dinner">
           <button
             className={`simpletoggle ${settings.simple ? "on" : ""}`}
@@ -3363,6 +3389,7 @@ export default function App() {
               <button
                 className={`dnav ${openPanel === "metro" ? "on" : ""}`}
                 onClick={() => { setOpenPanel((v) => (v === "metro" ? null : "metro")); closeNav(); }}
+                aria-expanded={openPanel === "metro"}
               >
                 Metronome
                 {metroOn && <span className="badge">{settings.bpm}</span>}
@@ -3407,7 +3434,7 @@ export default function App() {
             <button className="dnav soft" onClick={() => { startTour(); closeNav(); }}>Tour</button>
           </div>
         </div>
-      </aside>
+      </nav>
       <div className={`scrim ${drawer ? "on" : ""}`} onClick={() => { if (burgerRef.current) burgerRef.current.focus(); setDrawer(false); }} aria-hidden="true" />
 
       <div className="stage">
@@ -3426,7 +3453,7 @@ export default function App() {
           <span className="mark" aria-hidden="true" />
           <h1>Fretwork</h1>
         </div>
-        <div className="readout" aria-live="polite">
+        <div className="readout" aria-live="polite" role="heading" aria-level="2">
           <span className="rdot" />
           {readout}
         </div>
@@ -3442,7 +3469,7 @@ export default function App() {
       </header>
 
       {openPanel === "metro" && (
-        <section className="setup">
+        <section className="setup" aria-label="Metronome">
           <div className="metrorow">
             <button
               className={`transport ${metroOn ? "on" : ""}`}
@@ -3505,7 +3532,7 @@ export default function App() {
       )}
 
       {!["changes", "about", "faq", "account", "settings", "tuner", "ear", "plog"].includes(mode) && (
-      <section className="neckwrap">
+      <section className="neckwrap" aria-label="Fretboard">
         <div className="neckscroll">
           <Fretboard
             fretCount={fretCount}
@@ -3543,6 +3570,7 @@ export default function App() {
       <main className="panel" key={mode}>
         {mode === "scale" && (
           <div className="pane">
+            <p className="panelead">Map out any scale across the fretboard in any key, hear it played, and learn its shapes position by position.</p>
             <div className="knownrow">
               <KnownButton
                 known={known.some((k) => k.sig === `k-scale:${scaleRoot}:${scaleId}`)}
@@ -3610,7 +3638,7 @@ export default function App() {
             </Field>
             <Field label="Neck shows">
               <Seg small
-                options={[{ v: "both", l: "Order + note" }, { v: "name", l: "Notes" }, { v: "degree", l: "Order" }, { v: "none", l: "Blank" }]}
+                options={[{ v: "both", l: "Degree + note" }, { v: "name", l: "Notes" }, { v: "degree", l: "Degrees" }, { v: "none", l: "Blank" }]}
                 value={scaleLabel} onChange={setScaleLabel} />
             </Field>
             <div className="degrees">
@@ -3632,6 +3660,7 @@ export default function App() {
 
         {mode === "chord" && (
           <div className="pane">
+            <p className="panelead">Find playable shapes for any chord in any key, then hear and save the ones you want to learn.</p>
             <div className="knownrow">
               <KnownButton
                 known={known.some((k) => k.sig === `k-chord:${chordRoot}:${chordId}`)}
@@ -3641,7 +3670,7 @@ export default function App() {
             {shownVoicings.length === 0 ? (
               <p className="empty">
                 No playable shape for {nameOf(chordRoot, effFlats)}{chordDef.suffix} in this tuning at this
-                stretch. Widen the stretch in Setup, or allow inversions.
+                stretch. In Settings, widen Chord stretch or turn on Inversions.
               </p>
             ) : (
               <div className="voicings">
@@ -3763,6 +3792,7 @@ export default function App() {
 
         {mode === "prog" && (
           <div className="pane">
+            <p className="panelead">Play through common chord progressions in any key, seeing every chord shape as the sequence moves along.</p>
             {progVoicings.some(Boolean) ? (
               hasSections ? (
                 <div className="songsheet">
@@ -3800,7 +3830,7 @@ export default function App() {
                 })}
               >
                 <svg viewBox="0 0 24 24" width="14" height="14" fill={bank.some((b) => b.sig === `prog:${progRoot}:${progId}:${progDef.bars.join(",")}`) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" aria-hidden="true"><path d="M12 3.2l2.6 5.7 6.2.6-4.7 4.2 1.4 6.1L12 16.8 6.5 19.8l1.4-6.1L3.2 9.5l6.2-.6z" /></svg>
-                Save to bank
+                Save to Bank
               </button>
               <button
                 className="btn ghost iconbtn"
@@ -3892,7 +3922,7 @@ export default function App() {
                     ))}
                   </div>
                 </Field>
-                <Field label="Add chords, as roman numerals in the chosen key">
+                <Field label="Add chords as Roman numerals in the chosen key">
                   <div className="romangrid">
                     {Object.keys(ROMAN).map((rn) => (
                       <button key={rn} className="key" onClick={() => setBuilder((bl) => ({ ...bl, bars: [...bl.bars, rn] }))}>
@@ -4014,6 +4044,7 @@ export default function App() {
 
         {mode === "interval" && (
           <div className="pane">
+            <p className="panelead">See how each interval sits against the root across the fretboard, so the distances between notes become familiar.</p>
             <Field label="Root"><KeyPicker value={ivRoot} onChange={setIvRoot} flats={effFlats} /></Field>
             {settings.simple ? (
               <Field label="Show">
@@ -4071,6 +4102,7 @@ export default function App() {
 
         {mode === "quiz" && (
           <div className="pane">
+            <p className="panelead">Quiz yourself on scales, chords and intervals by naming the notes Fretwork lights up on the neck.</p>
             <div className="scoreboard">
               <div className="score"><b>{quiz.correct}</b><span>correct</span></div>
               <div className="score"><b className="bad">{quiz.wrong}</b><span>wrong</span></div>
@@ -4125,7 +4157,7 @@ export default function App() {
             <div className="row">
               <Field label={`Difficulty · ${quiz.hidden ? quiz.hidden.size : 0} of ${quiz.target ? quiz.target.length : 0} hidden`}>
                 <input
-                  type="range" min="0" max="1" step="0.01" value={quiz.difficulty}
+                  type="range" min="0" max="1" step="0.01" value={quiz.difficulty} aria-label="Quiz difficulty"
                   onChange={(e) => setQuiz((q) => ({ ...q, difficulty: +e.target.value }))}
                 />
                 <output>{quiz.difficulty < 0.2 ? "Easy" : quiz.difficulty < 0.5 ? "Steady" : quiz.difficulty < 0.85 ? "Hard" : "Blank neck"}</output>
@@ -4172,6 +4204,7 @@ export default function App() {
 
         {mode === "changes" && (
           <div className="pane">
+            <p className="panelead">Build speed by counting how many clean chord changes you can make between two shapes before the clock runs out.</p>
             <div className="chgstage">
               <div
                 role="timer"
@@ -4303,6 +4336,7 @@ export default function App() {
                 <Field label="How many changes did you get?">
                   <input
                     type="number"
+                    aria-label="How many changes did you get?"
                     min="0"
                     inputMode="numeric"
                     value={chgEntry}
@@ -4480,6 +4514,7 @@ export default function App() {
 
         {mode === "arp" && (
           <div className="pane">
+            <p className="panelead">Hear and see any arpeggio across the neck in any key, moving up, down or through the shape you choose.</p>
             <div className="knownrow">
               <KnownButton
                 known={known.some((k) => k.sig === `k-arp:${arpRoot}:${arpId}`)}
@@ -4895,6 +4930,7 @@ export default function App() {
 
         {mode === "ear" && (
           <div className="pane">
+            <p className="panelead">Train your ear to recognise intervals and chord types by sound, then check yourself against the answer.</p>
             <div className="scoreboard">
               <div className="score"><b>{ear.correct}</b><span>correct</span></div>
               <div className="score"><b className="bad">{ear.wrong}</b><span>wrong</span></div>
@@ -4902,8 +4938,8 @@ export default function App() {
             </div>
 
             <div className="row wrap">
-              <Field label="Direction" tip="Identify what you hear, or choose a sound and listen to it">
-                <Seg small ariaLabel="Ear training direction"
+              <Field label="Mode" tip="Identify what you hear, or choose a sound and listen to it">
+                <Seg small ariaLabel="Ear training mode"
                   options={[{ v: "quiz", l: "Hear and identify" }, { v: "explore", l: "Choose and hear" }]}
                   value={ear.dir} onChange={(v) => setEar((e) => ({ ...e, dir: v, current: null, picked: null, streak: 0 }))} />
               </Field>
@@ -4912,7 +4948,7 @@ export default function App() {
                   options={[{ v: "interval", l: "Intervals" }, { v: "chord", l: "Chord types" }]}
                   value={ear.source} onChange={(v) => setEar((e) => ({ ...e, source: v, current: null, picked: null, streak: 0 }))} />
               </Field>
-              <Field label="Range">
+              <Field label="Difficulty">
                 <Seg small ariaLabel="Difficulty"
                   options={[{ v: "simple", l: "Common" }, { v: "all", l: "Everything" }]}
                   value={ear.level} onChange={(v) => setEar((e) => ({ ...e, level: v, current: null, picked: null, streak: 0 }))} />
@@ -5036,7 +5072,7 @@ export default function App() {
                   <div className="scoreboard">
                     <div className="score"><b>{practiceStats.streak}</b><span>day streak</span></div>
                     <div className="score"><b>{fmt(practiceStats.todayTotal)}</b><span>today</span></div>
-                    <div className="score"><b>{fmt(practiceStats.weekTotal)}</b><span>this fortnight</span></div>
+                    <div className="score"><b>{fmt(practiceStats.weekTotal)}</b><span>last 14 days</span></div>
                     <div className="score"><b>{fmt(practiceStats.allTime)}</b><span>all time</span></div>
                   </div>
 
@@ -5131,8 +5167,9 @@ export default function App() {
               {!tuner.on ? (
                 <>
                   <p className="note">
-                    Listen to your guitar and tune by ear-free feedback. The microphone is only used while you
-                    are tuning, and nothing is recorded or sent anywhere.
+                    Play a string and Fretwork shows how sharp or flat it is, so you can tune without relying
+                    on your ear. The microphone is only used while you are tuning, and nothing is recorded or
+                    sent anywhere.
                   </p>
                   <button className="btn primary" onClick={startTuner}>Start listening</button>
                   {tuner.error && <p className="empty" role="status">{tuner.error}</p>}
@@ -5189,6 +5226,7 @@ export default function App() {
                 <div className="stringrow" key={i}>
                   <span className="sidx">{i + 1}</span>
                   <select
+                    aria-label={`Note for string ${i + 1}`}
                     value={mv % 12}
                     onChange={(e) => setStringNote(i, Math.floor(mv / 12) * 12 + +e.target.value)}
                   >
@@ -5197,6 +5235,7 @@ export default function App() {
                     ))}
                   </select>
                   <select
+                    aria-label={`Octave for string ${i + 1}`}
                     value={Math.floor(mv / 12) - 1}
                     onChange={(e) => setStringNote(i, (mv % 12) + (+e.target.value + 1) * 12)}
                   >
@@ -5908,6 +5947,7 @@ const CSS = `
 .panel{margin:12px 18px 0; background:var(--card); border:1px solid var(--line); border-radius:6px; padding:18px}
 .setup .grid,.pane .grid,.toggles{max-width:1240px}
 .pane{display:grid; grid-template-columns:minmax(0,1fr); gap:16px}
+.panelead{margin:0 0 2px; color:var(--muted); font-size:13.5px; line-height:1.55; max-width:70ch}
 .row{display:flex; gap:14px; align-items:flex-start; flex-wrap:nowrap}
 .row > .btn{align-self:flex-end}
 .row.wrap{flex-wrap:wrap}

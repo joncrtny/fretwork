@@ -3,6 +3,33 @@
 Notable, user-facing changes to Fretwork. Newest first. The short version of the
 most recent entries is shown in the app under About, "What's new".
 
+## 2026-08-10
+
+Full-site review pass (copy, structure, structured data, accessibility), from an
+adversarial multi-agent review with every finding independently verified.
+
+### Added
+- A one-line description at the top of each main view (Scales, Chords, Arpeggios,
+  Intervals, Progressions, Fretboard quiz, Chord changes, Ear training) so it is
+  clear what each section is for before you meet the controls.
+- Per-view browser tab and history titles (the home view keeps its full title).
+
+### Changed
+- Clearer copy: the Tuner now opens with a plain explanation (the old line was
+  garbled), the "no shapes" message on Chords points to the real Settings
+  controls, and several labels were made consistent (Bank, Roman numerals, the
+  Scales neck labels, the ear-training and practice-log wording).
+- WebApplication structured data now lists the app's features and language;
+  the FAQ structured data is published only while the Help & FAQ view is open,
+  so the markup always matches what is on screen. Sitemap and PWA manifest
+  tidied (lastmod, id, language, categories).
+
+### Fixed
+- Accessibility: the main menu is now a navigation landmark, every view has a
+  heading, the fretboard and metronome regions are labelled, and previously
+  unlabelled controls (the feedback form, quiz and tuner inputs, and the compact
+  toggle selects on small screens) now have accessible names.
+
 ## 2026-08-09
 
 ### Added
