@@ -1,26 +1,31 @@
 # SEO and content strategy
 
-Fretwork is a client-rendered single-page app on one real URL (`/`). That shapes
-what SEO can and cannot do here, and it is the most important thing to understand
-before writing content or chasing keywords.
+Fretwork is a client-rendered single-page app, but it now has real per-view URLs
+that are prerendered at build, so each view is its own crawlable page. This is
+the most important thing to understand before writing content or chasing keywords.
 
 ## The structural reality (read this first)
 
-- **Crawlers see one page.** The synthetic paths in `VIEW_META` (`/scales`,
-  `/chords`, `/intervals`, ...) exist only to give Analytics a per-view label.
-  They are **not** real, separately crawlable URLs. Googlebot renders the SPA and
-  indexes the single document at `/`.
-- **Consequence:** we cannot, today, rank a dedicated `/scales` page for "guitar
-  scales" or a `/chords` page for "guitar chords", because those pages do not
-  exist as documents. All ranking weight lands on the one home document.
-- **What this means for effort:** the highest-leverage on-page SEO we can do
-  without re-architecting is (a) a strong single document (title, description,
-  headings, WebApplication schema), and (b) genuinely useful, well-structured
-  **content** on that document, which is what the Help & FAQ provides. The FAQ is
-  the main organic-surface-area play available to a one-URL SPA.
-- **If we later want per-topic ranking**, that is an architecture decision
-  (prerendering / static generation of real per-view routes, or a small set of
-  server-rendered landing pages). Raised in "Open questions" below, not assumed.
+- **Every view is a real URL.** `VIEW_META` paths (`/scales`, `/intervals`,
+  `/faq`, ...) are genuine routes. The home view (chords) is `/`. Client routing
+  (`pathForMode` / `modeForPath` in `App.jsx`) keeps the address bar in step, and
+  `vercel.json` (rewrite + `cleanUrls`) serves deep links.
+- **Each route is prerendered.** `scripts/prerender.mjs` runs after `vite build`
+  and writes one static HTML file per public route with that route's own title,
+  meta description, canonical and Open Graph tags, plus a small crawlable content
+  stub in `#root` that React replaces on mount. So crawlers and social scrapers
+  get a page-specific `<head>` and real text at each URL, and Googlebot (which
+  renders JS) gets the full interactive view on top.
+- **Consequence:** each view can now rank on its own for its topic (for example
+  `/scales` for "guitar scales", `/tuner` for "online guitar tuner"), and shared
+  links show the right preview. The `sitemap.xml` lists the home page plus all
+  prerendered routes.
+- **What to keep strong:** page-specific title/description (in `prerender.mjs`),
+  the WebApplication schema (`index.html`), the FAQ content and its FAQPage
+  schema (served at `/faq`), and genuinely useful on-page copy per view.
+- **Utility routes** (`/bank`, `/account`, `/settings`, `/practice-log`) are
+  deliberately not prerendered or listed in the sitemap; they fall through to the
+  SPA and are not an SEO surface.
 
 ## Principles (how we write FAQ answers)
 
@@ -91,10 +96,21 @@ to practise; and the app essentials (free, offline, install to home screen).
 - Include the specific number, symbol or mnemonic (the BPM value, EADGBE, the
   X/O rule); concrete specifics get cited over vague prose.
 
-## Open questions (architecture, not yet decided)
+## Done
 
-- Should we prerender or statically generate real per-view URLs so topic pages
-  can rank individually? This is the single biggest SEO lever and the single
-  biggest engineering change. Not to be done silently; needs a decision.
-- Per-section descriptive copy on each tool view (a short "what this is for"
-  line) improves usability and adds on-topic text; being added incrementally.
+- **Real per-view URLs, prerendered** (the biggest SEO lever): client routing +
+  host config + `scripts/prerender.mjs` + full sitemap. See above.
+- **Per-section descriptive copy** on each tool view (a short "what this is for"
+  line), which aids usability and adds on-topic text.
+
+## Next levers (not yet done)
+
+- **Verify in Search Console:** submit the sitemap, confirm the prerendered
+  routes are indexed, and watch which queries each page earns.
+- **Deepen per-route content:** the prerender stub is intentionally light. If a
+  topic route needs to compete on content, add a real static intro section for
+  that view (unique copy, not duplicated from the FAQ).
+- **Consider per-route Open Graph images** so shared links preview per topic
+  rather than the single site image.
+- **Keep titles/descriptions tuned** in `prerender.mjs` as the query data comes
+  in from Search Console.
