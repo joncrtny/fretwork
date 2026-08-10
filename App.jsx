@@ -55,6 +55,19 @@ const VIEW_META = {
   plog: { path: "/practice-log", title: "Practice log" },
 };
 
+/* Real URL routing. Every view has its own path, so views can be linked,
+   bookmarked, shared and crawled as distinct pages. The default view (chord) is
+   the site root "/", keeping a single canonical home rather than a "/chords"
+   duplicate of it. */
+function pathForMode(m) {
+  return m === "chord" ? "/" : (VIEW_META[m] && VIEW_META[m].path) || "/";
+}
+function modeForPath(p) {
+  if (!p || p === "/") return "chord";
+  for (const m in VIEW_META) if (m !== "chord" && VIEW_META[m].path === p) return m;
+  return null;
+}
+
 /* Event helper: forwards to Google Analytics and Amplitude. Each sink has its
    own try/catch so one failing never skips the other, and analytics never
    breaks the app. Amplitude is only present in production (set in main.jsx). */
@@ -993,7 +1006,12 @@ export default function App() {
      merge has finished. The badge baseline waits for this so a returning player
      on a fresh device is not spammed with toasts for already-earned progress. */
   const [progressSynced, setProgressSynced] = useState(false);
-  const [mode, setMode] = useState("chord");
+  const [mode, setMode] = useState(() => {
+    if (typeof window === "undefined") return "chord";
+    /* a share link (#s=...) resolves its own view after hydration */
+    if (/^#s=/.test(window.location.hash || "")) return "chord";
+    return modeForPath(window.location.pathname) || "chord";
+  });
   useEffect(() => { modeRef.current = mode; }, [mode]);
   const [capo, setCapo] = useState(0);
   const [openPanel, setOpenPanel] = useState(null);
@@ -1168,20 +1186,24 @@ export default function App() {
      the [mode] effect emits the landing normally rather than recording nothing. */
   const strictShareRef = useRef(typeof window !== "undefined" && /^#s=[A-Za-z0-9_-]+$/.test(window.location.hash || ""));
   const shareHandledRef = useRef(false); // set once the share effect has emitted the share-load page_view
+  const routedRef = useRef(false); // true once the router has reconciled the URL at least once
+  const fromPopRef = useRef(false); // the current mode change came from Back/Forward, so do not write history
   const firePageView = useCallback((m) => {
-    const meta = VIEW_META[m] || { path: "/" + m, title: m };
-    if (meta.path === lastPVRef.current) return;
-    const loc = window.location.origin + meta.path;
+    /* page_location uses the real routed path so analytics matches the URL bar */
+    const path = pathForMode(m);
+    const title = (VIEW_META[m] && VIEW_META[m].title) || m;
+    if (path === lastPVRef.current) return;
+    const loc = window.location.origin + path;
     const referrer = lastPVRef.current ? window.location.origin + lastPVRef.current : document.referrer || undefined;
-    lastPVRef.current = meta.path;
+    lastPVRef.current = path;
     try {
       if (typeof window.gtag === "function")
-        window.gtag("event", "page_view", { page_title: meta.title, page_location: loc, page_referrer: referrer });
+        window.gtag("event", "page_view", { page_title: title, page_location: loc, page_referrer: referrer });
     } catch (e) {
       /* analytics must never break the app */
     }
     try {
-      if (window.amplitude) window.amplitude.track("screen_view", { screen: m, path: meta.path, title: meta.title });
+      if (window.amplitude) window.amplitude.track("screen_view", { screen: m, path, title });
     } catch (e) {
       /* analytics must never break the app */
     }
@@ -3008,9 +3030,11 @@ export default function App() {
        quiet waiting for this, and unblocks once shareHandledRef is set */
     shareHandledRef.current = true;
     firePageView(pvMode);
-    /* apply once: clear the hash so a reload reflects current state, not the link */
+    /* apply once: land on the shared view's real path and drop the hash, so a
+       reload reflects the current view rather than re-applying the link */
     if (window.history && window.history.replaceState)
-      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      window.history.replaceState(null, "", pathForMode(pvMode) + window.location.search);
+    routedRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
@@ -3025,6 +3049,34 @@ export default function App() {
     if (strictShareRef.current && !shareHandledRef.current) return;
     firePageView(mode);
   }, [mode, firePageView]);
+
+  /* Back and Forward: move to the view named by the URL. */
+  useEffect(() => {
+    const onPop = () => {
+      const m = modeForPath(window.location.pathname);
+      if (m) { fromPopRef.current = true; setMode(m); }
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  /* Keep the address bar in step with the current view, so every view is a real,
+     shareable, bookmarkable URL. Skipped while a share link is still resolving
+     (the share effect owns that first URL) and after a Back/Forward move (the URL
+     already changed). The first reconciliation replaces rather than pushes, so no
+     phantom history entry is created on load. */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (strictShareRef.current && !shareHandledRef.current) return;
+    if (fromPopRef.current) { fromPopRef.current = false; routedRef.current = true; return; }
+    const path = pathForMode(mode);
+    if (window.location.pathname !== path) {
+      const url = path + window.location.search;
+      if (routedRef.current) window.history.pushState({ mode }, "", url);
+      else window.history.replaceState({ mode }, "", url);
+    }
+    routedRef.current = true;
+  }, [mode]);
 
   useEffect(() => {
     if (!toast) return;

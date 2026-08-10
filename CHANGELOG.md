@@ -9,6 +9,11 @@ Full-site review pass (copy, structure, structured data, accessibility), from an
 adversarial multi-agent review with every finding independently verified.
 
 ### Added
+- **Real URLs for every view.** Each view now has its own address (for example
+  /scales, /faq, /tuner), so you can bookmark it, share a link to it, and use the
+  browser Back and Forward buttons. The home view stays at /. This also lets each
+  view be found on its own by search engines. Deep links are served by a new
+  host rewrite, and the Help & FAQ page carries its structured data at /faq.
 - A one-line description at the top of each main view (Scales, Chords, Arpeggios,
   Intervals, Progressions, Fretboard quiz, Chord changes, Ear training) so it is
   clear what each section is for before you meet the controls.
