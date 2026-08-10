@@ -49,7 +49,7 @@ const VIEW_META = {
   tuner: { path: "/tuner", title: "Tuner" },
   bank: { path: "/bank", title: "Bank" },
   about: { path: "/about", title: "About" },
-  faq: { path: "/faq", title: "Help & FAQ" },
+  faq: { path: "/faq", title: "FAQ" },
   account: { path: "/account", title: "Account" },
   settings: { path: "/settings", title: "Settings" },
   plog: { path: "/practice-log", title: "Practice log" },
@@ -778,7 +778,7 @@ const CHANGELOG = [
   {
     date: "August 2026",
     items: [
-      "New Help & FAQ: a beginner's guide to chords, scales, intervals, rhythm and reading the fretboard.",
+      "New FAQ: a beginner's guide to chords, scales, intervals, rhythm and reading the fretboard.",
       "Points, levels and badges to make regular practice rewarding.",
       "Practice routine built from the scales, chords and arpeggios you mark as known.",
       "Strumming trainer with more patterns, including accented ones, and play-along to the metronome.",
@@ -1063,6 +1063,7 @@ export default function App() {
   const [progPlaying, setProgPlaying] = useState(false);
   const [customProgs, setCustomProgs] = useState([]);
   const [builder, setBuilder] = useState({ bars: [], name: "", sections: {} });
+  const [builderKeyQual, setBuilderKeyQual] = useState("major"); // major/minor, for the "add by chord name" picker
 
   const [melSteps, setMelSteps] = useState([]); // [{s, f}]
   const [melName, setMelName] = useState("");
@@ -3101,7 +3102,7 @@ export default function App() {
     if (mode === "changes")
       return `Chord changes · ${chgLabel}`;
     if (mode === "about") return "About";
-    if (mode === "faq") return "Help & FAQ";
+    if (mode === "faq") return "FAQ";
     if (mode === "strum") return `Strumming \u00b7 ${nameOf(chordRoot, effFlats)}${chordDef.suffix}`;
     if (mode === "melody") { const nn = melSteps.filter((s) => s && !s.rest).length; return `Melody \u00b7 ${nn} ${nn === 1 ? "note" : "notes"}`; }
     if (mode === "arp")
@@ -3481,7 +3482,7 @@ export default function App() {
               aria-current={mode === "faq" ? "page" : undefined}
               onClick={() => { setMode("faq"); setOpenPanel(null); closeNav(); }}
             >
-              Help &amp; FAQ
+              FAQ
             </button>
             <button className="dnav soft" onClick={() => { startTour(); closeNav(); }}>Tour</button>
           </div>
@@ -3974,7 +3975,38 @@ export default function App() {
                     ))}
                   </div>
                 </Field>
-                <Field label="Add chords as Roman numerals in the chosen key">
+                <Field label="Add chords by name in this key">
+                  <Seg
+                    small
+                    ariaLabel="Key type for the chord names"
+                    options={[{ v: "major", l: "Major key" }, { v: "minor", l: "Minor key" }]}
+                    value={builderKeyQual}
+                    onChange={setBuilderKeyQual}
+                  />
+                  <p className="note keyhint">These are the chords that belong to {nameOf(progRoot, keyPrefersFlats(progRoot, builderKeyQual === "minor" ? [3] : [4]))} {builderKeyQual}. Tap one to add it.</p>
+                  <div className="romangrid">
+                    {(builderKeyQual === "minor"
+                      ? ["i", "ii°", "III", "iv", "v", "VI", "VII"]
+                      : ["I", "ii", "iii", "IV", "V", "vi", "vii°"]
+                    ).map((rn) => {
+                      const [off, q] = ROMAN[rn];
+                      const cd = CHORDS.find((c) => c.id === q);
+                      const nmFlats = keyPrefersFlats(progRoot, builderKeyQual === "minor" ? [3] : [4]);
+                      const nm = nameOf((progRoot + off) % 12, nmFlats) + (cd ? cd.suffix : "");
+                      return (
+                        <button
+                          key={rn}
+                          className="key chordkey"
+                          data-tip={`${rn} in the key of ${nameOf(progRoot, nmFlats)} ${builderKeyQual}`}
+                          onClick={() => setBuilder((bl) => ({ ...bl, bars: [...bl.bars, rn] }))}
+                        >
+                          {nm}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Field>
+                <Field label="Or add by Roman numeral (advanced)">
                   <div className="romangrid">
                     {Object.keys(ROMAN).map((rn) => (
                       <button key={rn} className="key" onClick={() => setBuilder((bl) => ({ ...bl, bars: [...bl.bars, rn] }))}>
@@ -4421,10 +4453,10 @@ export default function App() {
             <section className="aboutblock">
               <h2 className="abouthead">New to guitar, or to Fretwork?</h2>
               <p className="note">
-                The Help &amp; FAQ is a plain-language guide to chords, scales, intervals, rhythm and reading
+                The FAQ is a plain-language guide to chords, scales, intervals, rhythm and reading
                 the fretboard, alongside how each tool in Fretwork works. It is written for beginners.
               </p>
-              <button className="btn" onClick={() => { setMode("faq"); setOpenPanel(null); }}>Open Help &amp; FAQ</button>
+              <button className="btn" onClick={() => { setMode("faq"); setOpenPanel(null); }}>Open the FAQ</button>
             </section>
 
             <section className="aboutblock">
@@ -4509,7 +4541,7 @@ export default function App() {
         {mode === "faq" && (
           <div className="pane about faq-pane">
             <section className="aboutblock">
-              <h2 className="abouthead">Help &amp; FAQ</h2>
+              <h2 className="abouthead">FAQ</h2>
               <p className="note">
                 A plain-language guide for anyone learning guitar. It explains the words you will meet, such
                 as chords, intervals, keys and time signatures, shows how to read a chord chart and the
@@ -6284,6 +6316,8 @@ const CSS = `
 
 .romangrid{display:flex; flex-wrap:wrap; gap:4px}
 .romangrid .key{flex:0 0 auto; min-width:52px; padding:8px 10px}
+.romangrid .chordkey{font-size:13px; color:var(--ink); padding:9px 12px}
+.keyhint{margin:6px 0 8px}
 .builderbox input{
   background:var(--paper); color:var(--ink); border:1px solid var(--line2); border-radius:5px;
   padding:9px 11px; font-size:14px; font-family:inherit; width:100%; max-width:260px;

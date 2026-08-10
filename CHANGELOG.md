@@ -23,6 +23,13 @@ adversarial multi-agent review with every finding independently verified.
 - Per-view browser tab and history titles (the home view keeps its full title).
 
 ### Changed
+- **Custom progressions can be built by chord name**, not just Roman numerals.
+  A new picker shows the chords that belong to the chosen key (major or minor,
+  spelled correctly), so if you have the chords for a song you can add them
+  straight in; the Roman-numeral picker is still there, below, as the advanced
+  option.
+- The "Help & FAQ" section is now simply **FAQ** everywhere (nav, headings,
+  page titles).
 - Clearer copy: the Tuner now opens with a plain explanation (the old line was
   garbled), the "no shapes" message on Chords points to the real Settings
   controls, and several labels were made consistent (Bank, Roman numerals, the
