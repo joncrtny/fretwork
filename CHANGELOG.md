@@ -14,6 +14,9 @@ adversarial multi-agent review with every finding independently verified.
   browser Back and Forward buttons. The home view stays at /. This also lets each
   view be found on its own by search engines. Deep links are served by a new
   host rewrite, and the Help & FAQ page carries its structured data at /faq.
+- Each public view is now prerendered at build as a static page with its own
+  title, description and link preview, and the sitemap lists them all, so search
+  engines and shared links see the right page rather than one generic one.
 - A one-line description at the top of each main view (Scales, Chords, Arpeggios,
   Intervals, Progressions, Fretboard quiz, Chord changes, Ear training) so it is
   clear what each section is for before you meet the controls.
