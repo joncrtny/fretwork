@@ -51,6 +51,8 @@ import { ProgressProvider, useProgress } from "./state/ProgressContext.jsx";
 import { SelectionProvider, useSelection } from "./state/SelectionContext.jsx";
 import { PlaybackProvider, usePlayback } from "./state/PlaybackContext.jsx";
 import { FaqView } from "./views/FaqView.jsx";
+import { SettingsView } from "./views/SettingsView.jsx";
+import { PracticeLogView } from "./views/PracticeLogView.jsx";
 import { CHORD_GROUPS, SCALE_GROUPS } from "./data/groups.js";
 import { Seg } from "./components/Seg.jsx";
 import { Field } from "./components/Field.jsx";
@@ -62,7 +64,6 @@ import { StarSave, KnownButton } from "./components/SaveButtons.jsx";
 import { HeadIcon } from "./components/HeadIcon.jsx";
 import { DonateButton, SHOW_DONATE } from "./components/DonateButton.jsx";
 import { FeedbackForm } from "./components/FeedbackForm.jsx";
-import { BADGES, badgeTier } from "./gamify.js";
 
 /* ============================================================
    SMALL UI PIECES
@@ -116,9 +117,6 @@ function App() {
     celebrate,
     setCelebrate,
     practiceStats,
-    gStats,
-    gPoints,
-    gLevel,
     lastActiveRef,
     savePracticeLog,
     gamifyReadyRef,
@@ -4676,152 +4674,7 @@ function App() {
             </div>
           )}
 
-          {mode === "plog" && (
-            <div className="pane about">
-              {(() => {
-                const fmt = (sec) => {
-                  const m = Math.round(sec / 60);
-                  if (m < 60) return `${m} min`;
-                  return `${Math.floor(m / 60)}h ${m % 60}m`;
-                };
-                return (
-                  <>
-                    <section className="progress">
-                      <div className="levelcard">
-                        <div className="levelring">
-                          <svg viewBox="0 0 44 44" width="72" height="72" aria-hidden="true">
-                            <circle cx="22" cy="22" r="19" className="lr-track" />
-                            <circle
-                              cx="22"
-                              cy="22"
-                              r="19"
-                              className="lr-fill"
-                              style={{ strokeDasharray: `${(gLevel.pct / 100) * 119.4} 119.4` }}
-                            />
-                          </svg>
-                          <div className="levelnum">
-                            <b>{gLevel.level}</b>
-                            <span>level</span>
-                          </div>
-                        </div>
-                        <div className="levelmeta">
-                          <div className="levelpts">
-                            {gPoints.toLocaleString("en-GB")} <span>points</span>
-                          </div>
-                          <div className="levelbar">
-                            <div className="levelbarfill" style={{ width: `${gLevel.pct}%` }} />
-                          </div>
-                          <div className="levelnext">
-                            {gLevel.toNext.toLocaleString("en-GB")} points to level {gLevel.level + 1}
-                          </div>
-                        </div>
-                      </div>
-
-                      <h2 className="abouthead">Badges</h2>
-                      <div className="badgegrid">
-                        {[...BADGES]
-                          .sort((a, b) => (badgeTier(b, gStats) > 0) - (badgeTier(a, gStats) > 0))
-                          .map((b) => {
-                            const tier = badgeTier(b, gStats);
-                            const max = b.tiers.length;
-                            const earned = tier > 0;
-                            const nextAt = tier < max ? b.tiers[tier] : null;
-                            return (
-                              <div key={b.id} className={`badge2 ${earned ? "earned" : "locked"}`}>
-                                <svg className="badgemedal" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
-                                  <path d="M12 2.5l2.7 5.9 6.3.6-4.8 4.3 1.4 6.2L12 16.9 6.2 19.5l1.4-6.2L2.8 9l6.3-.6z" />
-                                </svg>
-                                <b className="badgename">{b.name}</b>
-                                <span className="badgetier">
-                                  {!earned
-                                    ? `Reach ${b.tiers[0]} ${b.unit}`
-                                    : max > 1
-                                      ? tier < max
-                                        ? `Level ${tier} of ${max}`
-                                        : "Maxed"
-                                      : "Earned"}
-                                </span>
-                                {nextAt != null && earned && (
-                                  <span className="badgenext">
-                                    Next at {nextAt} {b.unit}
-                                  </span>
-                                )}
-                              </div>
-                            );
-                          })}
-                      </div>
-                    </section>
-
-                    <div className="scoreboard">
-                      <div className="score">
-                        <b>{practiceStats.streak}</b>
-                        <span>day streak</span>
-                      </div>
-                      <div className="score">
-                        <b>{fmt(practiceStats.todayTotal)}</b>
-                        <span>today</span>
-                      </div>
-                      <div className="score">
-                        <b>{fmt(practiceStats.weekTotal)}</b>
-                        <span>last 14 days</span>
-                      </div>
-                      <div className="score">
-                        <b>{fmt(practiceStats.allTime)}</b>
-                        <span>all time</span>
-                      </div>
-                    </div>
-
-                    <section className="aboutblock">
-                      <h2 className="abouthead">Last 14 days</h2>
-                      <div
-                        className="plogbars"
-                        role="img"
-                        aria-label={`Practice minutes over the last fourteen days, ${fmt(practiceStats.weekTotal)} total`}
-                      >
-                        {practiceStats.week.map((d, i) => (
-                          <div className="plogday" key={d.k} title={`${d.label}: ${fmt(d.total)}`}>
-                            <div className="plogbarwrap">
-                              <div
-                                className="plogbar"
-                                style={{ height: `${d.total ? Math.max(4, (d.total / practiceStats.maxDay) * 100) : 0}%` }}
-                              />
-                            </div>
-                            <span className="ploglabel">{i % 2 === 0 ? d.label[0] : ""}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </section>
-
-                    {practiceStats.modeRows.length > 0 ? (
-                      <section className="aboutblock">
-                        <h2 className="abouthead">By activity</h2>
-                        <div className="plogmodes">
-                          {practiceStats.modeRows.map(([m, sec]) => (
-                            <div className="plogmode" key={m}>
-                              <span className="plogmname">{PRACTICE_MODES[m] || m}</span>
-                              <div className="plogtrack">
-                                <div className="plogfill" style={{ width: `${(sec / practiceStats.modeRows[0][1]) * 100}%` }} />
-                              </div>
-                              <span className="plogmtime">{fmt(sec)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </section>
-                    ) : (
-                      <p className="note">
-                        No practice recorded yet. Time spent in Scales, Chords, drills and the other practice views is logged here
-                        automatically, so you can see your streak build.
-                      </p>
-                    )}
-                    <p className="note">
-                      Practice is counted only while the app is open and you are active in a practice view.{" "}
-                      {authUser ? "Your log syncs to your account." : "Sign in to sync your log across devices."}
-                    </p>
-                  </>
-                );
-              })()}
-            </div>
-          )}
+          {mode === "plog" && <PracticeLogView />}
 
           {mode === "finder" && (
             <div className="pane">
@@ -5043,203 +4896,7 @@ function App() {
             </div>
           )}
 
-          {mode === "settings" && (
-            <div className="pane">
-              <div className="grid">
-                <Field label="Frets" tip="How many frets the neck shows">
-                  <input
-                    type="range"
-                    min="7"
-                    max="27"
-                    value={settings.fretCount}
-                    aria-label="Frets shown"
-                    onChange={(e) => setSettings((s) => ({ ...s, fretCount: +e.target.value }))}
-                  />
-                  <output>{settings.fretCount}</output>
-                </Field>
-              </div>
-
-              <div className="toggles">
-                <Field label="Note names" tip="Auto spells notes from the current key, so C minor reads Eb rather than D sharp">
-                  <Seg
-                    small
-                    options={[
-                      { v: "auto", l: "Auto" },
-                      { v: "sharps", l: "Sharps" },
-                      { v: "flats", l: "Flats" },
-                    ]}
-                    value={settings.noteNames}
-                    onChange={(v) => setSettings((s) => ({ ...s, noteNames: v }))}
-                  />
-                </Field>
-                <Field label="Dot labels" tip="What the dots on the neck display by default">
-                  <Seg
-                    small
-                    options={[
-                      { v: "name", l: "Names" },
-                      { v: "degree", l: "Degrees" },
-                      { v: "none", l: "Blank" },
-                    ]}
-                    value={settings.labelMode}
-                    onChange={(v) => setSettings((s) => ({ ...s, labelMode: v }))}
-                  />
-                </Field>
-                <Field label="Colour" tip="Colour dots by their interval from the root, by root only, or keep them plain">
-                  <Seg
-                    small
-                    options={[
-                      { v: "root", l: "Root" },
-                      { v: "interval", l: "By interval" },
-                      { v: "mono", l: "Mono" },
-                    ]}
-                    value={settings.colourMode}
-                    onChange={(v) => setSettings((s) => ({ ...s, colourMode: v }))}
-                  />
-                </Field>
-                <Field label="String order" tip="High on top reads like tab; low on top matches looking down at a guitar">
-                  <Seg
-                    small
-                    options={[
-                      { v: true, l: "High on top" },
-                      { v: false, l: "Low on top" },
-                    ]}
-                    value={settings.highOnTop}
-                    onChange={(v) => setSettings((s) => ({ ...s, highOnTop: v }))}
-                  />
-                </Field>
-                <Field label="Handed" tip="Flips the neck for left-handed players">
-                  <Seg
-                    small
-                    options={[
-                      { v: false, l: "Right" },
-                      { v: true, l: "Left" },
-                    ]}
-                    value={settings.leftHanded}
-                    onChange={(v) => setSettings((s) => ({ ...s, leftHanded: v }))}
-                  />
-                </Field>
-                <Field label="Chord stretch" tip="The widest fret span a suggested chord shape may use">
-                  <Seg
-                    small
-                    options={[
-                      { v: 3, l: "3 frets" },
-                      { v: 4, l: "4" },
-                      { v: 5, l: "5" },
-                    ]}
-                    value={settings.span}
-                    onChange={(v) => setSettings((s2) => ({ ...s2, span: v }))}
-                  />
-                </Field>
-                <Field label="Inversions" tip="Allow shapes whose lowest note is not the root">
-                  <Seg
-                    small
-                    options={[
-                      { v: false, l: "Root bass" },
-                      { v: true, l: "Allow" },
-                    ]}
-                    value={settings.inversions}
-                    onChange={(v) => setSettings((s2) => ({ ...s2, inversions: v }))}
-                  />
-                </Field>
-                <Field label="Barres" tip="Allow shapes that lay one finger across several strings">
-                  <Seg
-                    small
-                    options={[
-                      { v: true, l: "Allow" },
-                      { v: false, l: "Avoid" },
-                    ]}
-                    value={settings.barres}
-                    onChange={(v) => setSettings((s2) => ({ ...s2, barres: v }))}
-                  />
-                </Field>
-                <Field label="Theme" tip="Light or dark appearance">
-                  <Seg
-                    small
-                    options={[
-                      { v: false, l: "Light" },
-                      { v: true, l: "Dark" },
-                    ]}
-                    value={settings.dark}
-                    onChange={(v) => {
-                      track("theme_set", { dark: v });
-                      setSettings((s2) => ({ ...s2, dark: v }));
-                    }}
-                  />
-                </Field>
-                <Field label="Options shown" tip="Simple keeps only the scales, chords and controls a beginner needs">
-                  <Seg
-                    small
-                    options={[
-                      { v: true, l: "Simple" },
-                      { v: false, l: "Everything" },
-                    ]}
-                    value={settings.simple}
-                    onChange={(v) => {
-                      track("simple_toggle", { on: v });
-                      setSettings((s2) => ({ ...s2, simple: v }));
-                      setGamify((g) => (g.counters.triedSimple ? g : { ...g, counters: { ...g.counters, triedSimple: 1 } }));
-                    }}
-                  />
-                </Field>
-                <Field label="Sound" tip="Note and click playback throughout the app">
-                  <Seg
-                    small
-                    options={[
-                      { v: true, l: "On" },
-                      { v: false, l: "Off" },
-                    ]}
-                    value={settings.sound}
-                    onChange={(v) => setSettings((s) => ({ ...s, sound: v }))}
-                  />
-                </Field>
-              </div>
-
-              <h3 className="sheetsec">Accessibility</h3>
-              <div className="toggles">
-                <Field label="High contrast" tip="Stronger borders and darker labels for readability">
-                  <Seg
-                    small
-                    options={[
-                      { v: false, l: "Off" },
-                      { v: true, l: "On" },
-                    ]}
-                    value={settings.highContrast}
-                    onChange={(v) => {
-                      track("a11y_contrast", { on: v });
-                      setSettings((s) => ({ ...s, highContrast: v }));
-                    }}
-                  />
-                </Field>
-                <Field label="Animation" tip="Reduced switches off movement effects; the system preference is always respected">
-                  <Seg
-                    small
-                    options={[
-                      { v: false, l: "Full" },
-                      { v: true, l: "Reduced" },
-                    ]}
-                    value={settings.lowMotion}
-                    onChange={(v) => {
-                      track("a11y_motion", { reduced: v });
-                      setSettings((s) => ({ ...s, lowMotion: v }));
-                    }}
-                  />
-                </Field>
-                <Field label="Zoom" tip="Scales the whole fretboard up for larger targets">
-                  <input
-                    type="range"
-                    min="0.7"
-                    max="2.2"
-                    step="0.1"
-                    value={settings.zoom}
-                    aria-label="Fretboard zoom"
-                    onChange={(e) => setSettings((s) => ({ ...s, zoom: +e.target.value }))}
-                  />
-                  <output>{settings.zoom.toFixed(1)}×</output>
-                </Field>
-              </div>
-              <p className="note">The system reduced-motion preference is always respected. These controls apply on top of it.</p>
-            </div>
-          )}
+          {mode === "settings" && <SettingsView />}
 
           {mode === "account" && (
             <div className="pane about">
