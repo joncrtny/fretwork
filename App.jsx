@@ -435,7 +435,7 @@ function App() {
       }, 700);
       syncTimers.current[field] = entry;
     },
-    [authUser],
+    [authUser, setToast],
   );
 
   /* run any pending debounced syncs immediately (sign-out, page hide) */
@@ -1023,7 +1023,7 @@ function App() {
       saveKnown(next);
       setToast(exists ? "Removed from what you know" : "Marked as known");
     },
-    [known, saveKnown],
+    [known, saveKnown, setToast],
   );
 
   const saveToBank = useCallback(
@@ -1036,30 +1036,33 @@ function App() {
       track("bank_save", { kind: item.kind });
       setToast("Saved to Bank");
     },
-    [bank, saveBank],
+    [bank, saveBank, setToast],
   );
 
-  const shareBankItem = useCallback(async (item) => {
-    const p = {};
-    if (item.kind === "chord") Object.assign(p, { m: "chord", r: item.root, id: item.chordId });
-    else if (item.kind === "scale") Object.assign(p, { m: "scale", r: item.root, id: item.scaleId });
-    else if (item.kind === "arp") Object.assign(p, { m: "arp", r: item.root, id: item.arpId });
-    else if (item.kind === "prog") {
-      Object.assign(p, { m: "prog", r: item.root, id: item.progId });
-      const isPreset = PROGRESSIONS.some((x) => x.id === item.progId);
-      if (!isPreset && item.bars) Object.assign(p, { bars: item.bars, nm: item.name || item.label, sec: item.sections });
-    }
-    if (item.capo) p.capo = item.capo;
-    if (item.tun && item.tun !== "std" && item.tun !== "custom") p.tun = item.tun;
-    const url = shareLinkFromParams(p);
-    try {
-      await navigator.clipboard.writeText(url);
-      setToast("Link copied");
-    } catch (e) {
-      window.prompt("Copy this link", url);
-    }
-    track("bank_share", { kind: item.kind });
-  }, []);
+  const shareBankItem = useCallback(
+    async (item) => {
+      const p = {};
+      if (item.kind === "chord") Object.assign(p, { m: "chord", r: item.root, id: item.chordId });
+      else if (item.kind === "scale") Object.assign(p, { m: "scale", r: item.root, id: item.scaleId });
+      else if (item.kind === "arp") Object.assign(p, { m: "arp", r: item.root, id: item.arpId });
+      else if (item.kind === "prog") {
+        Object.assign(p, { m: "prog", r: item.root, id: item.progId });
+        const isPreset = PROGRESSIONS.some((x) => x.id === item.progId);
+        if (!isPreset && item.bars) Object.assign(p, { bars: item.bars, nm: item.name || item.label, sec: item.sections });
+      }
+      if (item.capo) p.capo = item.capo;
+      if (item.tun && item.tun !== "std" && item.tun !== "custom") p.tun = item.tun;
+      const url = shareLinkFromParams(p);
+      try {
+        await navigator.clipboard.writeText(url);
+        setToast("Link copied");
+      } catch (e) {
+        window.prompt("Copy this link", url);
+      }
+      track("bank_share", { kind: item.kind });
+    },
+    [setToast],
+  );
 
   /* one-shot position restore for Bank opens: the reset effects below clear
      scale/arp position on any scale change, so a bank open stashes the wanted
@@ -1410,7 +1413,7 @@ function App() {
       }
       setMelSteps(moved);
     },
-    [melSteps, fretCount],
+    [melSteps, fretCount, setToast],
   );
 
   const progChords = useMemo(
@@ -2002,7 +2005,7 @@ function App() {
       track("melody_import", { notes: steps.length });
       setToast(`Imported ${steps.length} notes`);
     },
-    [settings.midis.length, fretCount, stopPlayback],
+    [settings.midis.length, fretCount, stopPlayback, setToast],
   );
 
   const importTabFromClipboard = useCallback(async () => {
@@ -2017,7 +2020,7 @@ function App() {
       /* clipboard read blocked: fall back to the paste box */
     }
     setMelImport(true);
-  }, [doImportTab]);
+  }, [doImportTab, setToast]);
 
   const playScale = useCallback(() => {
     stopPlayback();
@@ -2372,7 +2375,7 @@ function App() {
     setToast(beat && count > 0 ? `New best · ${count} changes` : `Saved · ${count} changes`);
     setChg((c) => ({ ...c, phase: "idle", remaining: c.duration }));
     setChgEntry("");
-  }, [chgEntry, chg.chords, chg.duration, chgRecords, syncField]);
+  }, [chgEntry, chg.chords, chg.duration, chgRecords, syncField, setToast]);
 
   const setChgChord = (i, patch) => setChg((c) => ({ ...c, chords: c.chords.map((x, j) => (j === i ? { ...x, ...patch } : x)) }));
   const addChgChord = () => setChg((c) => (c.chords.length >= 8 ? c : { ...c, chords: [...c.chords, { root: 7, id: "maj" }] }));
@@ -2427,7 +2430,7 @@ function App() {
       window.prompt("Copy this link", url);
     }
     track("share_link", { mode });
-  }, [buildShareLink, mode]);
+  }, [buildShareLink, mode, setToast]);
 
   /* apply an incoming share once local state has hydrated */
   useEffect(() => {
