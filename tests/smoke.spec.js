@@ -12,6 +12,7 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     try {
       localStorage.setItem("fretboard:settings", JSON.stringify({ simple: false }));
+      localStorage.setItem("fretboard:tourdone", "1"); // the auto-tour steals focus from a fresh profile
     } catch (e) {}
   });
 });
