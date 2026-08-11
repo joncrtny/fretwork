@@ -2,11 +2,8 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { ctx, pluck, playClick, blip } from "./audio.js";
 import { findVoicings } from "./voicings.js";
 import {
-  SHARP,
-  FLAT,
   DEG,
   nameOf,
-  FLAT_MAJORS,
   keyPrefersFlats,
   SCALES,
   CHORDS,
@@ -33,9 +30,6 @@ import {
   INTERVAL_PRESETS,
   TIME_SIGS,
   FUNC_COLOUR,
-  LOWERED,
-  SINGLE_DOTS,
-  DOUBLE_DOTS,
   SCALE_ORDER,
   CHORD_ORDER,
 } from "./theory.js";
@@ -51,6 +45,7 @@ import { usernameProblem } from "./lib/username.js";
 import { store } from "./lib/store.js";
 import { supabase, SUPA_URL, SUPA_KEY, FAKE_MAIL, authRedirect } from "./lib/supabase.js";
 import { ToastProvider, useToast } from "./state/ToastContext.jsx";
+import { SettingsProvider, useSettings } from "./state/SettingsContext.jsx";
 import { CHORD_GROUPS, SCALE_GROUPS } from "./data/groups.js";
 import { Seg } from "./components/Seg.jsx";
 import { Field } from "./components/Field.jsx";
@@ -84,40 +79,12 @@ import { BADGES, badgeTier, pointsFor, levelProgress, mergeGamify } from "./gami
    APP
    ============================================================ */
 
-const DEFAULT_SETTINGS = {
-  fretCount: 22,
-  tuningId: "std",
-  midis: TUNINGS[0].midi,
-  flats: false,
-  noteNames: "auto",
-  leftHanded: false,
-  highOnTop: true,
-  labelMode: "name",
-  colourMode: "interval",
-  sound: true,
-  zoom: 1,
-  bpm: 90,
-  beats: 4,
-  clickSound: "click",
-  accent: "down",
-  subdiv: "1",
-  dark: false,
-  simple: false,
-  highContrast: false,
-  lowMotion: false,
-  span: 4,
-  inversions: false,
-  barres: true,
-};
-
 function App() {
-  /* start brand-new visitors in Simple mode (no settings saved yet). Read
-     synchronously so a mount-time persist cannot mask first run. */
-  const [settings, setSettings] = useState(() => {
-    const firstRun = typeof window !== "undefined" && !window.localStorage.getItem("fretboard:settings");
-    return firstRun ? { ...DEFAULT_SETTINGS, simple: true } : DEFAULT_SETTINGS;
-  });
-  const [loaded, setLoaded] = useState(false);
+  const { settings, setSettings, capo, setCapo, midis, n, fretCount, flatsFor, settingsHydrated } = useSettings();
+  /* the remaining storage slices hydrated by the effect below; combined with
+     the provider's flag so every existing `loaded` reader keeps its meaning */
+  const [restLoaded, setRestLoaded] = useState(false);
+  const loaded = restLoaded && settingsHydrated;
   /* true once there is nothing left to reconcile: signed out, or the sign-in
      merge has finished. The badge baseline waits for this so a returning player
      on a fresh device is not spammed with toasts for already-earned progress. */
@@ -131,7 +98,6 @@ function App() {
   useEffect(() => {
     modeRef.current = mode;
   }, [mode]);
-  const [capo, setCapo] = useState(0);
   const [openPanel, setOpenPanel] = useState(null);
   const [drawer, setDrawer] = useState(false);
   /* nav accordions: Learn open by default to cut the visual noise */
@@ -882,18 +848,6 @@ function App() {
     let cancelled = false;
     (async () => {
       try {
-        const r = await store.get("fretboard:settings");
-        if (!cancelled && r && r.value) {
-          const v = JSON.parse(r.value);
-          /* migrate the old sharps/flats toggle: an explicit Flats choice is kept,
-             everyone else moves to key-aware Auto */
-          if (!v.noteNames && v.flats === true) v.noteNames = "flats";
-          setSettings((s) => ({ ...s, ...v }));
-        }
-      } catch (e) {
-        /* first run, nothing stored (Simple mode was set in the state initializer) */
-      }
-      try {
         const r = await store.get("fretboard:bank");
         if (!cancelled && r && r.value) {
           const v = JSON.parse(r.value);
@@ -984,20 +938,12 @@ function App() {
       } catch (e) {
         /* no change-trainer scores yet */
       }
-      if (!cancelled) setLoaded(true);
+      if (!cancelled) setRestLoaded(true);
     })();
     return () => {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    if (!loaded) return;
-    const t = setTimeout(() => {
-      store.set("fretboard:settings", JSON.stringify(settings)).catch(() => {});
-    }, 400);
-    return () => clearTimeout(t);
-  }, [settings, loaded]);
 
   const saveStats = useCallback((q) => {
     store.set("fretboard:stats", JSON.stringify({ correct: q.correct, wrong: q.wrong, best: q.best, rounds: q.rounds })).catch(() => {});
@@ -1106,14 +1052,6 @@ function App() {
     [customProgs],
   );
 
-  /* derived */
-  const midis = settings.midis;
-  const n = midis.length;
-  const fretCount = settings.fretCount;
-  /* keep the capo on the neck if the fret count is lowered under it */
-  useEffect(() => {
-    setCapo((c) => Math.min(c, fretCount));
-  }, [fretCount]);
   const rowToString = useCallback((r) => (settings.highOnTop ? n - 1 - r : r), [n, settings.highOnTop]);
   const geo = useGeometry(fretCount, n, settings.zoom, settings.leftHanded);
 
@@ -1578,11 +1516,6 @@ function App() {
     finderInfo,
   ]);
 
-  /* per-item spelling for saved things rendered outside their own key context */
-  const flatsFor = useCallback(
-    (rootPc, iv) => (settings.noteNames === "auto" ? keyPrefersFlats(rootPc, iv) : settings.noteNames === "flats"),
-    [settings.noteNames],
-  );
   const activeProgVoicing = progVoicings[Math.min(progIdx, progVoicings.length - 1)] || null;
 
   const playNote = useCallback(
@@ -6196,7 +6129,9 @@ function App() {
 export default function FretworkApp() {
   return (
     <ToastProvider>
-      <App />
+      <SettingsProvider>
+        <App />
+      </SettingsProvider>
     </ToastProvider>
   );
 }
