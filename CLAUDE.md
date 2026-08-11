@@ -1,6 +1,6 @@
 # Fretwork
 
-Single-page React 18 + Vite app. `App.jsx` holds the main component, its state and all the view panes; styles are the `CSS` template literal at the bottom of that file. Shared, pure code is split into modules imported by `App.jsx`: `theory.js` (notes, scales, chords, tunings, progressions, ear/picker sets, the tab parser and music helpers), `voicings.js` (the chord-voicing engine), `audio.js` (the Web Audio layer: pluck, metronome clicks, blips) and `fretboard.jsx` (neck geometry, the `Fretboard` SVG and `ChordDiagram`). Keep new pure theory/data, audio or rendering code in those modules rather than growing `App.jsx`. `docs/DESIGN.md` holds the design system and house style, `docs/ROADMAP.md` the plan, `docs/SETUP.md` the external services.
+Single-page React 18 + Vite app. `App.jsx` holds the main component, its state and all the view panes; styles are the `CSS` template literal at the bottom of that file. Shared, pure code is split into modules imported by `App.jsx`: `theory.js` (notes, scales, chords, tunings, progressions, ear/picker sets, the tab parser and music helpers), `voicings.js` (the chord-voicing engine), `audio.js` (the Web Audio layer: pluck, metronome clicks, blips) and `fretboard.jsx` (neck geometry, the `Fretboard` SVG and `ChordDiagram`). Keep new pure theory/data, audio or rendering code in those modules rather than growing `App.jsx`. `docs/DESIGN.md` holds the design system and house style, `docs/ROADMAP.md` the plan, `docs/SETUP.md` the external services, `docs/SEO.md` the SEO and content strategy, and `docs/REFACTOR.md` the in-progress plan to break `App.jsx` into `lib/`, `data/`, `components/`, `views/` and `hooks/` (follow its phase order and guardrails when working on the split).
 
 ## Hard rules
 
@@ -11,6 +11,7 @@ Single-page React 18 + Vite app. `App.jsx` holds the main component, its state a
 
 ## Testing with Playwright
 
+- **Smoke suite: `npm test`** runs `tests/smoke.spec.js` (headless Chromium via `@playwright/test`, against the dev server on port 5180). It checks that every view loads at its real route with the correct per-view title and no uncaught errors, plus a few feature checks. It seeds `fretboard:settings` so the app behaves as a returning, full (non-Simple) user. Run it after every refactor step; keep it green.
 - **Use `waitUntil: 'domcontentloaded'`, never `networkidle`**: the service worker keeps connections warm, so networkidle is never reliably reached.
 - **Pass an explicit `timeout` to every wait and locator action.** A wait without a timeout is the difference between a failed test you can read and twenty minutes of silence.
 - Prefer DOM clicks via `page.evaluate` for nav items; the fretboard SVG intercepts pointer hit-tests when items scroll behind it.
