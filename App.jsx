@@ -49,6 +49,7 @@ import { SettingsProvider, useSettings } from "./state/SettingsContext.jsx";
 import { AuthSyncProvider, useAuthSync } from "./state/AuthSyncContext.jsx";
 import { LibraryProvider, useLibrary } from "./state/LibraryContext.jsx";
 import { ProgressProvider, useProgress } from "./state/ProgressContext.jsx";
+import { SelectionProvider, useSelection } from "./state/SelectionContext.jsx";
 import { CHORD_GROUPS, SCALE_GROUPS } from "./data/groups.js";
 import { Seg } from "./components/Seg.jsx";
 import { Field } from "./components/Field.jsx";
@@ -152,11 +153,31 @@ function App() {
   }, [drawer]);
   const burgerRef = useRef(null);
   const [scalePos, setScalePos] = useState(null);
-  const [chordArea, setChordArea] = useState(null);
   const { toast, setToast } = useToast();
+  const {
+    scaleRoot,
+    setScaleRoot,
+    scaleId,
+    setScaleId,
+    chordRoot,
+    setChordRoot,
+    chordId,
+    setChordId,
+    voiceIdx,
+    setVoiceIdx,
+    chordArea,
+    setChordArea,
+    ivRoot,
+    setIvRoot,
+    ivOn,
+    setIvOn,
+    toggleIv,
+    restorePosRef,
+    restoreVoiceRef,
+    posNonce,
+    setPosNonce,
+  } = useSelection();
 
-  const [scaleRoot, setScaleRoot] = useState(0);
-  const [scaleId, setScaleId] = useState("major");
   const [scaleLabel, setScaleLabel] = useState("name");
   const [playing, setPlaying] = useState(null);
 
@@ -166,23 +187,8 @@ function App() {
   const [arpPos, setArpPos] = useState(null);
   const [arpLabel, setArpLabel] = useState("name");
 
-  const [chordRoot, setChordRoot] = useState(0);
-  const [chordId, setChordId] = useState("maj");
-  const [voiceIdx, setVoiceIdx] = useState(0);
-
   const [showAllTones, setShowAllTones] = useState(true);
   const [chordLabel, setChordLabel] = useState("finger");
-
-  const [ivRoot, setIvRoot] = useState(0);
-  const [ivOn, setIvOn] = useState(() => new Set([0, 4, 7]));
-  const toggleIv = useCallback((i) => {
-    setIvOn((prev) => {
-      const next = new Set(prev);
-      if (next.has(i)) next.delete(i);
-      else next.add(i);
-      return next;
-    });
-  }, []);
 
   const [progRoot, setProgRoot] = useState(0);
   const [progId, setProgId] = useState("p1564");
@@ -742,9 +748,6 @@ function App() {
   /* one-shot position restore for Bank opens: the reset effects below clear
      scale/arp position on any scale change, so a bank open stashes the wanted
      position here and bumps the nonce to let the matching effect apply it. */
-  const restorePosRef = useRef(null);
-  const restoreVoiceRef = useRef(null); // key of the saved chord shape to reselect on Bank open
-  const [posNonce, setPosNonce] = useState(0);
   const openBankItem = useCallback(
     (item) => {
       if (item.kind === "chord") {
@@ -778,7 +781,7 @@ function App() {
         setMode("prog");
       }
     },
-    [customProgs, setCapo],
+    [customProgs, setCapo, restorePosRef, restoreVoiceRef, setChordArea, setChordId, setChordRoot, setPosNonce, setScaleId, setScaleRoot],
   );
 
   const rowToString = useCallback((r) => (settings.highOnTop ? n - 1 - r : r), [n, settings.highOnTop]);
@@ -810,7 +813,7 @@ function App() {
       return;
     }
     setScalePos(null);
-  }, [scaleId, scaleRoot, settings.tuningId, capo, fretCount, posNonce]);
+  }, [scaleId, scaleRoot, settings.tuningId, capo, fretCount, posNonce, restorePosRef]);
   const chordDef = CHORDS.find((c) => c.id === chordId) || CHORDS[0];
   const arpDef = CHORDS.find((c) => c.id === arpId) || CHORDS[0];
   const arpPositions = useMemo(() => {
@@ -832,7 +835,7 @@ function App() {
       return;
     }
     setArpPos(null);
-  }, [arpId, arpRoot, settings.tuningId, capo, fretCount, posNonce]);
+  }, [arpId, arpRoot, settings.tuningId, capo, fretCount, posNonce, restorePosRef]);
   useEffect(() => {
     if (settings.simple && (arpDir === "thirds" || arpDir === "pedal")) setArpDir("up");
   }, [settings.simple, arpDir]);
@@ -876,7 +879,7 @@ function App() {
 
   useEffect(() => {
     if (chordArea != null && !chordAreas.includes(chordArea)) setChordArea(null);
-  }, [chordAreas, chordArea]);
+  }, [chordAreas, chordArea, setChordArea]);
 
   const activeVoicing = shownVoicings[Math.min(voiceIdx, Math.max(0, shownVoicings.length - 1))] || null;
 
@@ -2197,22 +2200,25 @@ function App() {
   };
 
   /* ---- guided practice routine, built from what you know ---- */
-  const gotoSegment = useCallback((item) => {
-    if (!item) return;
-    if (item.kind === "scale") {
-      setScaleRoot(item.root);
-      setScaleId(item.id);
-      setMode("scale");
-    } else if (item.kind === "chord") {
-      setChordRoot(item.root);
-      setChordId(item.id);
-      setMode("chord");
-    } else if (item.kind === "arp") {
-      setArpRoot(item.root);
-      setArpId(item.id);
-      setMode("arp");
-    }
-  }, []);
+  const gotoSegment = useCallback(
+    (item) => {
+      if (!item) return;
+      if (item.kind === "scale") {
+        setScaleRoot(item.root);
+        setScaleId(item.id);
+        setMode("scale");
+      } else if (item.kind === "chord") {
+        setChordRoot(item.root);
+        setChordId(item.id);
+        setMode("chord");
+      } else if (item.kind === "arp") {
+        setArpRoot(item.root);
+        setArpId(item.id);
+        setMode("arp");
+      }
+    },
+    [setChordId, setChordRoot, setScaleId, setScaleRoot],
+  );
 
   const pickStretch = (knownList) => {
     const counts = {};
@@ -5713,7 +5719,9 @@ export default function FretworkApp() {
         <AuthSyncProvider>
           <LibraryProvider>
             <ProgressProvider>
-              <App />
+              <SelectionProvider>
+                <App />
+              </SelectionProvider>
             </ProgressProvider>
           </LibraryProvider>
         </AuthSyncProvider>
