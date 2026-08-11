@@ -34,7 +34,6 @@ import {
   CHORD_ORDER,
 } from "./theory.js";
 import { useGeometry, Fretboard, ChordDiagram } from "./fretboard.jsx";
-import { FAQ_SECTIONS, FAQS } from "./data/faq.js";
 import { CHANGELOG } from "./data/changelog.js";
 import { RESOURCES } from "./data/resources.js";
 import { VIEW_META, pathForMode, modeForPath } from "./lib/routing.js";
@@ -51,6 +50,7 @@ import { LibraryProvider, useLibrary } from "./state/LibraryContext.jsx";
 import { ProgressProvider, useProgress } from "./state/ProgressContext.jsx";
 import { SelectionProvider, useSelection } from "./state/SelectionContext.jsx";
 import { PlaybackProvider, usePlayback } from "./state/PlaybackContext.jsx";
+import { FaqView } from "./views/FaqView.jsx";
 import { CHORD_GROUPS, SCALE_GROUPS } from "./data/groups.js";
 import { Seg } from "./components/Seg.jsx";
 import { Field } from "./components/Field.jsx";
@@ -333,38 +333,6 @@ function App() {
       /* analytics must never break the app */
     }
   }, []);
-
-  /* Publish FAQPage structured data ONLY while the Help & FAQ view is showing, so
-     the markup is present exactly when its questions are in the DOM. Google
-     requires FAQ structured data to match content visible on the page, and this
-     is a single-page app, so tying the schema to the view keeps them honest and
-     in step. Built from the same FAQS the view renders. The static
-     WebApplication schema in index.html always applies. */
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    const existing = document.getElementById("faq-jsonld");
-    if (mode !== "faq") {
-      if (existing) existing.remove();
-      return;
-    }
-    const data = {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      mainEntity: FAQS.map((f) => ({
-        "@type": "Question",
-        name: f.q,
-        acceptedAnswer: { "@type": "Answer", text: f.a },
-      })),
-    };
-    let el = existing;
-    if (!el) {
-      el = document.createElement("script");
-      el.type = "application/ld+json";
-      el.id = "faq-jsonld";
-      document.head.appendChild(el);
-    }
-    el.textContent = JSON.stringify(data);
-  }, [mode]);
 
   /* Give each in-app view its own browser tab and history title. The default
      landing (chord) keeps the keyword-rich homepage title so search results are
@@ -3982,76 +3950,12 @@ function App() {
           )}
 
           {mode === "faq" && (
-            <div className="pane about faq-pane">
-              <section className="aboutblock">
-                <h2 className="abouthead">FAQ</h2>
-                <p className="note">
-                  A plain-language guide for anyone learning guitar. It explains the words you will meet, such as chords, intervals, keys
-                  and time signatures, shows how to read a chord chart and the fretboard, and covers how each tool in Fretwork works. Tap a
-                  question to see the answer.
-                </p>
-                <div className="row wrap faqtoc" aria-label="Jump to a section">
-                  {FAQ_SECTIONS.map((s) => (
-                    <button
-                      key={s.id}
-                      className="jumpchip"
-                      onClick={() => {
-                        const el = document.getElementById(`faq-${s.id}`);
-                        if (el)
-                          el.scrollIntoView({
-                            behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-                            block: "start",
-                          });
-                      }}
-                    >
-                      {s.title}
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              {FAQ_SECTIONS.map((s) => (
-                <section className="aboutblock" id={`faq-${s.id}`} key={s.id}>
-                  <h2 className="abouthead">{s.title}</h2>
-                  <div className="faq">
-                    {s.items.map((f) => (
-                      <details className="faqitem" key={f.q}>
-                        <summary>{f.q}</summary>
-                        <p className="note">{f.a}</p>
-                        {f.view && VIEW_META[f.view] && (
-                          <button
-                            className="jumpchip faqjump"
-                            onClick={() => {
-                              setMode(f.view);
-                              setOpenPanel(null);
-                              if (typeof window !== "undefined") window.scrollTo({ top: 0 });
-                            }}
-                          >
-                            Open {VIEW_META[f.view].title}
-                          </button>
-                        )}
-                      </details>
-                    ))}
-                  </div>
-                </section>
-              ))}
-
-              <section className="aboutblock">
-                <h2 className="abouthead">Still stuck?</h2>
-                <p className="note">
-                  If your question is not answered here, suggest it from the About page and it will be treated as feedback.
-                </p>
-                <button
-                  className="btn"
-                  onClick={() => {
-                    setMode("about");
-                    setOpenPanel(null);
-                  }}
-                >
-                  Go to About
-                </button>
-              </section>
-            </div>
+            <FaqView
+              onNavigate={(m) => {
+                setMode(m);
+                setOpenPanel(null);
+              }}
+            />
           )}
 
           {mode === "arp" && (
