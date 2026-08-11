@@ -26,5 +26,5 @@ createRoot(document.getElementById("root")).render(
     <App />
     <Analytics />
     <SpeedInsights />
-  </React.StrictMode>
+  </React.StrictMode>,
 );

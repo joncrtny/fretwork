@@ -106,15 +106,71 @@ export const TUNINGS = [
 /* roman numeral -> [semitones above the key root, chord id] */
 /* which views count as practice time, and how the log names them */
 export const PRACTICE_MODES = {
-  scale: "Scales", chord: "Chords", arp: "Arpeggios", prog: "Progressions", interval: "Intervals",
-  quiz: "Fretboard Quiz", changes: "Chord changes", strum: "Strumming", melody: "Melodies", ear: "Ear training",
+  scale: "Scales",
+  chord: "Chords",
+  arp: "Arpeggios",
+  prog: "Progressions",
+  interval: "Intervals",
+  quiz: "Fretboard Quiz",
+  changes: "Chord changes",
+  strum: "Strumming",
+  melody: "Melodies",
+  ear: "Ear training",
 };
 export const localDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 /* rough easy-to-hard order, used to pick the one "stretch" item in a practice
    routine: the first thing you have not marked as known yet */
-export const SCALE_ORDER = ["major", "minor", "majpent", "minpent", "blues", "majblues", "dorian", "mixo", "harmmin", "melmin", "phrygian", "lydian", "locrian", "phrydom", "lydb7", "altered", "wholetone", "dimhw", "dimwh", "chromatic"];
-export const CHORD_ORDER = ["maj", "min", "5", "sus2", "sus4", "7", "m7", "maj7", "6", "m6", "dim", "aug", "add9", "9", "m9", "maj9", "m7b5", "dim7", "7sus4", "mmaj7", "11", "13", "7b9", "7s9", "7s5", "7b5"];
+export const SCALE_ORDER = [
+  "major",
+  "minor",
+  "majpent",
+  "minpent",
+  "blues",
+  "majblues",
+  "dorian",
+  "mixo",
+  "harmmin",
+  "melmin",
+  "phrygian",
+  "lydian",
+  "locrian",
+  "phrydom",
+  "lydb7",
+  "altered",
+  "wholetone",
+  "dimhw",
+  "dimwh",
+  "chromatic",
+];
+export const CHORD_ORDER = [
+  "maj",
+  "min",
+  "5",
+  "sus2",
+  "sus4",
+  "7",
+  "m7",
+  "maj7",
+  "6",
+  "m6",
+  "dim",
+  "aug",
+  "add9",
+  "9",
+  "m9",
+  "maj9",
+  "m7b5",
+  "dim7",
+  "7sus4",
+  "mmaj7",
+  "11",
+  "13",
+  "7b9",
+  "7s9",
+  "7s5",
+  "7b5",
+];
 
 /* parse pasted ASCII guitar tab into melody steps [{s, f}]. Handles the common
    six-line format, top line high e, ordered left to right; a column with several
@@ -129,10 +185,16 @@ export function parseTab(text, stringCount) {
   const steps = [];
   let i = 0;
   while (i < lines.length && steps.length < 128) {
-    if (!isTabLine(lines[i])) { i++; continue; }
+    if (!isTabLine(lines[i])) {
+      i++;
+      continue;
+    }
     /* gather a block of consecutive tab lines */
     const block = [];
-    while (i < lines.length && isTabLine(lines[i]) && block.length < 6) { block.push(lines[i]); i++; }
+    while (i < lines.length && isTabLine(lines[i]) && block.length < 6) {
+      block.push(lines[i]);
+      i++;
+    }
     if (block.length < 1) continue;
     /* strip a leading label and the first bar line so columns align */
     const rows = block.map((l) => l.replace(/^\s*[eEbBgGdDaA][b#]?\s*\|/, "").replace(/^\s*[eEbBgGdDaA][b#]?\s+/, ""));
@@ -155,32 +217,72 @@ export function parseTab(text, stringCount) {
       }
       if (notes.length) colNotes.push(notes.sort((a, b) => a.s - b.s));
     }
-    for (const col of colNotes) for (const nt of col) { if (steps.length < 128) steps.push({ s: nt.s, f: nt.f }); }
+    for (const col of colNotes)
+      for (const nt of col) {
+        if (steps.length < 128) steps.push({ s: nt.s, f: nt.f });
+      }
   }
   return steps;
 }
 
 /* ear training pools */
 export const EAR_INTERVALS = [
-  { v: 1, l: "Minor 2nd" }, { v: 2, l: "Major 2nd" }, { v: 3, l: "Minor 3rd" }, { v: 4, l: "Major 3rd" },
-  { v: 5, l: "Perfect 4th" }, { v: 6, l: "Tritone" }, { v: 7, l: "Perfect 5th" }, { v: 8, l: "Minor 6th" },
-  { v: 9, l: "Major 6th" }, { v: 10, l: "Minor 7th" }, { v: 11, l: "Major 7th" }, { v: 12, l: "Octave" },
+  { v: 1, l: "Minor 2nd" },
+  { v: 2, l: "Major 2nd" },
+  { v: 3, l: "Minor 3rd" },
+  { v: 4, l: "Major 3rd" },
+  { v: 5, l: "Perfect 4th" },
+  { v: 6, l: "Tritone" },
+  { v: 7, l: "Perfect 5th" },
+  { v: 8, l: "Minor 6th" },
+  { v: 9, l: "Major 6th" },
+  { v: 10, l: "Minor 7th" },
+  { v: 11, l: "Major 7th" },
+  { v: 12, l: "Octave" },
 ];
 export const EAR_INTERVALS_SIMPLE = new Set([2, 4, 5, 7, 12]);
 export const EAR_CHORDS = [
-  { v: "maj", l: "Major" }, { v: "min", l: "Minor" }, { v: "dim", l: "Diminished" }, { v: "aug", l: "Augmented" },
-  { v: "7", l: "Dominant 7th" }, { v: "maj7", l: "Major 7th" }, { v: "m7", l: "Minor 7th" },
+  { v: "maj", l: "Major" },
+  { v: "min", l: "Minor" },
+  { v: "dim", l: "Diminished" },
+  { v: "aug", l: "Augmented" },
+  { v: "7", l: "Dominant 7th" },
+  { v: "maj7", l: "Major 7th" },
+  { v: "m7", l: "Minor 7th" },
 ];
 export const EAR_CHORDS_SIMPLE = new Set(["maj", "min"]);
 
 export const MINOR_STARTS = new Set(["i", "iv", "v", "i7", "iv7", "v7", "ii\u00b0", "ii\u00f8"]);
 export const ROMAN = {
-  I: [0, "maj"], ii: [2, "min"], iii: [4, "min"], IV: [5, "maj"], V: [7, "maj"], vi: [9, "min"], "vii°": [11, "dim"],
-  i: [0, "min"], "ii°": [2, "dim"], III: [3, "maj"], iv: [5, "min"], v: [7, "min"], VI: [8, "maj"], VII: [10, "maj"],
-  bIII: [3, "maj"], bVI: [8, "maj"], bVII: [10, "maj"],
-  I7: [0, "7"], IV7: [5, "7"], V7: [7, "7"], Imaj7: [0, "maj7"], IVmaj7: [5, "maj7"],
-  ii7: [2, "m7"], iii7: [4, "m7"], vi7: [9, "m7"], i7: [0, "m7"], iv7: [5, "m7"], v7: [7, "m7"],
-  "iiø": [2, "m7b5"],
+  I: [0, "maj"],
+  ii: [2, "min"],
+  iii: [4, "min"],
+  IV: [5, "maj"],
+  V: [7, "maj"],
+  vi: [9, "min"],
+  "vii°": [11, "dim"],
+  i: [0, "min"],
+  "ii°": [2, "dim"],
+  III: [3, "maj"],
+  iv: [5, "min"],
+  v: [7, "min"],
+  VI: [8, "maj"],
+  VII: [10, "maj"],
+  bIII: [3, "maj"],
+  bVI: [8, "maj"],
+  bVII: [10, "maj"],
+  I7: [0, "7"],
+  IV7: [5, "7"],
+  V7: [7, "7"],
+  Imaj7: [0, "maj7"],
+  IVmaj7: [5, "maj7"],
+  ii7: [2, "m7"],
+  iii7: [4, "m7"],
+  vi7: [9, "m7"],
+  i7: [0, "m7"],
+  iv7: [5, "m7"],
+  v7: [7, "m7"],
+  iiø: [2, "m7b5"],
 };
 
 export const PROGRESSIONS = [
@@ -193,8 +295,20 @@ export const PROGRESSIONS = [
   { id: "p1345", name: "I – iii – IV – V", note: "Rising", tonality: "major", bars: ["I", "iii", "IV", "V"] },
   { id: "pmixo", name: "I – bVII – IV", note: "Mixolydian rock", tonality: "major", bars: ["I", "bVII", "IV"] },
   { id: "pcanon", name: "Pachelbel", note: "Canon in D", tonality: "major", bars: ["I", "V", "vi", "iii", "IV", "I", "IV", "V"] },
-  { id: "pblues", name: "12-bar blues", note: "Standard", tonality: "major", bars: ["I7", "I7", "I7", "I7", "IV7", "IV7", "I7", "I7", "V7", "IV7", "I7", "V7"] },
-  { id: "pbluesq", name: "12-bar, quick change", note: "IV in bar two", tonality: "major", bars: ["I7", "IV7", "I7", "I7", "IV7", "IV7", "I7", "I7", "V7", "IV7", "I7", "V7"] },
+  {
+    id: "pblues",
+    name: "12-bar blues",
+    note: "Standard",
+    tonality: "major",
+    bars: ["I7", "I7", "I7", "I7", "IV7", "IV7", "I7", "I7", "V7", "IV7", "I7", "V7"],
+  },
+  {
+    id: "pbluesq",
+    name: "12-bar, quick change",
+    note: "IV in bar two",
+    tonality: "major",
+    bars: ["I7", "IV7", "I7", "I7", "IV7", "IV7", "I7", "I7", "V7", "IV7", "I7", "V7"],
+  },
   { id: "pm1637", name: "i – VI – III – VII", note: "Natural minor loop", tonality: "minor", bars: ["i", "VI", "III", "VII"] },
   { id: "pm145", name: "i – iv – v", note: "Minor three chord", tonality: "minor", bars: ["i", "iv", "v"] },
   { id: "pandal", name: "i – VII – VI – V", note: "Andalusian cadence", tonality: "minor", bars: ["i", "VII", "VI", "V"] },
@@ -209,7 +323,24 @@ export const SIMPLE_PROGS = new Set(["p1564", "p145", "p1645", "pblues", "pm1637
    chord changes, quiz, melodies, tuner, metronome) */
 export const SIMPLE_HIDDEN = new Set(["interval", "prog", "ear", "finder"]);
 /* which accordion each view lives under, so the active view's group can open */
-export const CAT_OF = { scale: "learn", arp: "learn", interval: "learn", chord: "learn", prog: "learn", changes: "practice", routine: "practice", strum: "practice", melody: "practice", quiz: "practice", ear: "practice", tuner: "tools", finder: "tools", account: "profile", plog: "profile", settings: "profile" };
+export const CAT_OF = {
+  scale: "learn",
+  arp: "learn",
+  interval: "learn",
+  chord: "learn",
+  prog: "learn",
+  changes: "practice",
+  routine: "practice",
+  strum: "practice",
+  melody: "practice",
+  quiz: "practice",
+  ear: "practice",
+  tuner: "tools",
+  finder: "tools",
+  account: "profile",
+  plog: "profile",
+  settings: "profile",
+};
 
 /* melody timeline: eighth-note slots per bar (4/4), and a bar cap */
 export const MEL_SLOTS = 8;
@@ -232,8 +363,7 @@ export const STRUM_PATTERNS = [
   { id: "reggae", name: "Reggae skank", slots: [null, "U", null, "U", null, "U", null, "U"] },
   { id: "anthem", name: "Anthem", slots: ["D", null, "d", "u", "D", "u", "d", "U"] },
 ];
-export const simpleList = (arr, allow, on, keepId) =>
-  on ? arr.filter((x) => allow.has(x.id) || x.id === keepId) : arr;
+export const simpleList = (arr, allow, on, keepId) => (on ? arr.filter((x) => allow.has(x.id) || x.id === keepId) : arr);
 
 export const INTERVAL_PRESETS = [
   { id: "root", label: "Root only", iv: [0] },
@@ -247,19 +377,28 @@ export const INTERVAL_PRESETS = [
 ];
 
 export const TIME_SIGS = [
-  { v: 2, l: "2/4" }, { v: 3, l: "3/4" }, { v: 4, l: "4/4" },
-  { v: 5, l: "5/4" }, { v: 6, l: "6/8" }, { v: 7, l: "7/8" },
+  { v: 2, l: "2/4" },
+  { v: 3, l: "3/4" },
+  { v: 4, l: "4/4" },
+  { v: 5, l: "5/4" },
+  { v: 6, l: "6/8" },
+  { v: 7, l: "7/8" },
 ];
 
 /* interval colour by harmonic function, not by rainbow position */
 export const FUNC_COLOUR = {
   0: "#E9A824", // root, gold
-  1: "#6E9236", 2: "#6E9236", // 2nds, moss
-  3: "#12A19A", 4: "#12A19A", // 3rds, teal
+  1: "#6E9236",
+  2: "#6E9236", // 2nds, moss
+  3: "#12A19A",
+  4: "#12A19A", // 3rds, teal
   5: "#7C5BB0", // 4th, violet
-  6: "#3E7CB1", 7: "#3E7CB1", // tritone and 5th, steel
-  8: "#D2763B", 9: "#D2763B", // 6ths, copper
-  10: "#BE4E7B", 11: "#BE4E7B", // 7ths, rose
+  6: "#3E7CB1",
+  7: "#3E7CB1", // tritone and 5th, steel
+  8: "#D2763B",
+  9: "#D2763B", // 6ths, copper
+  10: "#BE4E7B",
+  11: "#BE4E7B", // 7ths, rose
 };
 export const LOWERED = new Set([1, 3, 6, 8, 10]);
 

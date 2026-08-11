@@ -6,12 +6,32 @@ split it into small, readable modules without a big-bang rewrite: every step is 
 pure move (no behaviour change), build- and smoke-tested, and independently
 shippable.
 
+## Decisions (agreed)
+
+- **State layer:** several *focused* React contexts/reducers (settings, bank +
+  known, gamify, audio/metronome), not one god-context and no new dependency.
+- **TypeScript:** after the structure split (Phase 7). Typing small leaf modules
+  is far safer than typing a 6,500-line component; accepts touching files twice.
+- **Enforce, don't just claim, "clean":** add a tooling gate (ESLint + Prettier
+  + CI) up front so quality is a property, not an opinion.
+- **Deepen tests before the hard phases:** the smoke net is necessary but not
+  sufficient; add per-view feature specs before Phases 3-5.
+
+## How agents are (and are not) used
+
+The God-component surgery is **serial** and test-gated; parallel edits to
+`App.jsx` would conflict. Agents are used for the parallelisable, safe work:
+read-only dependency mapping, per-view test authoring (separate files), drafting
+independent `views/*` modules in isolated git worktrees, and per-phase
+adversarial review. Integration (the actual cut from `App.jsx` + import wiring)
+stays serial, done one module at a time with the suite green between each.
+
 ## Guardrails (apply to every step)
 
 - Pure-move commits only. Never rename and relocate in the same commit; never
   change behaviour during a move.
-- `npm run build` and `npm test` (the smoke suite) must be green after each step.
-- Keep `main` deployable throughout. One concern per commit.
+- `npm run build`, `npm test` (smoke) and `npm run lint` must be green after each
+  step. Keep `main` deployable throughout. One concern per commit.
 
 ## Phases
 

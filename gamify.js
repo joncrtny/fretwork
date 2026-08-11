@@ -14,17 +14,89 @@
    snapshot; `tiers` are the thresholds; `unit` labels them; `icon` picks a
    glyph in the UI. tier 0 = not earned, else 1..tiers.length. */
 export const BADGES = [
-  { id: "ear_interval", name: "Interval ear", icon: "ear", metric: "earStreakInterval", unit: "streak", tiers: [1, 3, 5, 10, 20], blurb: "Best run of correct intervals in ear training" },
-  { id: "ear_chord", name: "Chord ear", icon: "ear", metric: "earStreakChord", unit: "streak", tiers: [1, 3, 5, 10, 20], blurb: "Best run of correct chords in ear training" },
+  {
+    id: "ear_interval",
+    name: "Interval ear",
+    icon: "ear",
+    metric: "earStreakInterval",
+    unit: "streak",
+    tiers: [1, 3, 5, 10, 20],
+    blurb: "Best run of correct intervals in ear training",
+  },
+  {
+    id: "ear_chord",
+    name: "Chord ear",
+    icon: "ear",
+    metric: "earStreakChord",
+    unit: "streak",
+    tiers: [1, 3, 5, 10, 20],
+    blurb: "Best run of correct chords in ear training",
+  },
   { id: "tourist", name: "Tourist", icon: "tour", metric: "tourTaken", unit: "done", tiers: [1], blurb: "Took the guided tour" },
   { id: "explorer", name: "Explorer", icon: "bulb", metric: "triedSimple", unit: "done", tiers: [1], blurb: "Tried Simple mode" },
-  { id: "restrung", name: "Re-strung", icon: "tuning", metric: "tuningCount", unit: "tunings", tiers: [1, 3], blurb: "Tried alternative tunings" },
-  { id: "metronome", name: "In time", icon: "metro", metric: "metronomeMin", unit: "min", tiers: [5, 15, 30, 60], blurb: "Minutes practised with the metronome" },
-  { id: "quick_changes", name: "Quick changes", icon: "changes", metric: "chordChangeBest", unit: "per min", tiers: [10, 20, 30, 40], blurb: "Best chord changes in a minute" },
-  { id: "practice_scale", name: "Scale student", icon: "scale", metric: "minScale", unit: "min", tiers: [10, 30, 60, 120], blurb: "Minutes practising scales" },
-  { id: "practice_chord", name: "Chord student", icon: "chord", metric: "minChord", unit: "min", tiers: [10, 30, 60, 120], blurb: "Minutes practising chords" },
-  { id: "practice_arp", name: "Arpeggio student", icon: "arp", metric: "minArp", unit: "min", tiers: [10, 30, 60, 120], blurb: "Minutes practising arpeggios" },
-  { id: "habit", name: "Daily habit", icon: "flame", metric: "dayStreak", unit: "day streak", tiers: [3, 7, 14, 30], blurb: "Consecutive days practised" },
+  {
+    id: "restrung",
+    name: "Re-strung",
+    icon: "tuning",
+    metric: "tuningCount",
+    unit: "tunings",
+    tiers: [1, 3],
+    blurb: "Tried alternative tunings",
+  },
+  {
+    id: "metronome",
+    name: "In time",
+    icon: "metro",
+    metric: "metronomeMin",
+    unit: "min",
+    tiers: [5, 15, 30, 60],
+    blurb: "Minutes practised with the metronome",
+  },
+  {
+    id: "quick_changes",
+    name: "Quick changes",
+    icon: "changes",
+    metric: "chordChangeBest",
+    unit: "per min",
+    tiers: [10, 20, 30, 40],
+    blurb: "Best chord changes in a minute",
+  },
+  {
+    id: "practice_scale",
+    name: "Scale student",
+    icon: "scale",
+    metric: "minScale",
+    unit: "min",
+    tiers: [10, 30, 60, 120],
+    blurb: "Minutes practising scales",
+  },
+  {
+    id: "practice_chord",
+    name: "Chord student",
+    icon: "chord",
+    metric: "minChord",
+    unit: "min",
+    tiers: [10, 30, 60, 120],
+    blurb: "Minutes practising chords",
+  },
+  {
+    id: "practice_arp",
+    name: "Arpeggio student",
+    icon: "arp",
+    metric: "minArp",
+    unit: "min",
+    tiers: [10, 30, 60, 120],
+    blurb: "Minutes practising arpeggios",
+  },
+  {
+    id: "habit",
+    name: "Daily habit",
+    icon: "flame",
+    metric: "dayStreak",
+    unit: "day streak",
+    tiers: [3, 7, 14, 30],
+    blurb: "Consecutive days practised",
+  },
 ];
 
 const POINTS_PER_TIER = 100;
@@ -45,10 +117,7 @@ export function pointsFor(stats) {
   if (!stats) return 0;
   const practiceMin = (stats.practiceSeconds || 0) / 60;
   return (
-    Math.round(10 * practiceMin) +
-    10 * (stats.earCorrect || 0) +
-    2 * (stats.chordChangesTotal || 0) +
-    POINTS_PER_TIER * totalTiers(stats)
+    Math.round(10 * practiceMin) + 10 * (stats.earCorrect || 0) + 2 * (stats.chordChangesTotal || 0) + POINTS_PER_TIER * totalTiers(stats)
   );
 }
 

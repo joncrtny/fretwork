@@ -1,0 +1,9 @@
+dist
+node_modules
+package-lock.json
+test-results
+playwright-report
+.vercel
+*.md
+# hand-tuned JSON-LD + gtag whose exact shape the prerender regexes depend on
+index.html

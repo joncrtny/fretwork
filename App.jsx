@@ -3,11 +3,42 @@ import { createClient } from "@supabase/supabase-js";
 import { ctx, pluck, playClick, blip } from "./audio.js";
 import { findVoicings } from "./voicings.js";
 import {
-  SHARP, FLAT, DEG, nameOf, FLAT_MAJORS, keyPrefersFlats, SCALES, CHORDS, TUNINGS,
-  PRACTICE_MODES, localDay, parseTab, EAR_INTERVALS, EAR_INTERVALS_SIMPLE, EAR_CHORDS,
-  EAR_CHORDS_SIMPLE, MINOR_STARTS, ROMAN, PROGRESSIONS, SIMPLE_SCALES, SIMPLE_CHORDS,
-  SIMPLE_PROGS, SIMPLE_HIDDEN, CAT_OF, MEL_SLOTS, MEL_MAX_BARS, STRUM_PATTERNS, simpleList,
-  INTERVAL_PRESETS, TIME_SIGS, FUNC_COLOUR, LOWERED, SINGLE_DOTS, DOUBLE_DOTS, SCALE_ORDER, CHORD_ORDER,
+  SHARP,
+  FLAT,
+  DEG,
+  nameOf,
+  FLAT_MAJORS,
+  keyPrefersFlats,
+  SCALES,
+  CHORDS,
+  TUNINGS,
+  PRACTICE_MODES,
+  localDay,
+  parseTab,
+  EAR_INTERVALS,
+  EAR_INTERVALS_SIMPLE,
+  EAR_CHORDS,
+  EAR_CHORDS_SIMPLE,
+  MINOR_STARTS,
+  ROMAN,
+  PROGRESSIONS,
+  SIMPLE_SCALES,
+  SIMPLE_CHORDS,
+  SIMPLE_PROGS,
+  SIMPLE_HIDDEN,
+  CAT_OF,
+  MEL_SLOTS,
+  MEL_MAX_BARS,
+  STRUM_PATTERNS,
+  simpleList,
+  INTERVAL_PRESETS,
+  TIME_SIGS,
+  FUNC_COLOUR,
+  LOWERED,
+  SINGLE_DOTS,
+  DOUBLE_DOTS,
+  SCALE_ORDER,
+  CHORD_ORDER,
 } from "./theory.js";
 import { useGeometry, Fretboard, ChordDiagram } from "./fretboard.jsx";
 import { BADGES, badgeTier, pointsFor, levelProgress, mergeGamify } from "./gamify.js";
@@ -75,7 +106,18 @@ function modeForPath(p) {
    (e.g. source: "interval") rewrites the session's traffic source and forces a
    new session mid-visit, which splits sessions and destroys attribution. Never
    let an app parameter reach gtag under one of these names. */
-const GA_RESERVED = new Set(["source", "medium", "campaign", "term", "content", "campaign_id", "source_platform", "creative_format", "marketing_tactic", "gclid"]);
+const GA_RESERVED = new Set([
+  "source",
+  "medium",
+  "campaign",
+  "term",
+  "content",
+  "campaign_id",
+  "source_platform",
+  "creative_format",
+  "marketing_tactic",
+  "gclid",
+]);
 function gaSafeParams(params) {
   if (!params || typeof params !== "object") return params || {};
   let out = params;
@@ -107,9 +149,7 @@ function track(name, params) {
    ============================================================ */
 
 function useNarrow(bp = 700) {
-  const [narrow, setNarrow] = useState(
-    () => typeof window !== "undefined" && window.innerWidth <= bp
-  );
+  const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.innerWidth <= bp);
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
     const mq = window.matchMedia(`(max-width:${bp}px)`);
@@ -130,14 +170,11 @@ function Seg({ options, value, onChange, small, responsive = true, ariaLabel }) 
   if (responsive && narrow) {
     const idx = options.findIndex((o) => o.v === value);
     return (
-      <select
-        className="segsel"
-        aria-label={ariaLabel}
-        value={idx < 0 ? 0 : idx}
-        onChange={(e) => onChange(options[+e.target.value].v)}
-      >
+      <select className="segsel" aria-label={ariaLabel} value={idx < 0 ? 0 : idx} onChange={(e) => onChange(options[+e.target.value].v)}>
         {options.map((o, i) => (
-          <option key={i} value={i}>{o.l}</option>
+          <option key={i} value={i}>
+            {o.l}
+          </option>
         ))}
       </select>
     );
@@ -145,12 +182,7 @@ function Seg({ options, value, onChange, small, responsive = true, ariaLabel }) 
   return (
     <div className={`seg ${small ? "sm" : ""}`} role="group" aria-label={ariaLabel}>
       {options.map((o) => (
-        <button
-          key={String(o.v)}
-          aria-pressed={value === o.v}
-          className={value === o.v ? "on" : ""}
-          onClick={() => onChange(o.v)}
-        >
+        <button key={String(o.v)} aria-pressed={value === o.v} className={value === o.v ? "on" : ""} onClick={() => onChange(o.v)}>
           {o.l}
         </button>
       ))}
@@ -168,9 +200,13 @@ function Field({ label, children, id, tip }) {
   return (
     <div className="field">
       {id ? (
-        <label className="flabel" htmlFor={id} data-tip={tip}>{label}</label>
+        <label className="flabel" htmlFor={id} data-tip={tip}>
+          {label}
+        </label>
       ) : (
-        <span className="flabel" data-tip={tip}>{label}</span>
+        <span className="flabel" data-tip={tip}>
+          {label}
+        </span>
       )}
       {kid}
     </div>
@@ -254,7 +290,10 @@ function KeyPicker({ value, onChange, flats, tip }) {
               role="option"
               aria-selected={pc === value}
               className={pc === value ? "key on" : "key"}
-              onClick={() => { onChange(pc); setOpen(false); }}
+              onClick={() => {
+                onChange(pc);
+                setOpen(false);
+              }}
             >
               {nameOf(pc, flats)}
             </button>
@@ -291,8 +330,7 @@ function CatPicker({ value, groups, onChange, label, tip }) {
       if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
     };
     const onKey = (e) => {
-      const insidePicker =
-        boxRef.current && boxRef.current.contains(document.activeElement);
+      const insidePicker = boxRef.current && boxRef.current.contains(document.activeElement);
       if (e.key === "Escape") {
         setOpen(false);
         if (btnRef.current) btnRef.current.focus();
@@ -344,29 +382,33 @@ function CatPicker({ value, groups, onChange, label, tip }) {
           ref={menuRef}
           style={shift ? { left: shift } : undefined}
         >
-          {groups.filter((g) => g.items.length > 0).map((g, gi) => (
-            <div className="catgroup" role="group" aria-labelledby={`${uid.current}-g${gi}`} key={g.label}>
-              <p className="cathead" id={`${uid.current}-g${gi}`}>{g.label}</p>
-              <div className="catitems">
-                {g.items.map((it) => (
-                  <button
-                    key={it.id}
-                    role="option"
-                    aria-selected={it.id === value}
-                    className={it.id === value ? "catitem on" : "catitem"}
-                    onClick={() => {
-                      onChange(it.id);
-                      setOpen(false);
-                      if (btnRef.current) btnRef.current.focus();
-                    }}
-                  >
-                    {it.name}
-                    {it.sub && <em>{it.sub}</em>}
-                  </button>
-                ))}
+          {groups
+            .filter((g) => g.items.length > 0)
+            .map((g, gi) => (
+              <div className="catgroup" role="group" aria-labelledby={`${uid.current}-g${gi}`} key={g.label}>
+                <p className="cathead" id={`${uid.current}-g${gi}`}>
+                  {g.label}
+                </p>
+                <div className="catitems">
+                  {g.items.map((it) => (
+                    <button
+                      key={it.id}
+                      role="option"
+                      aria-selected={it.id === value}
+                      className={it.id === value ? "catitem on" : "catitem"}
+                      onClick={() => {
+                        onChange(it.id);
+                        setOpen(false);
+                        if (btnRef.current) btnRef.current.focus();
+                      }}
+                    >
+                      {it.name}
+                      {it.sub && <em>{it.sub}</em>}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
         </div>
       )}
     </div>
@@ -455,10 +497,22 @@ function DualRange({ min, max, lo, hi, onChange }) {
         e.preventDefault();
       }}
       onKeyDown={(e) => {
-        if (e.key === "ArrowLeft" || e.key === "ArrowDown") { move(which, v - 1); e.preventDefault(); }
-        if (e.key === "ArrowRight" || e.key === "ArrowUp") { move(which, v + 1); e.preventDefault(); }
-        if (e.key === "Home") { move(which, which === "lo" ? min : lo + 1); e.preventDefault(); }
-        if (e.key === "End") { move(which, which === "lo" ? hi - 1 : max); e.preventDefault(); }
+        if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+          move(which, v - 1);
+          e.preventDefault();
+        }
+        if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+          move(which, v + 1);
+          e.preventDefault();
+        }
+        if (e.key === "Home") {
+          move(which, which === "lo" ? min : lo + 1);
+          e.preventDefault();
+        }
+        if (e.key === "End") {
+          move(which, which === "lo" ? hi - 1 : max);
+          e.preventDefault();
+        }
       }}
     >
       {v}
@@ -490,7 +544,10 @@ function DualRange({ min, max, lo, hi, onChange }) {
    ============================================================ */
 
 function shareLinkFromParams(p) {
-  const enc = btoa(encodeURIComponent(JSON.stringify(p))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const enc = btoa(encodeURIComponent(JSON.stringify(p)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
   return `${window.location.origin}/#s=${enc}`;
 }
 
@@ -505,7 +562,16 @@ function StarSave({ saved, onClick, label }) {
       data-tip={saved ? "In your Bank" : "Save to Bank"}
       aria-label={saved ? `${label} is saved to your Bank` : `Save ${label} to your Bank`}
     >
-      <svg viewBox="0 0 24 24" width="18" height="18" fill={saved ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        fill={saved ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
         <path d="M12 3.2l2.6 5.7 6.2.6-4.7 4.2 1.4 6.1L12 16.8 6.5 19.8l1.4-6.1L3.2 9.5l6.2-.6z" />
       </svg>
     </button>
@@ -524,7 +590,17 @@ function BulbSave({ known, onClick, label }) {
       data-tip={known ? "You know this" : "Mark as known"}
       aria-label={known ? `${label} is marked as known` : `Mark ${label} as known`}
     >
-      <svg viewBox="0 0 24 24" width="18" height="18" fill={known ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        fill={known ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        aria-hidden="true"
+      >
         <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.6 1 1.3 1 2.1v.4h6v-.4c0-.8.3-1.5 1-2.1A6 6 0 0 0 12 3z" />
       </svg>
     </button>
@@ -535,7 +611,17 @@ function BulbSave({ known, onClick, label }) {
 function KnownButton({ known, onClick }) {
   return (
     <button type="button" className={`knownbtn ${known ? "on" : ""}`} aria-pressed={known} onClick={onClick}>
-      <svg viewBox="0 0 24 24" width="17" height="17" fill={known ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        width="17"
+        height="17"
+        fill={known ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        aria-hidden="true"
+      >
         <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.6 1 1.3 1 2.1v.4h6v-.4c0-.8.3-1.5 1-2.1A6 6 0 0 0 12 3z" />
       </svg>
       {known ? "You know this" : "Mark as known"}
@@ -577,24 +663,55 @@ const authRedirect = () => {
 /* Obscene or hateful usernames are blocked. Normalisation catches leetspeak
    and separators; the stems intentionally over-block edge cases. */
 const BLOCKED_STEMS = [
-  "fuck", "shit", "cunt", "bitch", "wank", "twat", "prick", "bollock",
-  "cock", "dick", "penis", "vagina", "boob", "tits", "jizz", "dildo",
-  "whore", "slut", "porn", "rape", "nonce", "pedo", "paedo",
-  "nigg", "fagg", "spic", "kike", "chink", "paki", "tranny", "retard",
-  "nazi", "hitler",
+  "fuck",
+  "shit",
+  "cunt",
+  "bitch",
+  "wank",
+  "twat",
+  "prick",
+  "bollock",
+  "cock",
+  "dick",
+  "penis",
+  "vagina",
+  "boob",
+  "tits",
+  "jizz",
+  "dildo",
+  "whore",
+  "slut",
+  "porn",
+  "rape",
+  "nonce",
+  "pedo",
+  "paedo",
+  "nigg",
+  "fagg",
+  "spic",
+  "kike",
+  "chink",
+  "paki",
+  "tranny",
+  "retard",
+  "nazi",
+  "hitler",
 ];
-const LEET = { 4: "a", "@": "a", 8: "b", 3: "e", 6: "g", 9: "g", 1: "i", "!": "i", 0: "o", 5: "s", "$": "s", 7: "t", "+": "t", 2: "z" };
+const LEET = { 4: "a", "@": "a", 8: "b", 3: "e", 6: "g", 9: "g", 1: "i", "!": "i", 0: "o", 5: "s", $: "s", 7: "t", "+": "t", 2: "z" };
 function usernameProblem(u) {
   if (!USERNAME_RE.test(u)) return "Usernames are 3 to 20 letters, numbers or underscores.";
   const lower = u.toLowerCase();
-  const leeted = lower.split("").map((c) => LEET[c] || c).join("").replace(/[^a-z]/g, "");
+  const leeted = lower
+    .split("")
+    .map((c) => LEET[c] || c)
+    .join("")
+    .replace(/[^a-z]/g, "");
   const candidates = [
     leeted,
     leeted.replace(/(.)\1+/g, "$1"), // collapse doubled letters: fuuck
     lower.replace(/[^a-z]/g, ""), // digits stripped entirely: f0o0ul words hiding behind separators
   ];
-  if (BLOCKED_STEMS.some((stem) => candidates.some((c) => c.includes(stem))))
-    return "That username is not available.";
+  if (BLOCKED_STEMS.some((stem) => candidates.some((c) => c.includes(stem)))) return "That username is not available.";
   return null;
 }
 
@@ -616,7 +733,11 @@ function isNetErr(er) {
 }
 
 const RESOURCES = [
-  { name: "JustinGuitar", url: "https://www.justinguitar.com/", blurb: "The most recommended free beginner course, structured from the very first lesson." },
+  {
+    name: "JustinGuitar",
+    url: "https://www.justinguitar.com/",
+    blurb: "The most recommended free beginner course, structured from the very first lesson.",
+  },
   { name: "FaChords", url: "https://www.fachords.com/", blurb: "Interactive chord and scale tools, ear training and theory references." },
   { name: "Andy Guitar", url: "https://www.andyguitar.co.uk/", blurb: "Gentle, song-first beginner lessons and courses." },
   { name: "Marty Music", url: "https://www.martymusic.com/", blurb: "Song tutorials and riffs, taught slowly and clearly." },
@@ -636,133 +757,396 @@ const FAQ_SECTIONS = [
     id: "getting-started",
     title: "Getting started",
     items: [
-      { q: "What is Fretwork?", a: "Fretwork is a free, interactive guitar fretboard for learning the neck. You can look up scales, chords with fingerings, arpeggios, intervals and progressions, hear them played, and practise with a metronome, ear trainer, chord-change trainer, strumming trainer, fretboard quiz and tuner. It runs in your browser on any device, with nothing to install." },
-      { q: "Is Fretwork free?", a: "Yes. Fretwork is, and always will be, free and without ads. No account or payment is needed to use any part of it." },
-      { q: "Is Fretwork good for complete beginners?", a: "Yes. Simple mode trims the app to the essentials so it is not overwhelming, every shape can be heard as well as seen, and a short tour explains the layout. You earn points and badges as you practise, which helps you keep a daily habit going." },
-      { q: "I have never played guitar. Where do I start?", a: "Start with a few open chords such as E minor, A minor and D, learn to change between them in time, and add one simple strumming pattern. Turn on Simple mode and take the quick guided tour first, so you are not faced with everything at once. Fretwork shows each shape and plays it, so you can check yourself by ear as you go.", view: "chord" },
-      { q: "Do I need an account to use Fretwork?", a: "No. Everything works without one, and your work is saved in your browser on your device. An optional free account, which needs only a username and no email address, syncs your saved shapes and progress across devices.", view: "account" },
-      { q: "Which instruments and tunings does Fretwork support?", a: "Six, seven and eight string guitar, bass, ukulele and mandolin, in standard, drop, open and other alternative tunings, with a capo. Change the instrument and tuning in Settings and every view updates to match." },
+      {
+        q: "What is Fretwork?",
+        a: "Fretwork is a free, interactive guitar fretboard for learning the neck. You can look up scales, chords with fingerings, arpeggios, intervals and progressions, hear them played, and practise with a metronome, ear trainer, chord-change trainer, strumming trainer, fretboard quiz and tuner. It runs in your browser on any device, with nothing to install.",
+      },
+      {
+        q: "Is Fretwork free?",
+        a: "Yes. Fretwork is, and always will be, free and without ads. No account or payment is needed to use any part of it.",
+      },
+      {
+        q: "Is Fretwork good for complete beginners?",
+        a: "Yes. Simple mode trims the app to the essentials so it is not overwhelming, every shape can be heard as well as seen, and a short tour explains the layout. You earn points and badges as you practise, which helps you keep a daily habit going.",
+      },
+      {
+        q: "I have never played guitar. Where do I start?",
+        a: "Start with a few open chords such as E minor, A minor and D, learn to change between them in time, and add one simple strumming pattern. Turn on Simple mode and take the quick guided tour first, so you are not faced with everything at once. Fretwork shows each shape and plays it, so you can check yourself by ear as you go.",
+        view: "chord",
+      },
+      {
+        q: "Do I need an account to use Fretwork?",
+        a: "No. Everything works without one, and your work is saved in your browser on your device. An optional free account, which needs only a username and no email address, syncs your saved shapes and progress across devices.",
+        view: "account",
+      },
+      {
+        q: "Which instruments and tunings does Fretwork support?",
+        a: "Six, seven and eight string guitar, bass, ukulele and mandolin, in standard, drop, open and other alternative tunings, with a capo. Change the instrument and tuning in Settings and every view updates to match.",
+      },
     ],
   },
   {
     id: "first-steps",
     title: "First steps and common worries",
     items: [
-      { q: "What should I learn first on guitar?", a: "Learn to tune up, read a chord diagram, then your first two or three open chords, then how to change between them in time with one strumming pattern, then a simple song. Keep the list short at first: a handful of chords already covers a huge number of songs. Add scales later, once chords feel steady.", view: "chord" },
-      { q: "What are the easiest first chords to learn?", a: "E minor is the easiest, needing just two fingers with no awkward stretch, with A minor and D close behind. C and G are the trickiest of the common open chords, so save them for last. Learn a few, get them changing cleanly, and you can already play plenty of songs. The Chords view shows the fingering and plays each one.", view: "chord" },
-      { q: "Which guitar should I buy, and does it need to be expensive?", a: "Almost any playable guitar is fine to start on, and a cheap or borrowed one is genuinely okay: you do not need to spend much. Acoustic is grab-and-play, while electric has lighter strings that press more easily, so pick whichever suits the music you want to make. Fretwork works with all of them, so you can plan on any guitar." },
-      { q: "How do I hold the guitar?", a: "Sit with the waist of the guitar resting on your leg and the neck angled slightly upward, keeping your back fairly straight. Curl your fretting fingers so they come down on their tips, and rest your thumb behind the neck rather than gripping over the top. Stay relaxed, as tension is the main thing that gets in the way at the start." },
-      { q: "Do I need a pick, and how do I hold one?", a: "A pick is not essential, but most beginners start with one for strumming, as it gives a brighter, more even sound. Hold it between the pad of your thumb and the side of your index finger, with just the tip showing, and grip it lightly rather than tightly. You can also strum and pick with your fingers, so try both and keep what feels natural." },
-      { q: "Why do my chords sound bad or buzzy?", a: "Buzzing and muted strings are almost always finger placement, not the guitar. Press just behind the fret rather than on top of it, come down on the very tips of your fingers so they do not touch and mute the next string, and press only as hard as it takes for a clean note. If it still buzzes everywhere after that, the guitar may need a setup, a small adjustment a guitar shop makes to lower the strings and make it easier to play.", view: "chord" },
-      { q: "How hard should I press the strings?", a: "Only as hard as it takes for the note to ring cleanly, and no harder. Pressing too hard tires your hand and can pull notes sharp. Placing your finger just behind the fret, rather than in the middle of it, means you need much less force." },
-      { q: "Why can't I remember chord shapes?", a: "That is completely normal, and it is coordination rather than memory, so the shapes come with repetition and not with cramming. Learn just two shapes at a time and practise moving between them, instead of piling on many at once. The chord-change trainer drills exactly this, and the more you repeat a change the sooner your hand does it without thinking.", view: "changes" },
-      { q: "How do I change chords faster and more smoothly?", a: "Learn each chord solidly on its own first, then practise the change itself: swap slowly and cleanly, moving as few fingers as possible and looking ahead to the next shape. Keep your strumming hand moving even if you have to slow right down. The chord-change trainer counts your clean changes in a minute so you can watch the number climb.", view: "changes" },
-      { q: "How do I learn my first song?", a: "Pick a song that uses only two or three chords you know, look up its chords, and play each shape from the Chords view to check it. Add one simple strumming pattern, then slow the whole thing right down and loop the tricky bar until it is smooth. Speed comes last, after the changes are clean.", view: "chord" },
-      { q: "Do my fingers have to hurt, and when does it stop?", a: "Sore fingertips are normal for the first few weeks while the skin toughens into calluses, so play in short, frequent sessions rather than long grinding ones. Tender fingertips are fine, but pain in your joints, wrist or thumb is not, and usually means your technique or the guitar needs adjusting. Lighter strings, and having a shop set the strings a little lower (this is called the action), also help." },
-      { q: "Is it too late to learn guitar as an adult?", a: "No. Adults learn guitar very successfully at any age, and the idea that you must start as a child is a myth. Grown-ups actually bring focus, patience and the ability to practise deliberately. The real limits are time and being kind to yourself, not your age." },
+      {
+        q: "What should I learn first on guitar?",
+        a: "Learn to tune up, read a chord diagram, then your first two or three open chords, then how to change between them in time with one strumming pattern, then a simple song. Keep the list short at first: a handful of chords already covers a huge number of songs. Add scales later, once chords feel steady.",
+        view: "chord",
+      },
+      {
+        q: "What are the easiest first chords to learn?",
+        a: "E minor is the easiest, needing just two fingers with no awkward stretch, with A minor and D close behind. C and G are the trickiest of the common open chords, so save them for last. Learn a few, get them changing cleanly, and you can already play plenty of songs. The Chords view shows the fingering and plays each one.",
+        view: "chord",
+      },
+      {
+        q: "Which guitar should I buy, and does it need to be expensive?",
+        a: "Almost any playable guitar is fine to start on, and a cheap or borrowed one is genuinely okay: you do not need to spend much. Acoustic is grab-and-play, while electric has lighter strings that press more easily, so pick whichever suits the music you want to make. Fretwork works with all of them, so you can plan on any guitar.",
+      },
+      {
+        q: "How do I hold the guitar?",
+        a: "Sit with the waist of the guitar resting on your leg and the neck angled slightly upward, keeping your back fairly straight. Curl your fretting fingers so they come down on their tips, and rest your thumb behind the neck rather than gripping over the top. Stay relaxed, as tension is the main thing that gets in the way at the start.",
+      },
+      {
+        q: "Do I need a pick, and how do I hold one?",
+        a: "A pick is not essential, but most beginners start with one for strumming, as it gives a brighter, more even sound. Hold it between the pad of your thumb and the side of your index finger, with just the tip showing, and grip it lightly rather than tightly. You can also strum and pick with your fingers, so try both and keep what feels natural.",
+      },
+      {
+        q: "Why do my chords sound bad or buzzy?",
+        a: "Buzzing and muted strings are almost always finger placement, not the guitar. Press just behind the fret rather than on top of it, come down on the very tips of your fingers so they do not touch and mute the next string, and press only as hard as it takes for a clean note. If it still buzzes everywhere after that, the guitar may need a setup, a small adjustment a guitar shop makes to lower the strings and make it easier to play.",
+        view: "chord",
+      },
+      {
+        q: "How hard should I press the strings?",
+        a: "Only as hard as it takes for the note to ring cleanly, and no harder. Pressing too hard tires your hand and can pull notes sharp. Placing your finger just behind the fret, rather than in the middle of it, means you need much less force.",
+      },
+      {
+        q: "Why can't I remember chord shapes?",
+        a: "That is completely normal, and it is coordination rather than memory, so the shapes come with repetition and not with cramming. Learn just two shapes at a time and practise moving between them, instead of piling on many at once. The chord-change trainer drills exactly this, and the more you repeat a change the sooner your hand does it without thinking.",
+        view: "changes",
+      },
+      {
+        q: "How do I change chords faster and more smoothly?",
+        a: "Learn each chord solidly on its own first, then practise the change itself: swap slowly and cleanly, moving as few fingers as possible and looking ahead to the next shape. Keep your strumming hand moving even if you have to slow right down. The chord-change trainer counts your clean changes in a minute so you can watch the number climb.",
+        view: "changes",
+      },
+      {
+        q: "How do I learn my first song?",
+        a: "Pick a song that uses only two or three chords you know, look up its chords, and play each shape from the Chords view to check it. Add one simple strumming pattern, then slow the whole thing right down and loop the tricky bar until it is smooth. Speed comes last, after the changes are clean.",
+        view: "chord",
+      },
+      {
+        q: "Do my fingers have to hurt, and when does it stop?",
+        a: "Sore fingertips are normal for the first few weeks while the skin toughens into calluses, so play in short, frequent sessions rather than long grinding ones. Tender fingertips are fine, but pain in your joints, wrist or thumb is not, and usually means your technique or the guitar needs adjusting. Lighter strings, and having a shop set the strings a little lower (this is called the action), also help.",
+      },
+      {
+        q: "Is it too late to learn guitar as an adult?",
+        a: "No. Adults learn guitar very successfully at any age, and the idea that you must start as a child is a myth. Grown-ups actually bring focus, patience and the ability to practise deliberately. The real limits are time and being kind to yourself, not your age.",
+      },
     ],
   },
   {
     id: "tuning",
     title: "Tuning your guitar",
     items: [
-      { q: "What is standard guitar tuning (EADGBE)?", a: "Standard tuning is E, A, D, G, B, E from the lowest, thickest string to the highest, thinnest one. Almost every beginner lesson and chord shape assumes it, so it is the tuning to start with. Fretwork defaults to standard tuning, and you can change it in Settings.", view: "tuner" },
-      { q: "How do I tune my guitar?", a: "Open the Tuner, allow microphone access, and play one string at a time, firmly, letting it ring while you mute the others. The tuner shows the note and whether it is flat (too low) or sharp (too high): tighten the peg to go up, loosen it to go down, and always tune up to the note for stability. Tune all six, then check them again, as tuning one nudges the others.", view: "tuner" },
-      { q: "Why does my guitar keep going out of tune?", a: "Brand new strings stretch for the first week or two, so they drift flat until they settle; stretching them gently by hand and retuning speeds this up. Big changes in temperature, and pegs that were tuned downwards rather than up to pitch, also cause slipping. Constant tuning of old, dull strings can mean it is time to change them.", view: "tuner" },
-      { q: "When should I change my guitar strings?", a: "Strings gradually turn dull, darker in colour and harder to keep in tune, and most players change them every couple of months, sooner if they play a lot. Fresh strings sound noticeably brighter and hold their tuning better. If yours look grimy or sound lifeless, it is probably time." },
-      { q: "What are alternative tunings like drop D?", a: "An alternative tuning changes one or more strings away from standard to make certain sounds or shapes easier. Drop D lowers just the low E string to D, giving a heavier low end and one-finger power chords. Fretwork supports drop, open and other tunings and redraws every shape to match.", view: "tuner" },
-      { q: "Does the tuner use my microphone, and is that private?", a: "The tuner uses your microphone only while it is open, and the sound is analysed on your device: nothing is recorded, stored or uploaded. When you close the tuner, the microphone is released. If it is not hearing your guitar, grant microphone permission, reduce background noise and play closer to the device.", view: "tuner" },
+      {
+        q: "What is standard guitar tuning (EADGBE)?",
+        a: "Standard tuning is E, A, D, G, B, E from the lowest, thickest string to the highest, thinnest one. Almost every beginner lesson and chord shape assumes it, so it is the tuning to start with. Fretwork defaults to standard tuning, and you can change it in Settings.",
+        view: "tuner",
+      },
+      {
+        q: "How do I tune my guitar?",
+        a: "Open the Tuner, allow microphone access, and play one string at a time, firmly, letting it ring while you mute the others. The tuner shows the note and whether it is flat (too low) or sharp (too high): tighten the peg to go up, loosen it to go down, and always tune up to the note for stability. Tune all six, then check them again, as tuning one nudges the others.",
+        view: "tuner",
+      },
+      {
+        q: "Why does my guitar keep going out of tune?",
+        a: "Brand new strings stretch for the first week or two, so they drift flat until they settle; stretching them gently by hand and retuning speeds this up. Big changes in temperature, and pegs that were tuned downwards rather than up to pitch, also cause slipping. Constant tuning of old, dull strings can mean it is time to change them.",
+        view: "tuner",
+      },
+      {
+        q: "When should I change my guitar strings?",
+        a: "Strings gradually turn dull, darker in colour and harder to keep in tune, and most players change them every couple of months, sooner if they play a lot. Fresh strings sound noticeably brighter and hold their tuning better. If yours look grimy or sound lifeless, it is probably time.",
+      },
+      {
+        q: "What are alternative tunings like drop D?",
+        a: "An alternative tuning changes one or more strings away from standard to make certain sounds or shapes easier. Drop D lowers just the low E string to D, giving a heavier low end and one-finger power chords. Fretwork supports drop, open and other tunings and redraws every shape to match.",
+        view: "tuner",
+      },
+      {
+        q: "Does the tuner use my microphone, and is that private?",
+        a: "The tuner uses your microphone only while it is open, and the sound is analysed on your device: nothing is recorded, stored or uploaded. When you close the tuner, the microphone is released. If it is not hearing your guitar, grant microphone permission, reduce background noise and play closer to the device.",
+        view: "tuner",
+      },
     ],
   },
   {
     id: "reading",
     title: "Reading chord charts, tab and the fretboard",
     items: [
-      { q: "How do I read a guitar chord chart?", a: "A chord chart, also called a chord diagram or chord box, is a picture of the neck stood upright and facing you: the vertical lines are the six strings with the low E on the left, the horizontal lines are the frets, and each dot shows where to put a finger. The symbols above the top, X or O, tell you which strings to skip or play open, and any numbers tell you which finger to use.", view: "chord" },
-      { q: "What do the X and O symbols mean on a chord chart?", a: "Above the chord, O means play that string open, with no finger, and X means do not play that string, or mute it. So an X above the low E of a C chord tells you not to strum that string. Fretwork marks both on every chord diagram.", view: "chord" },
-      { q: "What do the numbers on a chord diagram mean? Are they frets?", a: "They are fingers, not frets. 1 is the index finger, 2 the middle, 3 the ring and 4 the little finger, and a number by a dot means fret that note with that finger. The dot's position already shows the fret, so the number only tells you which finger to use.", view: "chord" },
-      { q: "What are the guitar string names, and which is the first string?", a: "From thickest and lowest to thinnest and highest, the strings are E, A, D, G, B, E, which many remember as Eddie Ate Dynamite, Good Bye Eddie (read thick to thin). Confusingly, the string numbers run the other way: the thin high E is the 1st string and the thick low E is the 6th. High and low refer to pitch, not to physical position.", view: "tuner" },
-      { q: "How do I read guitar tab?", a: "Tab is six lines for the six strings, but the top line is the high E and the bottom the low E, the opposite way up to a chord diagram. A number on a line is the fret to press, and 0 means play that string open. Read left to right; numbers stacked in a column are played together, and plain tab shows the notes but not the rhythm." },
-      { q: "How is the fretboard laid out?", a: "Every fret raises the pitch by one semitone, so moving up one fret gives you the next semitone along. The same note appears in several places across the strings, which is what makes the neck feel confusing at first. The dots at frets 3, 5, 7, 9 and the double dot at 12 are just position markers, the same on most guitars.", view: "quiz" },
+      {
+        q: "How do I read a guitar chord chart?",
+        a: "A chord chart, also called a chord diagram or chord box, is a picture of the neck stood upright and facing you: the vertical lines are the six strings with the low E on the left, the horizontal lines are the frets, and each dot shows where to put a finger. The symbols above the top, X or O, tell you which strings to skip or play open, and any numbers tell you which finger to use.",
+        view: "chord",
+      },
+      {
+        q: "What do the X and O symbols mean on a chord chart?",
+        a: "Above the chord, O means play that string open, with no finger, and X means do not play that string, or mute it. So an X above the low E of a C chord tells you not to strum that string. Fretwork marks both on every chord diagram.",
+        view: "chord",
+      },
+      {
+        q: "What do the numbers on a chord diagram mean? Are they frets?",
+        a: "They are fingers, not frets. 1 is the index finger, 2 the middle, 3 the ring and 4 the little finger, and a number by a dot means fret that note with that finger. The dot's position already shows the fret, so the number only tells you which finger to use.",
+        view: "chord",
+      },
+      {
+        q: "What are the guitar string names, and which is the first string?",
+        a: "From thickest and lowest to thinnest and highest, the strings are E, A, D, G, B, E, which many remember as Eddie Ate Dynamite, Good Bye Eddie (read thick to thin). Confusingly, the string numbers run the other way: the thin high E is the 1st string and the thick low E is the 6th. High and low refer to pitch, not to physical position.",
+        view: "tuner",
+      },
+      {
+        q: "How do I read guitar tab?",
+        a: "Tab is six lines for the six strings, but the top line is the high E and the bottom the low E, the opposite way up to a chord diagram. A number on a line is the fret to press, and 0 means play that string open. Read left to right; numbers stacked in a column are played together, and plain tab shows the notes but not the rhythm.",
+      },
+      {
+        q: "How is the fretboard laid out?",
+        a: "Every fret raises the pitch by one semitone, so moving up one fret gives you the next semitone along. The same note appears in several places across the strings, which is what makes the neck feel confusing at first. The dots at frets 3, 5, 7, 9 and the double dot at 12 are just position markers, the same on most guitars.",
+        view: "quiz",
+      },
     ],
   },
   {
     id: "chords",
     title: "Chords and harmony",
     items: [
-      { q: "What is a chord?", a: "A chord is two or more notes played together, though most chords are triads, built from three: a root, a third and a fifth. The third is the note that makes a chord sound major or minor. In the Chords view you can see any chord's notes on the neck and hear it.", view: "chord" },
-      { q: "What makes a chord major or minor?", a: "The third of the chord is the switch. A major third (four frets, or four semitones, above the root) gives the bright, open sound we call major, and a minor third (three frets) gives the darker sound we call minor. Everything else in the chord can be the same, so it really is one note that changes the mood.", view: "chord" },
-      { q: "What is the difference between open chords and barre chords?", a: "Open chords are played down near the nut, at the first few frets, and use some open, unfretted strings, which makes them ring easily and suits beginners. Barre chords use one finger laid flat across several strings, so nothing is open, which lets you move a single shape anywhere on the neck. Learn open chords first; barre chords come once your hand is stronger.", view: "chord" },
-      { q: "What is a barre chord, and why are they hard?", a: "A barre chord uses one finger, usually the index, pressed flat across several strings at one fret, so it works like a movable capo and the shape plays anywhere on the neck. They feel hard at first because they need even pressure and stamina, not brute strength. It helps to place the finger right behind the fret, roll slightly onto its bony edge, and keep your thumb low behind the neck.", view: "chord" },
-      { q: "What is a power chord?", a: "A power chord is built from just two notes, the root and the fifth (often with the octave added on top), and has no third, so it is neither major nor minor and fits over almost anything. That neutral, solid sound, especially with distortion, is why power chords are everywhere in rock and punk. With no third to place, they are one of the easiest shapes to learn.", view: "chord" },
-      { q: "What is a chord progression?", a: "A chord progression is a sequence of chords played in order, and it is the harmonic backbone of a song. A very common one is I, V, vi, IV, which in the key of G is G, D, E minor, C, and turns up in countless pop songs. The Progressions view shows popular progressions in any key with the shapes to play.", view: "prog" },
-      { q: "What do the Roman numerals I, IV and V mean in a chord progression?", a: "The Roman numerals number the chords built on each step of a key's scale, so in the key of C, I is C, IV is F and V is G. Capital numerals are major chords and lower-case ones (like vi) are minor. Numbering chords this way lets the same progression be described in any key at once.", view: "prog" },
-      { q: "What is a capo and what does it do?", a: "A capo is a clamp that bars all the strings at one fret, acting as a new movable nut so the whole guitar sounds higher. You keep playing the same easy shapes, but they come out in a higher key, which is handy for matching a singer. A capo can only raise the key, never lower it, and using one is a normal tool, not cheating.", view: "chord" },
+      {
+        q: "What is a chord?",
+        a: "A chord is two or more notes played together, though most chords are triads, built from three: a root, a third and a fifth. The third is the note that makes a chord sound major or minor. In the Chords view you can see any chord's notes on the neck and hear it.",
+        view: "chord",
+      },
+      {
+        q: "What makes a chord major or minor?",
+        a: "The third of the chord is the switch. A major third (four frets, or four semitones, above the root) gives the bright, open sound we call major, and a minor third (three frets) gives the darker sound we call minor. Everything else in the chord can be the same, so it really is one note that changes the mood.",
+        view: "chord",
+      },
+      {
+        q: "What is the difference between open chords and barre chords?",
+        a: "Open chords are played down near the nut, at the first few frets, and use some open, unfretted strings, which makes them ring easily and suits beginners. Barre chords use one finger laid flat across several strings, so nothing is open, which lets you move a single shape anywhere on the neck. Learn open chords first; barre chords come once your hand is stronger.",
+        view: "chord",
+      },
+      {
+        q: "What is a barre chord, and why are they hard?",
+        a: "A barre chord uses one finger, usually the index, pressed flat across several strings at one fret, so it works like a movable capo and the shape plays anywhere on the neck. They feel hard at first because they need even pressure and stamina, not brute strength. It helps to place the finger right behind the fret, roll slightly onto its bony edge, and keep your thumb low behind the neck.",
+        view: "chord",
+      },
+      {
+        q: "What is a power chord?",
+        a: "A power chord is built from just two notes, the root and the fifth (often with the octave added on top), and has no third, so it is neither major nor minor and fits over almost anything. That neutral, solid sound, especially with distortion, is why power chords are everywhere in rock and punk. With no third to place, they are one of the easiest shapes to learn.",
+        view: "chord",
+      },
+      {
+        q: "What is a chord progression?",
+        a: "A chord progression is a sequence of chords played in order, and it is the harmonic backbone of a song. A very common one is I, V, vi, IV, which in the key of G is G, D, E minor, C, and turns up in countless pop songs. The Progressions view shows popular progressions in any key with the shapes to play.",
+        view: "prog",
+      },
+      {
+        q: "What do the Roman numerals I, IV and V mean in a chord progression?",
+        a: "The Roman numerals number the chords built on each step of a key's scale, so in the key of C, I is C, IV is F and V is G. Capital numerals are major chords and lower-case ones (like vi) are minor. Numbering chords this way lets the same progression be described in any key at once.",
+        view: "prog",
+      },
+      {
+        q: "What is a capo and what does it do?",
+        a: "A capo is a clamp that bars all the strings at one fret, acting as a new movable nut so the whole guitar sounds higher. You keep playing the same easy shapes, but they come out in a higher key, which is handy for matching a singer. A capo can only raise the key, never lower it, and using one is a normal tool, not cheating.",
+        view: "chord",
+      },
     ],
   },
   {
     id: "rhythm",
     title: "Rhythm, timing and the metronome",
     items: [
-      { q: "What is a time signature?", a: "A time signature is the two stacked numbers at the start of a piece that group the beats. The top number is how many beats are in each bar, and the bottom number is which kind of note gets one beat (a 4 means a quarter note). It is not a fraction; it sets the feel before a note is played." },
-      { q: "What does 4/4 time mean?", a: "4/4 means four beats in every bar, and each beat is a quarter note, counted one, two, three, four. It is by far the most common time signature in pop, rock and folk, which is why it is also called common time. Most songs you first learn are in 4/4." },
-      { q: "What is tempo, and what does BPM mean?", a: "Tempo is how fast the music goes, and BPM stands for beats per minute, the number of beats in one minute. 60 BPM is one beat every second, and 120 BPM is twice as fast. The metronome in Fretwork lets you set any tempo to practise to.", view: "strum" },
-      { q: "What are note values like quarter and eighth notes?", a: "Note values say how long a note lasts against the beat. In 4/4 a whole note lasts four beats, a half note two, a quarter note one, and an eighth note half a beat, so two eighths fit in one beat. Counting out loud, such as one-and-two-and, is the quickest way to feel them." },
-      { q: "How do I practise with a metronome, and what tempo should I start at?", a: "Set the metronome slow enough that you can play the part perfectly, which is often well below the speed you are aiming for, then line every note up with the click. Only raise the tempo a few beats per minute once it is clean and relaxed. Slow, accurate repetition is what builds real speed, not rushing.", view: "strum" },
-      { q: "How do I read a strumming pattern?", a: "A strumming pattern is written as down and up arrows under the count, such as down, down-up, up-down-up, and it repeats while the chords change over it. The key that most guides miss is to keep your strumming hand moving up and down steadily the whole time, and simply miss the strings on the beats you do not play. The strumming trainer shows this against a beat.", view: "strum" },
+      {
+        q: "What is a time signature?",
+        a: "A time signature is the two stacked numbers at the start of a piece that group the beats. The top number is how many beats are in each bar, and the bottom number is which kind of note gets one beat (a 4 means a quarter note). It is not a fraction; it sets the feel before a note is played.",
+      },
+      {
+        q: "What does 4/4 time mean?",
+        a: "4/4 means four beats in every bar, and each beat is a quarter note, counted one, two, three, four. It is by far the most common time signature in pop, rock and folk, which is why it is also called common time. Most songs you first learn are in 4/4.",
+      },
+      {
+        q: "What is tempo, and what does BPM mean?",
+        a: "Tempo is how fast the music goes, and BPM stands for beats per minute, the number of beats in one minute. 60 BPM is one beat every second, and 120 BPM is twice as fast. The metronome in Fretwork lets you set any tempo to practise to.",
+        view: "strum",
+      },
+      {
+        q: "What are note values like quarter and eighth notes?",
+        a: "Note values say how long a note lasts against the beat. In 4/4 a whole note lasts four beats, a half note two, a quarter note one, and an eighth note half a beat, so two eighths fit in one beat. Counting out loud, such as one-and-two-and, is the quickest way to feel them.",
+      },
+      {
+        q: "How do I practise with a metronome, and what tempo should I start at?",
+        a: "Set the metronome slow enough that you can play the part perfectly, which is often well below the speed you are aiming for, then line every note up with the click. Only raise the tempo a few beats per minute once it is clean and relaxed. Slow, accurate repetition is what builds real speed, not rushing.",
+        view: "strum",
+      },
+      {
+        q: "How do I read a strumming pattern?",
+        a: "A strumming pattern is written as down and up arrows under the count, such as down, down-up, up-down-up, and it repeats while the chords change over it. The key that most guides miss is to keep your strumming hand moving up and down steadily the whole time, and simply miss the strings on the beats you do not play. The strumming trainer shows this against a beat.",
+        view: "strum",
+      },
     ],
   },
   {
     id: "scales-intervals",
     title: "Scales, keys and intervals",
     items: [
-      { q: "What is a scale?", a: "A scale is an ordered set of notes that belong together and form the palette for melodies and solos in a key. It is played one note at a time, which is what makes it different from a chord. The major scale and the minor pentatonic scale are the two most useful to learn first, and the Scales view lights up every note across the neck.", view: "scale" },
-      { q: "What is the major scale?", a: "The major scale is the familiar seven-note do-re-mi scale, built by the step pattern tone, tone, semitone, tone, tone, tone, semitone from its starting note. It is the reference every other scale and interval is measured against. Learn one moveable pattern and you can play it in any key by starting on a different root.", view: "scale" },
-      { q: "What is the pentatonic scale?", a: "The pentatonic scale has five notes instead of seven, made by dropping the two most clashing notes from the major or minor scale, which is why it sounds forgiving and is the go-to for first solos. The minor pentatonic is the classic rock and blues shape. It is not that any note works, but that fewer notes can clash.", view: "scale" },
-      { q: "What is a key, and how is it different from a scale?", a: "A scale is just an ordered set of notes; a key is those notes organised around a home note, the tonic, that the music keeps resolving to. So C major the scale is the notes, and the key of C major is a piece that treats C as home and draws its chords from that family. Knowing the key tells you which scale fits and which chords are likely.", view: "scale" },
-      { q: "What is an interval in music?", a: "An interval is the distance in pitch between two notes. On the guitar it is easy to see: one fret is a semitone (a half step), two frets is a tone (a whole step), and larger gaps have names like a major third (four frets) or a perfect fifth (seven frets). Intervals are the building blocks of every scale and chord, and the Intervals view plays each one from any root.", view: "interval" },
-      { q: "What is the difference between a tone and a semitone?", a: "A semitone, or half step, is the smallest gap in Western music: one fret on the guitar. A tone, or whole step, is two semitones, so two frets. Scales are just particular patterns of tones and semitones, which is why the same shape works from any starting note.", view: "interval" },
-      { q: "What is an octave?", a: "An octave is the distance from a note to the next note of the same name, higher or lower, such as one E up to the next E. It is twelve semitones, or twelve frets up a single string. Notes an octave apart sound like the same note in a higher or lower voice.", view: "interval" },
-      { q: "What are sharps and flats?", a: "Sharps and flats are the pitches a semitone (one fret) above or below a letter note: a sharp raises it and a flat lowers it. Most letters have a note between them, but B to C and E to F are already only a semitone apart, so there is no fret between those. The same pitch can have two names, so F sharp and G flat are the same fret.", view: "interval" },
-      { q: "What is an arpeggio, and how is it different from a chord?", a: "An arpeggio is the notes of a chord played one at a time instead of all together, which is why it is also called a broken chord. So a chord is the notes stacked, an arpeggio is the same notes in a line, and a scale is a run of every note in the key. Arpeggios turn up in riffs, fingerpicking and solos, and the Arpeggios view plays them across the neck.", view: "arp" },
+      {
+        q: "What is a scale?",
+        a: "A scale is an ordered set of notes that belong together and form the palette for melodies and solos in a key. It is played one note at a time, which is what makes it different from a chord. The major scale and the minor pentatonic scale are the two most useful to learn first, and the Scales view lights up every note across the neck.",
+        view: "scale",
+      },
+      {
+        q: "What is the major scale?",
+        a: "The major scale is the familiar seven-note do-re-mi scale, built by the step pattern tone, tone, semitone, tone, tone, tone, semitone from its starting note. It is the reference every other scale and interval is measured against. Learn one moveable pattern and you can play it in any key by starting on a different root.",
+        view: "scale",
+      },
+      {
+        q: "What is the pentatonic scale?",
+        a: "The pentatonic scale has five notes instead of seven, made by dropping the two most clashing notes from the major or minor scale, which is why it sounds forgiving and is the go-to for first solos. The minor pentatonic is the classic rock and blues shape. It is not that any note works, but that fewer notes can clash.",
+        view: "scale",
+      },
+      {
+        q: "What is a key, and how is it different from a scale?",
+        a: "A scale is just an ordered set of notes; a key is those notes organised around a home note, the tonic, that the music keeps resolving to. So C major the scale is the notes, and the key of C major is a piece that treats C as home and draws its chords from that family. Knowing the key tells you which scale fits and which chords are likely.",
+        view: "scale",
+      },
+      {
+        q: "What is an interval in music?",
+        a: "An interval is the distance in pitch between two notes. On the guitar it is easy to see: one fret is a semitone (a half step), two frets is a tone (a whole step), and larger gaps have names like a major third (four frets) or a perfect fifth (seven frets). Intervals are the building blocks of every scale and chord, and the Intervals view plays each one from any root.",
+        view: "interval",
+      },
+      {
+        q: "What is the difference between a tone and a semitone?",
+        a: "A semitone, or half step, is the smallest gap in Western music: one fret on the guitar. A tone, or whole step, is two semitones, so two frets. Scales are just particular patterns of tones and semitones, which is why the same shape works from any starting note.",
+        view: "interval",
+      },
+      {
+        q: "What is an octave?",
+        a: "An octave is the distance from a note to the next note of the same name, higher or lower, such as one E up to the next E. It is twelve semitones, or twelve frets up a single string. Notes an octave apart sound like the same note in a higher or lower voice.",
+        view: "interval",
+      },
+      {
+        q: "What are sharps and flats?",
+        a: "Sharps and flats are the pitches a semitone (one fret) above or below a letter note: a sharp raises it and a flat lowers it. Most letters have a note between them, but B to C and E to F are already only a semitone apart, so there is no fret between those. The same pitch can have two names, so F sharp and G flat are the same fret.",
+        view: "interval",
+      },
+      {
+        q: "What is an arpeggio, and how is it different from a chord?",
+        a: "An arpeggio is the notes of a chord played one at a time instead of all together, which is why it is also called a broken chord. So a chord is the notes stacked, an arpeggio is the same notes in a line, and a scale is a run of every note in the key. Arpeggios turn up in riffs, fingerpicking and solos, and the Arpeggios view plays them across the neck.",
+        view: "arp",
+      },
     ],
   },
   {
     id: "practice",
     title: "Practising and progress",
     items: [
-      { q: "How long should I practise guitar each day?", a: "Short and regular beats long and rare: fifteen to twenty focused minutes on most days will take you further than one long session a week. Little and often is what builds both the habit and the coordination, and a rest day is fine. Fretwork tracks a daily streak to help you keep it going." },
-      { q: "How long does it take to learn guitar?", a: "Think in milestones, not one number. Most people can play a simple two or three chord song within a few weeks of regular practice, strum common songs comfortably in three to six months, and feel genuinely at home on the instrument in six to twelve. Progress depends far more on regular, focused practice than on talent." },
-      { q: "I feel like giving up, is that normal?", a: "Very. Almost everyone hits weeks where nothing seems to improve, a stage often called a plateau, and it usually means a jump forward is coming rather than that you have failed. When it bites, go back to a song you can already play to feel how far you have come, drop the tempo, or take a day off. Short, regular sessions and a little patience win in the end." },
-      { q: "How do I know if I am improving?", a: "Progress on guitar is gradual, so watch for the quiet signs: fewer buzzed notes, quicker recovery after a slip, cleaner chords at a slow tempo, changes that no longer need you to stare at your hand, and songs you can recall from memory. Fretwork's streak, points and quiz scores give you concrete numbers to watch rise over time." },
-      { q: "How do I memorise the notes on the fretboard?", a: "Learn the notes on the low E and A strings first, since they anchor most chords and barre shapes, then use octave shapes to find the same notes elsewhere. Short daily bursts work far better than one long cram. The Fretboard Quiz turns this into a game so the names start to come automatically.", view: "quiz" },
-      { q: "Do I need to learn music theory to play guitar?", a: "Not to begin. Chord diagrams and tab let you start playing real songs straight away, and you can pick up theory gradually once you are curious about why things work. A little theory does speed up your progress later, but it is never a gate you must pass first." },
+      {
+        q: "How long should I practise guitar each day?",
+        a: "Short and regular beats long and rare: fifteen to twenty focused minutes on most days will take you further than one long session a week. Little and often is what builds both the habit and the coordination, and a rest day is fine. Fretwork tracks a daily streak to help you keep it going.",
+      },
+      {
+        q: "How long does it take to learn guitar?",
+        a: "Think in milestones, not one number. Most people can play a simple two or three chord song within a few weeks of regular practice, strum common songs comfortably in three to six months, and feel genuinely at home on the instrument in six to twelve. Progress depends far more on regular, focused practice than on talent.",
+      },
+      {
+        q: "I feel like giving up, is that normal?",
+        a: "Very. Almost everyone hits weeks where nothing seems to improve, a stage often called a plateau, and it usually means a jump forward is coming rather than that you have failed. When it bites, go back to a song you can already play to feel how far you have come, drop the tempo, or take a day off. Short, regular sessions and a little patience win in the end.",
+      },
+      {
+        q: "How do I know if I am improving?",
+        a: "Progress on guitar is gradual, so watch for the quiet signs: fewer buzzed notes, quicker recovery after a slip, cleaner chords at a slow tempo, changes that no longer need you to stare at your hand, and songs you can recall from memory. Fretwork's streak, points and quiz scores give you concrete numbers to watch rise over time.",
+      },
+      {
+        q: "How do I memorise the notes on the fretboard?",
+        a: "Learn the notes on the low E and A strings first, since they anchor most chords and barre shapes, then use octave shapes to find the same notes elsewhere. Short daily bursts work far better than one long cram. The Fretboard Quiz turns this into a game so the names start to come automatically.",
+        view: "quiz",
+      },
+      {
+        q: "Do I need to learn music theory to play guitar?",
+        a: "Not to begin. Chord diagrams and tab let you start playing real songs straight away, and you can pick up theory gradually once you are curious about why things work. A little theory does speed up your progress later, but it is never a gate you must pass first.",
+      },
     ],
   },
   {
     id: "using-fretwork",
     title: "Using Fretwork's tools",
     items: [
-      { q: "What is Simple mode?", a: "Simple mode strips Fretwork back to the core so a beginner is not faced with advanced options too soon. It hides the more specialist scales, chords and controls, leaving a clean set to learn with. You can turn it off at any time as you grow into the app." },
-      { q: "What is ear training, and why should I use it?", a: "Ear training plays an interval or a chord and asks you to name it by listening, which trains your ear to recognise how notes sound against each other, the skill behind playing by ear and improvising. A few minutes a day pays off within weeks, and you build streaks and earn badges as your ear sharpens. If you cannot yet tell major from minor, that is normal and exactly what it trains.", view: "ear" },
-      { q: "What is the Fretboard Quiz?", a: "The Fretboard Quiz asks you to find a named note, or a numbered note from a scale, on the neck, turning fretboard memorisation into a quick game. It is the fastest way to stop hunting for notes and start knowing where they are. Your accuracy is shown so you can watch it improve.", view: "quiz" },
-      { q: "How do I save chords and scales I want to keep?", a: "Use the star button on any chord, scale, arpeggio or progression to save it to your Bank, a personal collection you can return to any time. The Bank keeps everything in one place for quick recall, and with a free account it syncs across your devices.", view: "bank" },
-      { q: "What does marking something as known do?", a: "The lightbulb button marks a scale, chord or arpeggio as something you already know. Fretwork uses your known items to build a practice routine that revisits them and adds one new thing to stretch you, so practice stays focused on what is useful to you.", view: "routine" },
-      { q: "How do points, levels and badges work?", a: "You earn points for practising: for minutes played, correct ear-training answers, chord changes and reaching badge tiers. Points raise your level, and badges reward milestones like ear-training streaks and daily habits. It is there to make regular practice rewarding, not to get in the way." },
+      {
+        q: "What is Simple mode?",
+        a: "Simple mode strips Fretwork back to the core so a beginner is not faced with advanced options too soon. It hides the more specialist scales, chords and controls, leaving a clean set to learn with. You can turn it off at any time as you grow into the app.",
+      },
+      {
+        q: "What is ear training, and why should I use it?",
+        a: "Ear training plays an interval or a chord and asks you to name it by listening, which trains your ear to recognise how notes sound against each other, the skill behind playing by ear and improvising. A few minutes a day pays off within weeks, and you build streaks and earn badges as your ear sharpens. If you cannot yet tell major from minor, that is normal and exactly what it trains.",
+        view: "ear",
+      },
+      {
+        q: "What is the Fretboard Quiz?",
+        a: "The Fretboard Quiz asks you to find a named note, or a numbered note from a scale, on the neck, turning fretboard memorisation into a quick game. It is the fastest way to stop hunting for notes and start knowing where they are. Your accuracy is shown so you can watch it improve.",
+        view: "quiz",
+      },
+      {
+        q: "How do I save chords and scales I want to keep?",
+        a: "Use the star button on any chord, scale, arpeggio or progression to save it to your Bank, a personal collection you can return to any time. The Bank keeps everything in one place for quick recall, and with a free account it syncs across your devices.",
+        view: "bank",
+      },
+      {
+        q: "What does marking something as known do?",
+        a: "The lightbulb button marks a scale, chord or arpeggio as something you already know. Fretwork uses your known items to build a practice routine that revisits them and adds one new thing to stretch you, so practice stays focused on what is useful to you.",
+        view: "routine",
+      },
+      {
+        q: "How do points, levels and badges work?",
+        a: "You earn points for practising: for minutes played, correct ear-training answers, chord changes and reaching badge tiers. Points raise your level, and badges reward milestones like ear-training streaks and daily habits. It is there to make regular practice rewarding, not to get in the way.",
+      },
     ],
   },
   {
     id: "how-it-works",
     title: "How Fretwork works: saving, accounts and devices",
     items: [
-      { q: "Where is my saved work stored?", a: "By default, everything you save (your Bank, settings and progress) is stored in your browser on the device you are using, so it stays private to you. Nothing is sent anywhere unless you create an account to sync. It is local to that browser, which is exactly why the optional account exists." },
-      { q: "Will I lose my saved shapes if I clear my browser or cache?", a: "If you clear this site's data or your browser storage, the work saved only on your device will be removed, because it lives in local storage. The way to protect it is to create a free account: your Bank and progress then sync to your account and come back when you sign in on any device." },
-      { q: "Why would I create an account?", a: "An account lets your saved shapes and progress follow you across devices, so you can start on a laptop and carry on from your phone, and it keeps them safe if you clear your browser. It is free and takes seconds to set up. Without one, everything still works and stays on your device.", view: "account" },
-      { q: "Can I use Fretwork offline?", a: "Yes. Fretwork is a progressive web app, so once it has loaded it keeps working without a connection, which is handy for practising anywhere. Install it to your home screen to open it like a normal app, and your saved work is available offline too." },
-      { q: "Is Fretwork an app or a website? What is a progressive web app?", a: "Fretwork is a website that can install and behave like an app, which is what a progressive web app means: a home-screen icon, a full-screen view and offline use, with no app store and nothing large to download. You always have the latest version, because it updates itself from the web." },
-      { q: "How do I install Fretwork on my phone's home screen?", a: "On an iPhone or iPad, open Fretwork in Safari, tap the Share button, then Add to Home Screen. On Android, open it in Chrome and choose Install app, or Add to Home screen, from the menu. On a laptop, use the install icon in the browser's address bar. It then opens full screen like an installed app." },
-      { q: "Does Fretwork work on iPhone, Android, tablets and laptops?", a: "Yes. Fretwork runs in any modern web browser and adapts to the screen, so it works on iPhone and Android phones, tablets, laptops and desktops. Sign in and your instrument, tuning and saved work stay the same across them all. There is nothing to download from an app store." },
-      { q: "Is my data private, and what analytics do you use?", a: "No account or personal details are required to use Fretwork, and the tuner's microphone audio never leaves your device. Anonymous usage analytics (Google Analytics, Vercel Analytics and Amplitude) help improve the app, with no session recording. Feedback you send is stored so it can be acted on." },
+      {
+        q: "Where is my saved work stored?",
+        a: "By default, everything you save (your Bank, settings and progress) is stored in your browser on the device you are using, so it stays private to you. Nothing is sent anywhere unless you create an account to sync. It is local to that browser, which is exactly why the optional account exists.",
+      },
+      {
+        q: "Will I lose my saved shapes if I clear my browser or cache?",
+        a: "If you clear this site's data or your browser storage, the work saved only on your device will be removed, because it lives in local storage. The way to protect it is to create a free account: your Bank and progress then sync to your account and come back when you sign in on any device.",
+      },
+      {
+        q: "Why would I create an account?",
+        a: "An account lets your saved shapes and progress follow you across devices, so you can start on a laptop and carry on from your phone, and it keeps them safe if you clear your browser. It is free and takes seconds to set up. Without one, everything still works and stays on your device.",
+        view: "account",
+      },
+      {
+        q: "Can I use Fretwork offline?",
+        a: "Yes. Fretwork is a progressive web app, so once it has loaded it keeps working without a connection, which is handy for practising anywhere. Install it to your home screen to open it like a normal app, and your saved work is available offline too.",
+      },
+      {
+        q: "Is Fretwork an app or a website? What is a progressive web app?",
+        a: "Fretwork is a website that can install and behave like an app, which is what a progressive web app means: a home-screen icon, a full-screen view and offline use, with no app store and nothing large to download. You always have the latest version, because it updates itself from the web.",
+      },
+      {
+        q: "How do I install Fretwork on my phone's home screen?",
+        a: "On an iPhone or iPad, open Fretwork in Safari, tap the Share button, then Add to Home Screen. On Android, open it in Chrome and choose Install app, or Add to Home screen, from the menu. On a laptop, use the install icon in the browser's address bar. It then opens full screen like an installed app.",
+      },
+      {
+        q: "Does Fretwork work on iPhone, Android, tablets and laptops?",
+        a: "Yes. Fretwork runs in any modern web browser and adapts to the screen, so it works on iPhone and Android phones, tablets, laptops and desktops. Sign in and your instrument, tuning and saved work stay the same across them all. There is nothing to download from an app store.",
+      },
+      {
+        q: "Is my data private, and what analytics do you use?",
+        a: "No account or personal details are required to use Fretwork, and the tuner's microphone audio never leaves your device. Anonymous usage analytics (Google Analytics, Vercel Analytics and Amplitude) help improve the app, with no session recording. Feedback you send is stored so it can be acted on.",
+      },
     ],
   },
 ];
@@ -907,8 +1291,12 @@ function FeedbackForm() {
   if (state === "sent")
     return (
       <div className="feedback">
-        <p className="done" role="status">Thank you. Your feedback has been sent.</p>
-        <button className="btn ghost" type="button" onClick={() => setState("idle")}>Send another</button>
+        <p className="done" role="status">
+          Thank you. Your feedback has been sent.
+        </p>
+        <button className="btn ghost" type="button" onClick={() => setState("idle")}>
+          Send another
+        </button>
       </div>
     );
 
@@ -953,12 +1341,39 @@ function FeedbackForm() {
 function HeadIcon({ kind }) {
   const shapes = {
     learn: <path d="M2 3.5c2-1.2 4-1.2 6 0v9c-2-1.2-4-1.2-6 0zM8 3.5c2-1.2 4-1.2 6 0v9c-2-1.2-4-1.2-6 0z" />,
-    practice: <><circle cx="8" cy="8" r="5.5" /><circle cx="8" cy="8" r="2" /></>,
-    profile: <><circle cx="8" cy="5" r="3" /><path d="M2.5 14c1-3 3-4.5 5.5-4.5s4.5 1.5 5.5 4.5" /></>,
-    tools: <><path d="M2 4.5h6M12.5 4.5H14M2 11.5h1.5M8 11.5h6" /><circle cx="10" cy="4.5" r="1.8" /><circle cx="5.5" cy="11.5" r="1.8" /></>,
+    practice: (
+      <>
+        <circle cx="8" cy="8" r="5.5" />
+        <circle cx="8" cy="8" r="2" />
+      </>
+    ),
+    profile: (
+      <>
+        <circle cx="8" cy="5" r="3" />
+        <path d="M2.5 14c1-3 3-4.5 5.5-4.5s4.5 1.5 5.5 4.5" />
+      </>
+    ),
+    tools: (
+      <>
+        <path d="M2 4.5h6M12.5 4.5H14M2 11.5h1.5M8 11.5h6" />
+        <circle cx="10" cy="4.5" r="1.8" />
+        <circle cx="5.5" cy="11.5" r="1.8" />
+      </>
+    ),
   };
   return (
-    <svg className="dicon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      className="dicon"
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       {shapes[kind]}
     </svg>
   );
@@ -1012,7 +1427,9 @@ export default function App() {
     if (/^#s=/.test(window.location.hash || "")) return "chord";
     return modeForPath(window.location.pathname) || "chord";
   });
-  useEffect(() => { modeRef.current = mode; }, [mode]);
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
   const [capo, setCapo] = useState(0);
   const [openPanel, setOpenPanel] = useState(null);
   const [drawer, setDrawer] = useState(false);
@@ -1021,8 +1438,15 @@ export default function App() {
   const toggleCat = (c) => setOpenCats((o) => ({ ...o, [c]: !o[c] }));
   /* Simple mode turning on leaves any now-hidden view; opening the menu reveals
      the active view's group so you can always see where you are. */
-  useEffect(() => { if (settings.simple && SIMPLE_HIDDEN.has(mode)) setMode("chord"); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [settings.simple]);
-  useEffect(() => { if (drawer) { const c = CAT_OF[mode]; if (c) setOpenCats((o) => (o[c] ? o : { ...o, [c]: true })); } /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [drawer]);
+  useEffect(() => {
+    if (settings.simple && SIMPLE_HIDDEN.has(mode)) setMode("chord"); /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [settings.simple]);
+  useEffect(() => {
+    if (drawer) {
+      const c = CAT_OF[mode];
+      if (c) setOpenCats((o) => (o[c] ? o : { ...o, [c]: true }));
+    } /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [drawer]);
   const burgerRef = useRef(null);
   const [scalePos, setScalePos] = useState(null);
   const [chordArea, setChordArea] = useState(null);
@@ -1120,7 +1544,10 @@ export default function App() {
 
   /* one-minute chord change trainer */
   const [chg, setChg] = useState({
-    chords: [{ root: 9, id: "maj" }, { root: 2, id: "maj" }], // A, D, the classic first pair
+    chords: [
+      { root: 9, id: "maj" },
+      { root: 2, id: "maj" },
+    ], // A, D, the classic first pair
     duration: 60,
     phase: "idle", // idle | running | done
     remaining: 60,
@@ -1155,7 +1582,18 @@ export default function App() {
      (which badge tiers and level have already been celebrated so we do not
      re-toast or re-fire GA on reload). Practice minutes come from practiceLog. */
   const [gamify, setGamify] = useState({
-    counters: { earCorrect: 0, earStreakInterval: 0, earStreakChord: 0, tourTaken: 0, triedSimple: 0, tunings: [], metronomeSeconds: 0, chordChangesTotal: 0, chordChangeBest: 0, bestDayStreak: 0 },
+    counters: {
+      earCorrect: 0,
+      earStreakInterval: 0,
+      earStreakChord: 0,
+      tourTaken: 0,
+      triedSimple: 0,
+      tunings: [],
+      metronomeSeconds: 0,
+      chordChangesTotal: 0,
+      chordChangeBest: 0,
+      bestDayStreak: 0,
+    },
     acked: {},
   });
   const gamifyReadyRef = useRef(false);
@@ -1167,12 +1605,16 @@ export default function App() {
   }, [celebrate]);
   /* persist gamify only after the initial load, so the empty default never
      overwrites saved progress on mount */
-  useEffect(() => { if (loaded) store.set("fretboard:gamify", JSON.stringify(gamify)).catch(() => {}); }, [gamify, loaded]);
+  useEffect(() => {
+    if (loaded) store.set("fretboard:gamify", JSON.stringify(gamify)).catch(() => {});
+  }, [gamify, loaded]);
 
   const [tour, setTour] = useState(-1);
   const [tourRect, setTourRect] = useState(null);
   const tourRef = useRef(-1);
-  useEffect(() => { tourRef.current = tour; }, [tour]);
+  useEffect(() => {
+    tourRef.current = tour;
+  }, [tour]);
   const tourCardRef = useRef(null);
   const hadShareHashRef = useRef(typeof window !== "undefined" && /^#s=/.test(window.location.hash || ""));
 
@@ -1248,9 +1690,8 @@ export default function App() {
   useEffect(() => {
     if (typeof document === "undefined") return;
     const m = VIEW_META[mode];
-    document.title = mode === "chord"
-      ? "Fretwork: Guitar Fretboard Trainer for Scales and Chords"
-      : m ? `${m.title} · Fretwork` : "Fretwork";
+    document.title =
+      mode === "chord" ? "Fretwork: Guitar Fretboard Trainer for Scales and Chords" : m ? `${m.title} · Fretwork` : "Fretwork";
   }, [mode]);
 
   useEffect(() => {
@@ -1293,7 +1734,7 @@ export default function App() {
       }, 700);
       syncTimers.current[field] = entry;
     },
-    [authUser]
+    [authUser],
   );
 
   /* run any pending debounced syncs immediately (sign-out, page hide) */
@@ -1303,10 +1744,8 @@ export default function App() {
     await Promise.all(
       entries.map(([field, entry]) => {
         clearTimeout(entry.timer);
-        return supabase
-          .from("user_data")
-          .upsert({ user_id: entry.uid, [field]: entry.value, updated_at: new Date().toISOString() });
-      })
+        return supabase.from("user_data").upsert({ user_id: entry.uid, [field]: entry.value, updated_at: new Date().toISOString() });
+      }),
     );
   }, []);
 
@@ -1317,21 +1756,31 @@ export default function App() {
   /* only push gamify after the account's copy has been folded in, so an empty
      local default cannot overwrite real server progress before the merge lands */
   const [gamifyMerged, setGamifyMerged] = useState(false);
-  useEffect(() => { setGamifyMerged(false); }, [authUser && authUser.id]);
+  useEffect(() => {
+    setGamifyMerged(false);
+  }, [authUser && authUser.id]);
   /* current values for the pagehide keepalive (effect closes over mount-time values) */
   const gamifyRef = useRef(gamify);
   const uidRef = useRef(null);
   const gamifyMergedRef = useRef(false);
-  useEffect(() => { gamifyRef.current = gamify; }, [gamify]);
-  useEffect(() => { uidRef.current = authUser ? authUser.id : null; }, [authUser]);
-  useEffect(() => { gamifyMergedRef.current = gamifyMerged; }, [gamifyMerged]);
+  useEffect(() => {
+    gamifyRef.current = gamify;
+  }, [gamify]);
+  useEffect(() => {
+    uidRef.current = authUser ? authUser.id : null;
+  }, [authUser]);
+  useEffect(() => {
+    gamifyMergedRef.current = gamifyMerged;
+  }, [gamifyMerged]);
   useEffect(() => {
     if (!loaded || !authUser || gamifySyncOffRef.current || !gamifyMerged) return;
     const t = setTimeout(() => {
       supabase
         .from("user_data")
         .upsert({ user_id: authUser.id, gamify, updated_at: new Date().toISOString() })
-        .then(({ error }) => { if (error && /column|gamify|schema/i.test(error.message || "")) gamifySyncOffRef.current = true; });
+        .then(({ error }) => {
+          if (error && /column|gamify|schema/i.test(error.message || "")) gamifySyncOffRef.current = true;
+        });
     }, 900);
     return () => clearTimeout(t);
   }, [gamify, loaded, authUser, gamifyMerged]);
@@ -1352,7 +1801,9 @@ export default function App() {
         if (!cancelled) setGamifyMerged(true);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [authUser && authUser.id]);
 
   /* on page hide, push pending syncs with keepalive requests that outlive the tab */
@@ -1381,7 +1832,12 @@ export default function App() {
         fetch(`${SUPA_URL}/rest/v1/user_data?on_conflict=user_id`, {
           method: "POST",
           keepalive: true,
-          headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates" },
+          headers: {
+            apikey: SUPA_KEY,
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Prefer: "resolution=merge-duplicates",
+          },
           body: JSON.stringify({ user_id: uidRef.current, gamify: gamifyRef.current, updated_at: new Date().toISOString() }),
         }).catch(() => {});
       }
@@ -1432,7 +1888,8 @@ export default function App() {
             for (const [k, v] of Object.entries(data.practice_log)) {
               if (!merged[k] || v.total > merged[k].total) merged[k] = v;
             }
-            for (const k of Object.keys(local)) if (!data.practice_log[k] || local[k].total > (data.practice_log[k].total || 0)) localWonADay = true;
+            for (const k of Object.keys(local))
+              if (!data.practice_log[k] || local[k].total > (data.practice_log[k].total || 0)) localWonADay = true;
             store.set("fretboard:practicelog", JSON.stringify(merged)).catch(() => {});
             /* if the local copy had days the server lacked or beat, push the reconciled log back now */
             if (localWonADay) syncField("practice_log", merged);
@@ -1474,8 +1931,8 @@ export default function App() {
           isNetErr(error)
             ? "Could not reach the server. Check your connection and try again."
             : /already|registered/i.test(error.message)
-            ? "That username is taken."
-            : error.message
+              ? "That username is taken."
+              : error.message,
         );
       track("sign_up");
       setToast("Account created");
@@ -1486,9 +1943,7 @@ export default function App() {
       setAuthBusy(false);
       if (error)
         return setAuthErr(
-          isNetErr(error)
-            ? "Could not reach the server. Check your connection and try again."
-            : "Wrong username or password."
+          isNetErr(error) ? "Could not reach the server. Check your connection and try again." : "Wrong username or password.",
         );
       track("sign_in");
     }
@@ -1502,7 +1957,20 @@ export default function App() {
     track("sign_out");
     /* clear this account's data locally so it cannot bleed into the next
        sign-in on the same browser (the server copy was just flushed) */
-    setGamify({ counters: { earCorrect: 0, earStreakInterval: 0, earStreakChord: 0, tourTaken: 0, triedSimple: 0, tunings: [], metronomeSeconds: 0, chordChangesTotal: 0, chordChangeBest: 0 }, acked: {} });
+    setGamify({
+      counters: {
+        earCorrect: 0,
+        earStreakInterval: 0,
+        earStreakChord: 0,
+        tourTaken: 0,
+        triedSimple: 0,
+        tunings: [],
+        metronomeSeconds: 0,
+        chordChangesTotal: 0,
+        chordChangeBest: 0,
+      },
+      acked: {},
+    });
     setPracticeLog({});
     setBank([]);
     setChgRecords({});
@@ -1538,8 +2006,8 @@ export default function App() {
         isNetErr(error)
           ? "Could not reach the server. Try again when you are online."
           : /already|registered|exists/i.test(error.message)
-          ? "That address is already in use."
-          : "That did not work. Check the address and try again."
+            ? "That address is already in use."
+            : "That did not work. Check the address and try again.",
       );
       return setLinkState("err");
     }
@@ -1587,24 +2055,40 @@ export default function App() {
     for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
     rms = Math.sqrt(rms / buf.length);
     if (rms < 0.01) return -1; // too quiet
-    let r1 = 0, r2 = buf.length - 1;
+    let r1 = 0,
+      r2 = buf.length - 1;
     const thr = 0.2;
-    for (let i = 0; i < buf.length / 2; i++) if (Math.abs(buf[i]) < thr) { r1 = i; break; }
-    for (let i = 1; i < buf.length / 2; i++) if (Math.abs(buf[buf.length - i]) < thr) { r2 = buf.length - i; break; }
+    for (let i = 0; i < buf.length / 2; i++)
+      if (Math.abs(buf[i]) < thr) {
+        r1 = i;
+        break;
+      }
+    for (let i = 1; i < buf.length / 2; i++)
+      if (Math.abs(buf[buf.length - i]) < thr) {
+        r2 = buf.length - i;
+        break;
+      }
     const b = buf.slice(r1, r2);
     /* only correlate lags in the guitar band (about 40 to 1200 Hz), which cuts
        the work from O(n^2) to a narrow strip */
     const minLag = Math.max(1, Math.floor(sr / 1200));
     const maxLag = Math.min(b.length - 1, Math.ceil(sr / 40));
     const c = new Array(maxLag + 1).fill(0);
-    for (let lag = minLag; lag <= maxLag; lag++)
-      for (let i = 0; i < b.length - lag; i++) c[lag] += b[i] * b[i + lag];
-    let maxv = -1, maxp = -1;
-    for (let i = minLag; i <= maxLag; i++) if (c[i] > maxv) { maxv = c[i]; maxp = i; }
+    for (let lag = minLag; lag <= maxLag; lag++) for (let i = 0; i < b.length - lag; i++) c[lag] += b[i] * b[i + lag];
+    let maxv = -1,
+      maxp = -1;
+    for (let i = minLag; i <= maxLag; i++)
+      if (c[i] > maxv) {
+        maxv = c[i];
+        maxp = i;
+      }
     if (maxp <= 0) return -1;
     // parabolic interpolation around the peak
-    const x1 = c[maxp - 1] || 0, x2 = c[maxp], x3 = c[maxp + 1] || 0;
-    const a = (x1 + x3 - 2 * x2) / 2, bb = (x3 - x1) / 2;
+    const x1 = c[maxp - 1] || 0,
+      x2 = c[maxp],
+      x3 = c[maxp + 1] || 0;
+    const a = (x1 + x3 - 2 * x2) / 2,
+      bb = (x3 - x1) / 2;
     const period = a ? maxp - bb / (2 * a) : maxp;
     return sr / period;
   };
@@ -1624,9 +2108,14 @@ export default function App() {
     if (micRef.current) return; // already listening: ignore a second press
     let stream = null;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      });
       /* a second press won the race, or the user left the tuner during the await; release this one */
-      if (micRef.current || modeRef.current !== "tuner") { stream.getTracks().forEach((t) => t.stop()); return; }
+      if (micRef.current || modeRef.current !== "tuner") {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
       const AC = window.AudioContext || window.webkitAudioContext;
       const ac = new AC();
       const src = ac.createMediaStreamSource(stream);
@@ -1641,7 +2130,8 @@ export default function App() {
       let frame = 0;
       const tick = () => {
         if (!micRef.current) return;
-        if (frame++ % 2 === 0) { // detection every other frame is plenty and halves the CPU
+        if (frame++ % 2 === 0) {
+          // detection every other frame is plenty and halves the CPU
           an.getFloatTimeDomainData(buf);
           const f = detectPitch(buf, ac.sampleRate);
           if (f > 40 && f < 1200) {
@@ -1657,7 +2147,13 @@ export default function App() {
       micRef.current.raf = requestAnimationFrame(tick);
     } catch (e) {
       if (stream) stream.getTracks().forEach((t) => t.stop()); // release an orphaned mic on any post-acquire failure
-      setTuner({ on: false, note: null, cents: 0, freq: 0, error: e && e.name === "NotAllowedError" ? "Microphone permission was declined." : "Could not access the microphone." });
+      setTuner({
+        on: false,
+        note: null,
+        cents: 0,
+        freq: 0,
+        error: e && e.name === "NotAllowedError" ? "Microphone permission was declined." : "Could not access the microphone.",
+      });
     }
   }, []);
 
@@ -1707,12 +2203,22 @@ export default function App() {
       }
       try {
         const r = await store.get("fretboard:known");
-        if (!cancelled && r && r.value) { const v = JSON.parse(r.value); if (Array.isArray(v)) setKnown(v); }
-      } catch (e) { /* none yet */ }
+        if (!cancelled && r && r.value) {
+          const v = JSON.parse(r.value);
+          if (Array.isArray(v)) setKnown(v);
+        }
+      } catch (e) {
+        /* none yet */
+      }
       try {
         const r = await store.get("fretboard:routineratings");
-        if (!cancelled && r && r.value) { const v = JSON.parse(r.value); if (v && typeof v === "object") setRoutineRatings(v); }
-      } catch (e) { /* none yet */ }
+        if (!cancelled && r && r.value) {
+          const v = JSON.parse(r.value);
+          if (v && typeof v === "object") setRoutineRatings(v);
+        }
+      } catch (e) {
+        /* none yet */
+      }
       try {
         const r = await store.get("fretboard:stats");
         if (!cancelled && r && r.value) {
@@ -1793,34 +2299,44 @@ export default function App() {
   }, [settings, loaded]);
 
   const saveStats = useCallback((q) => {
-    store
-      .set("fretboard:stats", JSON.stringify({ correct: q.correct, wrong: q.wrong, best: q.best, rounds: q.rounds }))
-      .catch(() => {});
+    store.set("fretboard:stats", JSON.stringify({ correct: q.correct, wrong: q.wrong, best: q.best, rounds: q.rounds })).catch(() => {});
   }, []);
 
-  const saveBank = useCallback((next) => {
-    setBank(next);
-    store.set("fretboard:bank", JSON.stringify(next)).catch(() => {});
-    syncField("bank", next);
-  }, [syncField]);
+  const saveBank = useCallback(
+    (next) => {
+      setBank(next);
+      store.set("fretboard:bank", JSON.stringify(next)).catch(() => {});
+      syncField("bank", next);
+    },
+    [syncField],
+  );
 
   const saveKnown = useCallback((next) => {
     setKnown(next);
     store.set("fretboard:known", JSON.stringify(next)).catch(() => {});
   }, []);
-  const toggleKnown = useCallback((item) => {
-    const exists = known.some((k) => k.sig === item.sig);
-    const next = exists ? known.filter((k) => k.sig !== item.sig) : [item, ...known];
-    saveKnown(next);
-    setToast(exists ? "Removed from what you know" : "Marked as known");
-  }, [known, saveKnown]);
+  const toggleKnown = useCallback(
+    (item) => {
+      const exists = known.some((k) => k.sig === item.sig);
+      const next = exists ? known.filter((k) => k.sig !== item.sig) : [item, ...known];
+      saveKnown(next);
+      setToast(exists ? "Removed from what you know" : "Marked as known");
+    },
+    [known, saveKnown],
+  );
 
-  const saveToBank = useCallback((item) => {
-    if (bank.some((b) => b.sig === item.sig)) { setToast("Already in your Bank"); return; }
-    saveBank([item, ...bank]);
-    track("bank_save", { kind: item.kind });
-    setToast("Saved to Bank");
-  }, [bank, saveBank]);
+  const saveToBank = useCallback(
+    (item) => {
+      if (bank.some((b) => b.sig === item.sig)) {
+        setToast("Already in your Bank");
+        return;
+      }
+      saveBank([item, ...bank]);
+      track("bank_save", { kind: item.kind });
+      setToast("Saved to Bank");
+    },
+    [bank, saveBank],
+  );
 
   const shareBankItem = useCallback(async (item) => {
     const p = {};
@@ -1835,7 +2351,12 @@ export default function App() {
     if (item.capo) p.capo = item.capo;
     if (item.tun && item.tun !== "std" && item.tun !== "custom") p.tun = item.tun;
     const url = shareLinkFromParams(p);
-    try { await navigator.clipboard.writeText(url); setToast("Link copied"); } catch (e) { window.prompt("Copy this link", url); }
+    try {
+      await navigator.clipboard.writeText(url);
+      setToast("Link copied");
+    } catch (e) {
+      window.prompt("Copy this link", url);
+    }
     track("bank_share", { kind: item.kind });
   }, []);
 
@@ -1845,28 +2366,51 @@ export default function App() {
   const restorePosRef = useRef(null);
   const restoreVoiceRef = useRef(null); // key of the saved chord shape to reselect on Bank open
   const [posNonce, setPosNonce] = useState(0);
-  const openBankItem = useCallback((item) => {
-    if (item.kind === "chord") { restoreVoiceRef.current = (item.voicing && item.voicing.key) || null; setPosNonce((k) => k + 1); setChordArea(null); setChordRoot(item.root); setChordId(item.chordId); setCapo(item.capo || 0); setMode("chord"); }
-    else if (item.kind === "scale") { restorePosRef.current = { kind: "scale", pos: item.pos == null ? null : item.pos }; setPosNonce((k) => k + 1); setScaleRoot(item.root); setScaleId(item.scaleId); setMode("scale"); }
-    else if (item.kind === "arp") { restorePosRef.current = { kind: "arp", pos: item.pos == null ? null : item.pos }; setPosNonce((k) => k + 1); setArpRoot(item.root); setArpId(item.arpId); if (item.dir) setArpDir(item.dir); setMode("arp"); }
-    else if (item.kind === "prog") {
-      setProgRoot(item.root);
-      if (PROGRESSIONS.some((x) => x.id === item.progId) || customProgs.some((x) => x.id === item.progId)) setProgId(item.progId);
-      else if (item.bars) { setBuilder({ bars: item.bars, name: item.name || item.label, sections: item.sections || {} }); setProgId("custom"); }
-      setMode("prog");
-    }
-  }, [customProgs]);
+  const openBankItem = useCallback(
+    (item) => {
+      if (item.kind === "chord") {
+        restoreVoiceRef.current = (item.voicing && item.voicing.key) || null;
+        setPosNonce((k) => k + 1);
+        setChordArea(null);
+        setChordRoot(item.root);
+        setChordId(item.chordId);
+        setCapo(item.capo || 0);
+        setMode("chord");
+      } else if (item.kind === "scale") {
+        restorePosRef.current = { kind: "scale", pos: item.pos == null ? null : item.pos };
+        setPosNonce((k) => k + 1);
+        setScaleRoot(item.root);
+        setScaleId(item.scaleId);
+        setMode("scale");
+      } else if (item.kind === "arp") {
+        restorePosRef.current = { kind: "arp", pos: item.pos == null ? null : item.pos };
+        setPosNonce((k) => k + 1);
+        setArpRoot(item.root);
+        setArpId(item.arpId);
+        if (item.dir) setArpDir(item.dir);
+        setMode("arp");
+      } else if (item.kind === "prog") {
+        setProgRoot(item.root);
+        if (PROGRESSIONS.some((x) => x.id === item.progId) || customProgs.some((x) => x.id === item.progId)) setProgId(item.progId);
+        else if (item.bars) {
+          setBuilder({ bars: item.bars, name: item.name || item.label, sections: item.sections || {} });
+          setProgId("custom");
+        }
+        setMode("prog");
+      }
+    },
+    [customProgs],
+  );
 
   /* derived */
   const midis = settings.midis;
   const n = midis.length;
   const fretCount = settings.fretCount;
   /* keep the capo on the neck if the fret count is lowered under it */
-  useEffect(() => { setCapo((c) => Math.min(c, fretCount)); }, [fretCount]);
-  const rowToString = useCallback(
-    (r) => (settings.highOnTop ? n - 1 - r : r),
-    [n, settings.highOnTop]
-  );
+  useEffect(() => {
+    setCapo((c) => Math.min(c, fretCount));
+  }, [fretCount]);
+  const rowToString = useCallback((r) => (settings.highOnTop ? n - 1 - r : r), [n, settings.highOnTop]);
   const geo = useGeometry(fretCount, n, settings.zoom, settings.leftHanded);
 
   const scaleDef = SCALES.find((s) => s.id === scaleId) || SCALES[0];
@@ -1889,7 +2433,11 @@ export default function App() {
 
   useEffect(() => {
     const r = restorePosRef.current;
-    if (r && r.kind === "scale") { setScalePos(r.pos); restorePosRef.current = null; return; }
+    if (r && r.kind === "scale") {
+      setScalePos(r.pos);
+      restorePosRef.current = null;
+      return;
+    }
     setScalePos(null);
   }, [scaleId, scaleRoot, settings.tuningId, capo, fretCount, posNonce]);
   const chordDef = CHORDS.find((c) => c.id === chordId) || CHORDS[0];
@@ -1907,19 +2455,26 @@ export default function App() {
   }, [arpDef, arpRoot, midis, fretCount, capo]);
   useEffect(() => {
     const r = restorePosRef.current;
-    if (r && r.kind === "arp") { setArpPos(r.pos); restorePosRef.current = null; return; }
+    if (r && r.kind === "arp") {
+      setArpPos(r.pos);
+      restorePosRef.current = null;
+      return;
+    }
     setArpPos(null);
   }, [arpId, arpRoot, settings.tuningId, capo, fretCount, posNonce]);
   useEffect(() => {
     if (settings.simple && (arpDir === "thirds" || arpDir === "pedal")) setArpDir("up");
   }, [settings.simple, arpDir]);
   useEffect(() => {
-    if (settings.simple) { const p = STRUM_PATTERNS.find((x) => x.id === strumPatId); if (p && !p.simple) setStrumPatId("oldfaithful"); }
+    if (settings.simple) {
+      const p = STRUM_PATTERNS.find((x) => x.id === strumPatId);
+      if (p && !p.simple) setStrumPatId("oldfaithful");
+    }
   }, [settings.simple, strumPatId]);
 
   const vopt = useMemo(
     () => ({ span: settings.span, inversions: settings.inversions, barres: settings.barres }),
-    [settings.span, settings.inversions, settings.barres]
+    [settings.span, settings.inversions, settings.barres],
   );
 
   const voicings = useMemo(() => {
@@ -1932,7 +2487,7 @@ export default function App() {
 
   const shownVoicings = useMemo(
     () => (chordArea == null ? voicings : voicings.filter((v) => v.lowest === chordArea)),
-    [voicings, chordArea]
+    [voicings, chordArea],
   );
 
   useEffect(() => {
@@ -1961,22 +2516,35 @@ export default function App() {
     if (saved) return saved;
     if (progId === "custom") {
       const minorish = MINOR_STARTS.has(builder.bars[0]);
-      return { id: "custom", name: builder.name.trim() || "Custom", note: "Build your own", tonality: minorish ? "minor" : "major", bars: builder.bars, sections: builder.sections };
+      return {
+        id: "custom",
+        name: builder.name.trim() || "Custom",
+        note: "Build your own",
+        tonality: minorish ? "minor" : "major",
+        bars: builder.bars,
+        sections: builder.sections,
+      };
     }
     return PROGRESSIONS[0];
   }, [progId, customProgs, builder]);
 
-  const saveCustomProgs = useCallback((next) => {
-    setCustomProgs(next);
-    store.set("fretboard:customprogs", JSON.stringify(next)).catch(() => {});
-    syncField("custom_progs", next);
-  }, [syncField]);
+  const saveCustomProgs = useCallback(
+    (next) => {
+      setCustomProgs(next);
+      store.set("fretboard:customprogs", JSON.stringify(next)).catch(() => {});
+      syncField("custom_progs", next);
+    },
+    [syncField],
+  );
 
-  const saveMelodies = useCallback((next) => {
-    setMelodies(next);
-    store.set("fretboard:melodies", JSON.stringify(next)).catch(() => {});
-    syncField("melodies", next);
-  }, [syncField]);
+  const saveMelodies = useCallback(
+    (next) => {
+      setMelodies(next);
+      store.set("fretboard:melodies", JSON.stringify(next)).catch(() => {});
+      syncField("melodies", next);
+    },
+    [syncField],
+  );
 
   const savePracticeLog = useRef(null);
   useEffect(() => {
@@ -2021,7 +2589,8 @@ export default function App() {
       d.setDate(d.getDate() - i);
       const k = localDay(d);
       if (practiceLog[k] && practiceLog[k].total >= 30) streak++;
-      else if (k === today) continue; // today not practised yet: the streak still stands from yesterday
+      else if (k === today)
+        continue; // today not practised yet: the streak still stands from yesterday
       else break;
     }
     const week = [];
@@ -2048,7 +2617,8 @@ export default function App() {
   const gStats = useMemo(() => {
     const c = gamify.counters;
     const byMode = {};
-    for (const day of Object.values(practiceLog)) for (const [m, sec] of Object.entries(day.byMode || {})) byMode[m] = (byMode[m] || 0) + sec;
+    for (const day of Object.values(practiceLog))
+      for (const [m, sec] of Object.entries(day.byMode || {})) byMode[m] = (byMode[m] || 0) + sec;
     return {
       earCorrect: c.earCorrect || 0,
       earStreakInterval: c.earStreakInterval || 0,
@@ -2070,7 +2640,11 @@ export default function App() {
 
   /* remember the best day streak reached so a missed day cannot drop points */
   useEffect(() => {
-    setGamify((g) => (practiceStats.streak > (g.counters.bestDayStreak || 0) ? { ...g, counters: { ...g.counters, bestDayStreak: practiceStats.streak } } : g));
+    setGamify((g) =>
+      practiceStats.streak > (g.counters.bestDayStreak || 0)
+        ? { ...g, counters: { ...g.counters, bestDayStreak: practiceStats.streak } }
+        : g,
+    );
   }, [practiceStats.streak]);
 
   const gPoints = useMemo(() => pointsFor(gStats), [gStats]);
@@ -2086,15 +2660,27 @@ export default function App() {
       setGamify((g) => {
         const a = { ...g.acked };
         let ch = false;
-        for (const b of BADGES) { const t = badgeTier(b, gStats); if (t > (a[b.id] || 0)) { a[b.id] = t; ch = true; } }
-        if (gLevel.level > (a.__level || 1)) { a.__level = gLevel.level; ch = true; }
+        for (const b of BADGES) {
+          const t = badgeTier(b, gStats);
+          if (t > (a[b.id] || 0)) {
+            a[b.id] = t;
+            ch = true;
+          }
+        }
+        if (gLevel.level > (a.__level || 1)) {
+          a.__level = gLevel.level;
+          ch = true;
+        }
         return ch ? { ...g, acked: a } : g;
       });
       return;
     }
     const acked = gamify.acked || {};
     const newly = [];
-    for (const b of BADGES) { const t = badgeTier(b, gStats); if (t > (acked[b.id] || 0)) newly.push({ b, tier: t }); }
+    for (const b of BADGES) {
+      const t = badgeTier(b, gStats);
+      if (t > (acked[b.id] || 0)) newly.push({ b, tier: t });
+    }
     const levelUp = gLevel.level > (acked.__level || 1);
     if (!newly.length && !levelUp) return;
     setGamify((g) => {
@@ -2107,7 +2693,8 @@ export default function App() {
     if (levelUp) track("level_up", { level: gLevel.level });
     /* a proper reward moment: a popup that lingers, not just a fleeting toast */
     if (levelUp) setCelebrate({ type: "level", level: gLevel.level });
-    else if (newly.length === 1) setCelebrate({ type: "badge", name: newly[0].b.name, tier: newly[0].tier, tiers: newly[0].b.tiers.length });
+    else if (newly.length === 1)
+      setCelebrate({ type: "badge", name: newly[0].b.name, tier: newly[0].tier, tiers: newly[0].b.tiers.length });
     else setCelebrate({ type: "badges", count: newly.length });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gStats, gLevel.level, loaded, progressSynced]);
@@ -2122,7 +2709,7 @@ export default function App() {
       }
       setMelSteps(moved);
     },
-    [melSteps, fretCount]
+    [melSteps, fretCount],
   );
 
   const progChords = useMemo(
@@ -2132,7 +2719,7 @@ export default function App() {
         const def = CHORDS.find((c) => c.id === entry[1]) || CHORDS[0];
         return { roman: rn, rootPc: (progRoot + entry[0]) % 12, chordId: entry[1], def };
       }),
-    [progDef, progRoot]
+    [progDef, progRoot],
   );
 
   const progVoicings = useMemo(() => {
@@ -2148,7 +2735,9 @@ export default function App() {
     });
   }, [mode, progChords, midis, fretCount, capo]);
 
-  useEffect(() => { setProgIdx(0); }, [progId, progRoot]);
+  useEffect(() => {
+    setProgIdx(0);
+  }, [progId, progRoot]);
 
   const activeProg = progChords[Math.min(progIdx, progChords.length - 1)] || null;
 
@@ -2198,10 +2787,20 @@ export default function App() {
   /* chord finder: turn the tapped positions into pitch classes and name any chords that fit */
   const finderInfo = useMemo(() => {
     const positionsList = [...finderSel];
-    const pcs = [...new Set(positionsList.map((k) => { const [s, f] = k.split(":").map(Number); return (midis[s] + f) % 12; }))];
+    const pcs = [
+      ...new Set(
+        positionsList.map((k) => {
+          const [s, f] = k.split(":").map(Number);
+          return (midis[s] + f) % 12;
+        }),
+      ),
+    ];
     const pcSet = new Set(pcs);
     const bassKey = positionsList
-      .map((k) => { const [s, f] = k.split(":").map(Number); return { pc: (midis[s] + f) % 12, midi: midis[s] + f }; })
+      .map((k) => {
+        const [s, f] = k.split(":").map(Number);
+        return { pc: (midis[s] + f) % 12, midi: midis[s] + f };
+      })
       .sort((a, b) => a.midi - b.midi)[0];
     const exact = [];
     const partial = [];
@@ -2212,14 +2811,20 @@ export default function App() {
           const chordSet = new Set(chordPcs);
           const covers = pcs.every((pc) => chordSet.has(pc));
           if (!covers) continue;
-          const entry = { root, id: c.id, name: `${nameOf(root, keyPrefersFlats(root, c.iv))}${c.suffix}`, size: chordPcs.length, bass: bassKey && bassKey.pc === root };
+          const entry = {
+            root,
+            id: c.id,
+            name: `${nameOf(root, keyPrefersFlats(root, c.iv))}${c.suffix}`,
+            size: chordPcs.length,
+            bass: bassKey && bassKey.pc === root,
+          };
           if (chordSet.size === pcSet.size) exact.push(entry);
           else partial.push(entry);
         }
       }
     }
     /* prefer chords whose root is the lowest note, then the smallest superset */
-    const rank = (a, b) => (b.bass - a.bass) || (a.size - b.size);
+    const rank = (a, b) => b.bass - a.bass || a.size - b.size;
     return { pcs, exact: exact.sort(rank).slice(0, 6), partial: partial.sort(rank).slice(0, 6), bassPc: bassKey ? bassKey.pc : null };
   }, [finderSel, midis]);
 
@@ -2231,8 +2836,7 @@ export default function App() {
     if (mode === "arp") return keyPrefersFlats(arpRoot, arpDef.iv);
     if (mode === "prog") return keyPrefersFlats(progRoot, progDef.tonality === "minor" ? [3] : [4]);
     if (mode === "interval") return keyPrefersFlats(ivRoot, ivOn);
-    if (mode === "melody")
-      return melKeyHint ? keyPrefersFlats(melKeyHint.root, [0, 2, 4, 5, 7, 9, 11]) : false;
+    if (mode === "melody") return melKeyHint ? keyPrefersFlats(melKeyHint.root, [0, 2, 4, 5, 7, 9, 11]) : false;
     if (mode === "changes") {
       const c0 = chg.chords[0];
       const d0 = c0 ? CHORDS.find((x) => x.id === c0.id) : null;
@@ -2242,8 +2846,8 @@ export default function App() {
       return quiz.source === "scale"
         ? keyPrefersFlats(scaleRoot, scaleDef.iv)
         : quiz.source === "chord"
-        ? keyPrefersFlats(chordRoot, chordDef.iv)
-        : keyPrefersFlats(ivRoot, ivOn);
+          ? keyPrefersFlats(chordRoot, chordDef.iv)
+          : keyPrefersFlats(ivRoot, ivOn);
     if (mode === "finder") {
       const best = finderInfo.exact[0] || finderInfo.partial[0];
       const bestDef = best ? CHORDS.find((x) => x.id === best.id) : null;
@@ -2251,12 +2855,29 @@ export default function App() {
       return r == null ? false : keyPrefersFlats(r, bestDef ? bestDef.iv : [4]);
     }
     return false;
-  }, [settings.noteNames, mode, scaleRoot, scaleDef, chordRoot, chordDef, progRoot, progDef, ivRoot, ivOn, chg.chords, quiz.source, melKeyHint, arpRoot, arpDef, finderInfo]);
+  }, [
+    settings.noteNames,
+    mode,
+    scaleRoot,
+    scaleDef,
+    chordRoot,
+    chordDef,
+    progRoot,
+    progDef,
+    ivRoot,
+    ivOn,
+    chg.chords,
+    quiz.source,
+    melKeyHint,
+    arpRoot,
+    arpDef,
+    finderInfo,
+  ]);
 
   /* per-item spelling for saved things rendered outside their own key context */
   const flatsFor = useCallback(
     (rootPc, iv) => (settings.noteNames === "auto" ? keyPrefersFlats(rootPc, iv) : settings.noteNames === "flats"),
-    [settings.noteNames]
+    [settings.noteNames],
   );
   const activeProgVoicing = progVoicings[Math.min(progIdx, progVoicings.length - 1)] || null;
 
@@ -2265,7 +2886,7 @@ export default function App() {
       lastActiveRef.current = Date.now(); // playing a note counts as active practice
       if (settings.sound) pluck(midi, when, gain);
     },
-    [settings.sound]
+    [settings.sound],
   );
 
   /* ---- which positions light up ---- */
@@ -2282,7 +2903,7 @@ export default function App() {
       }
       return out;
     },
-    [midis, n, fretCount, capo]
+    [midis, n, fretCount, capo],
   );
 
   const marks = useMemo(() => {
@@ -2296,7 +2917,7 @@ export default function App() {
       const win = scalePos != null ? positions[scalePos] : null;
       for (const p of positionsFor(scaleRoot, set)) {
         const outside = win && (p.f < win.from || p.f > win.to);
-        const state = outside ? "dim" : (playing != null ? (p.semis === playing ? "lit" : "dim") : null);
+        const state = outside ? "dim" : playing != null ? (p.semis === playing ? "lit" : "dim") : null;
         add(p.s, p.f, p.pc, p.semis, "scale", state);
       }
     }
@@ -2340,7 +2961,7 @@ export default function App() {
       const inWindow = [];
       for (const p of positionsFor(arpRoot, set)) {
         const outside = win && (p.f < win.from || p.f > win.to);
-        const state = outside ? "dim" : (playing != null ? (p.semis === playing ? "lit" : "dim") : null);
+        const state = outside ? "dim" : playing != null ? (p.semis === playing ? "lit" : "dim") : null;
         add(p.s, p.f, p.pc, p.semis, "arp", state);
         if (!outside) inWindow.push({ key: `${p.s}:${p.f}`, midi: midis[p.s] + p.f });
       }
@@ -2391,7 +3012,36 @@ export default function App() {
     }
 
     return map;
-  }, [mode, scaleDef, scaleRoot, ivRoot, ivOn, activeVoicing, chordRoot, midis, n, quiz, positionsFor, playing, activeProg, activeProgVoicing, scalePos, positions, melSteps, melPlayIdx, melCursor, melKeyHint, arpRoot, arpDef, arpPos, arpPositions, arpLabel, arpDir, finderSel, finderInfo]);
+  }, [
+    mode,
+    scaleDef,
+    scaleRoot,
+    ivRoot,
+    ivOn,
+    activeVoicing,
+    chordRoot,
+    midis,
+    n,
+    quiz,
+    positionsFor,
+    playing,
+    activeProg,
+    activeProgVoicing,
+    scalePos,
+    positions,
+    melSteps,
+    melPlayIdx,
+    melCursor,
+    melKeyHint,
+    arpRoot,
+    arpDef,
+    arpPos,
+    arpPositions,
+    arpLabel,
+    arpDir,
+    finderSel,
+    finderInfo,
+  ]);
 
   const ghosts = useMemo(() => {
     if (mode !== "chord" || !showAllTones) return null;
@@ -2436,7 +3086,22 @@ export default function App() {
   useEffect(() => {
     if (mode === "quiz") newRound();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, quiz.source, quiz.difficulty, quiz.range[0], quiz.range[1], scaleRoot, scaleId, chordRoot, chordId, ivRoot, ivOn, capo, settings.tuningId, settings.fretCount]);
+  }, [
+    mode,
+    quiz.source,
+    quiz.difficulty,
+    quiz.range[0],
+    quiz.range[1],
+    scaleRoot,
+    scaleId,
+    chordRoot,
+    chordId,
+    ivRoot,
+    ivOn,
+    capo,
+    settings.tuningId,
+    settings.fretCount,
+  ]);
 
   const onCell = useCallback(
     (s, f, midi) => {
@@ -2444,7 +3109,12 @@ export default function App() {
       if (mode === "melody") {
         playNote(midi);
         const i = melCursor;
-        setMelSteps((st) => { const n = st.slice(); while (n.length <= i) n.push({ rest: true }); n[i] = { s, f }; return n; });
+        setMelSteps((st) => {
+          const n = st.slice();
+          while (n.length <= i) n.push({ rest: true });
+          n[i] = { s, f };
+          return n;
+        });
         const total = melBars * MEL_SLOTS;
         if (i + 1 >= total && melBars < MEL_MAX_BARS) setMelBars(melBars + 1);
         setMelCursor(Math.min(i + 1, (melBars < MEL_MAX_BARS ? melBars + 1 : melBars) * MEL_SLOTS - 1));
@@ -2466,7 +3136,10 @@ export default function App() {
         return;
       }
       /* nothing to find (empty selection or round complete): sound the note, do not score */
-      if (quiz.done || quiz.hidden.size === 0) { playNote(midi); return; }
+      if (quiz.done || quiz.hidden.size === 0) {
+        playNote(midi);
+        return;
+      }
       const k = `${s}:${f}`;
       if (quiz.found.has(k)) return;
       if (quiz.hidden.has(k)) {
@@ -2478,7 +3151,9 @@ export default function App() {
           const done = found.size >= q.hidden.size;
           const streak = q.streak + 1;
           const next = {
-            ...q, found, done,
+            ...q,
+            found,
+            done,
             correct: q.correct + 1,
             streak,
             best: Math.max(q.best, streak),
@@ -2497,14 +3172,14 @@ export default function App() {
         });
       }
     },
-    [mode, quiz.hidden, quiz.found, quiz.done, capo, playNote, saveStats, settings.sound, melCursor, melBars]
+    [mode, quiz.hidden, quiz.found, quiz.done, capo, playNote, saveStats, settings.sound, melCursor, melBars],
   );
 
   useEffect(() => {
     setQuiz((q) =>
       q.range[1] <= fretCount && q.range[0] < fretCount
         ? q
-        : { ...q, range: [Math.min(q.range[0], fretCount - 1), Math.min(q.range[1], fretCount)] }
+        : { ...q, range: [Math.min(q.range[0], fretCount - 1), Math.min(q.range[1], fretCount)] },
     );
   }, [fretCount]);
 
@@ -2543,14 +3218,20 @@ export default function App() {
   }, []);
 
   /* one strum of the current chord: down runs low string to high, up reverses */
-  const strumChord = useCallback((dir, accent = false, at = 0) => {
-    if (!activeVoicing) return;
-    const notes = [];
-    for (let s = 0; s < n; s++) { const f = activeVoicing.frets[s]; if (f !== null) notes.push(midis[s] + f); }
-    const seq = dir === "u" ? notes.slice().reverse() : notes;
-    const gain = accent ? 0.7 : 0.4;
-    seq.forEach((m, i) => playNote(m, at + i * 0.024, gain));
-  }, [activeVoicing, midis, n, playNote]);
+  const strumChord = useCallback(
+    (dir, accent = false, at = 0) => {
+      if (!activeVoicing) return;
+      const notes = [];
+      for (let s = 0; s < n; s++) {
+        const f = activeVoicing.frets[s];
+        if (f !== null) notes.push(midis[s] + f);
+      }
+      const seq = dir === "u" ? notes.slice().reverse() : notes;
+      const gain = accent ? 0.7 : 0.4;
+      seq.forEach((m, i) => playNote(m, at + i * 0.024, gain));
+    },
+    [activeVoicing, midis, n, playNote],
+  );
 
   /* schedule one cycle of bars, then re-arm the next so the groove loops until
      Stop (re-syncing to the audio clock each cycle keeps the timing honest) */
@@ -2562,18 +3243,35 @@ export default function App() {
       for (let sl = 0; sl < 8; sl++) {
         const idx = loop * 8 + sl;
         const stroke = pat.slots[sl];
-        playTimers.current.push(setTimeout(() => {
-          setStrumStep(sl);
-          /* an uppercase slot (D/U) is an accented, louder strum */
-          if (stroke) strumChord(stroke.toLowerCase(), stroke === stroke.toUpperCase());
-          /* click on each beat (every second eighth), accented on the downbeat */
-          if (strumClick && settings.sound && sl % 2 === 0) { const ac = ctx(); if (ac) playClick(settings.clickSound, ac.currentTime, sl === 0); }
-        }, idx * slotSec * 1000));
+        playTimers.current.push(
+          setTimeout(
+            () => {
+              setStrumStep(sl);
+              /* an uppercase slot (D/U) is an accented, louder strum */
+              if (stroke) strumChord(stroke.toLowerCase(), stroke === stroke.toUpperCase());
+              /* click on each beat (every second eighth), accented on the downbeat */
+              if (strumClick && settings.sound && sl % 2 === 0) {
+                const ac = ctx();
+                if (ac) playClick(settings.clickSound, ac.currentTime, sl === 0);
+              }
+            },
+            idx * slotSec * 1000,
+          ),
+        );
       }
     }
-    playTimers.current.push(setTimeout(() => { if (strumLoopRef.current) scheduleStrumRef.current(); }, BARS * 8 * slotSec * 1000));
+    playTimers.current.push(
+      setTimeout(
+        () => {
+          if (strumLoopRef.current) scheduleStrumRef.current();
+        },
+        BARS * 8 * slotSec * 1000,
+      ),
+    );
   }, [strumPatId, settings.bpm, settings.clickSound, settings.sound, strumClick, strumChord]);
-  useEffect(() => { scheduleStrumRef.current = scheduleStrumCycle; }, [scheduleStrumCycle]);
+  useEffect(() => {
+    scheduleStrumRef.current = scheduleStrumCycle;
+  }, [scheduleStrumCycle]);
 
   const playStrum = useCallback(() => {
     if (!activeVoicing) return;
@@ -2583,34 +3281,42 @@ export default function App() {
     scheduleStrumCycle();
   }, [activeVoicing, stopPlayback, scheduleStrumCycle]);
 
-  const doImportTab = useCallback((text) => {
-    /* keep notes on the neck and within the timeline the grid can render */
-    const steps = parseTab(text, settings.midis.length)
-      .filter((st) => st.f <= fretCount)
-      .slice(0, MEL_MAX_BARS * MEL_SLOTS);
-    if (!steps.length) { setToast("Could not read a tab there. Check the format."); return; }
-    stopPlayback();
-    setMelSteps(steps);
-    const bars = Math.max(2, Math.min(MEL_MAX_BARS, Math.ceil((steps.length + 1) / MEL_SLOTS)));
-    setMelBars(bars);
-    setMelCursor(Math.min(steps.length, bars * MEL_SLOTS - 1));
-    setMelImport(false);
-    setMelImportText("");
-    track("melody_import", { notes: steps.length });
-    setToast(`Imported ${steps.length} notes`);
-  }, [settings.midis.length, fretCount, stopPlayback]);
+  const doImportTab = useCallback(
+    (text) => {
+      /* keep notes on the neck and within the timeline the grid can render */
+      const steps = parseTab(text, settings.midis.length)
+        .filter((st) => st.f <= fretCount)
+        .slice(0, MEL_MAX_BARS * MEL_SLOTS);
+      if (!steps.length) {
+        setToast("Could not read a tab there. Check the format.");
+        return;
+      }
+      stopPlayback();
+      setMelSteps(steps);
+      const bars = Math.max(2, Math.min(MEL_MAX_BARS, Math.ceil((steps.length + 1) / MEL_SLOTS)));
+      setMelBars(bars);
+      setMelCursor(Math.min(steps.length, bars * MEL_SLOTS - 1));
+      setMelImport(false);
+      setMelImportText("");
+      track("melody_import", { notes: steps.length });
+      setToast(`Imported ${steps.length} notes`);
+    },
+    [settings.midis.length, fretCount, stopPlayback],
+  );
 
   const importTabFromClipboard = useCallback(async () => {
     try {
       const text = await navigator.clipboard.readText();
-      if (text && text.trim()) { doImportTab(text); return; }
+      if (text && text.trim()) {
+        doImportTab(text);
+        return;
+      }
       setToast("Clipboard is empty. Paste your tab below.");
     } catch (e) {
       /* clipboard read blocked: fall back to the paste box */
     }
     setMelImport(true);
   }, [doImportTab]);
-
 
   const playScale = useCallback(() => {
     stopPlayback();
@@ -2626,7 +3332,10 @@ export default function App() {
         .sort((a, b) => a.midi - b.midi);
     } else {
       const rootMidi = midis[0] + ((scaleRoot - (midis[0] % 12) + 24) % 12) + 12;
-      seq = scaleDef.iv.map((i) => i % 12).concat([0]).map((iv, i, arr) => ({ midi: rootMidi + (i === arr.length - 1 ? 12 : iv), semis: iv }));
+      seq = scaleDef.iv
+        .map((i) => i % 12)
+        .concat([0])
+        .map((iv, i, arr) => ({ midi: rootMidi + (i === arr.length - 1 ? 12 : iv), semis: iv }));
     }
     const STEP = win ? 0.34 : 0.52;
     seq.forEach((nt, i) => {
@@ -2665,21 +3374,34 @@ export default function App() {
     const stepSec = 60 / settings.bpm / melRate;
     grid.forEach((st, i) => {
       playTimers.current.push(
-        setTimeout(() => {
-          if (!st.rest) {
-            playNote(settings.midis[st.s] + st.f);
-            setFlash({ key: `${st.s}:${st.f}`, ok: true, t: i });
-          }
-          setMelPlayIdx(i);
-        }, i * stepSec * 1000)
+        setTimeout(
+          () => {
+            if (!st.rest) {
+              playNote(settings.midis[st.s] + st.f);
+              setFlash({ key: `${st.s}:${st.f}`, ok: true, t: i });
+            }
+            setMelPlayIdx(i);
+          },
+          i * stepSec * 1000,
+        ),
       );
     });
-    playTimers.current.push(setTimeout(() => {
-      if (melLoopRef.current) playMelodyRef.current();
-      else { setMelPlayIdx(null); setFlash(null); }
-    }, total * stepSec * 1000));
+    playTimers.current.push(
+      setTimeout(
+        () => {
+          if (melLoopRef.current) playMelodyRef.current();
+          else {
+            setMelPlayIdx(null);
+            setFlash(null);
+          }
+        },
+        total * stepSec * 1000,
+      ),
+    );
   }, [melSteps, melBars, settings.bpm, settings.midis, melRate, playNote]);
-  useEffect(() => { playMelodyRef.current = scheduleMelody; }, [scheduleMelody]);
+  useEffect(() => {
+    playMelodyRef.current = scheduleMelody;
+  }, [scheduleMelody]);
 
   const playMelody = useCallback(() => {
     stopPlayback();
@@ -2722,10 +3444,13 @@ export default function App() {
     const STEP = 60 / settings.bpm / 2;
     seq.forEach((m, i) => {
       playTimers.current.push(
-        setTimeout(() => {
-          playNote(m);
-          setPlaying((((m % 12) - arpRoot) % 12 + 12) % 12);
-        }, i * STEP * 1000)
+        setTimeout(
+          () => {
+            playNote(m);
+            setPlaying(((((m % 12) - arpRoot) % 12) + 12) % 12);
+          },
+          i * STEP * 1000,
+        ),
       );
     });
     playTimers.current.push(setTimeout(() => setPlaying(null), seq.length * STEP * 1000));
@@ -2737,7 +3462,7 @@ export default function App() {
       ear.source === "interval"
         ? EAR_INTERVALS.filter((x) => ear.level === "all" || EAR_INTERVALS_SIMPLE.has(x.v))
         : EAR_CHORDS.filter((x) => ear.level === "all" || EAR_CHORDS_SIMPLE.has(x.v)),
-    [ear.source, ear.level]
+    [ear.source, ear.level],
   );
 
   const earPlay = useCallback(
@@ -2753,7 +3478,7 @@ export default function App() {
         (def ? def.iv : [0, 4, 7]).forEach((i, j) => pluck(root + i, j * 0.08, 0.45));
       }
     },
-    [ear.source]
+    [ear.source],
   );
 
   const earNext = useCallback(() => {
@@ -2776,7 +3501,10 @@ export default function App() {
       if (right) {
         const streak = ear.streak + 1;
         const key = ear.source === "chord" ? "earStreakChord" : "earStreakInterval";
-        setGamify((g) => ({ ...g, counters: { ...g.counters, earCorrect: (g.counters.earCorrect || 0) + 1, [key]: Math.max(g.counters[key] || 0, streak) } }));
+        setGamify((g) => ({
+          ...g,
+          counters: { ...g.counters, earCorrect: (g.counters.earCorrect || 0) + 1, [key]: Math.max(g.counters[key] || 0, streak) },
+        }));
       }
       setEar((e) => ({
         ...e,
@@ -2786,7 +3514,7 @@ export default function App() {
         streak: right ? e.streak + 1 : 0,
       }));
     },
-    [ear, settings.sound]
+    [ear, settings.sound],
   );
 
   /* fresh question after an answer settles or the pool changes, but only once
@@ -2803,7 +3531,6 @@ export default function App() {
   useEffect(() => {
     if (mode !== "ear") setEar((e) => (e.started || e.current ? { ...e, started: false, current: null, picked: null } : e));
   }, [mode]);
-
 
   /* metronome: schedule ahead of the audio clock rather than trusting setInterval */
   const nextClick = useRef(0);
@@ -2824,7 +3551,7 @@ export default function App() {
     /* quieter clicks inside each beat; swing pushes the off-beat to the back
        of the beat. Simple mode plays plain quarters: its panel hides the
        subdivision control, so the setting must not act invisibly. */
-    const SUBS = { "2": [0.5], swing: [2 / 3], "3": [1 / 3, 2 / 3], "4": [0.25, 0.5, 0.75] };
+    const SUBS = { 2: [0.5], swing: [2 / 3], 3: [1 / 3, 2 / 3], 4: [0.25, 0.5, 0.75] };
     const subs = settings.simple ? [] : SUBS[settings.subdiv] || [];
     const beatTimers = [];
     const id = setInterval(() => {
@@ -2833,8 +3560,7 @@ export default function App() {
       while (nextClick.current < now.currentTime + 0.15) {
         lastActiveRef.current = Date.now();
         const b = beatCount.current;
-        const isAccent =
-          settings.accent === "down" ? b === 0 : settings.accent === "back" ? b % 2 === 1 : false;
+        const isAccent = settings.accent === "down" ? b === 0 : settings.accent === "back" ? b % 2 === 1 : false;
         playClick(settings.clickSound, nextClick.current, isAccent, 0.7, bus);
         const beatSec = 60 / settings.bpm;
         for (const f of subs) playClick(settings.clickSound, nextClick.current + f * beatSec, false, 0.32, bus);
@@ -2862,7 +3588,11 @@ export default function App() {
   }, [metroOn]);
 
   /* ---- one-minute chord change trainer ---- */
-  const chgKey = (chords) => chords.map((c) => `${c.root}:${c.id}`).sort().join(">");
+  const chgKey = (chords) =>
+    chords
+      .map((c) => `${c.root}:${c.id}`)
+      .sort()
+      .join(">");
   const chordName = (c) => `${nameOf(c.root, effFlats)}${(CHORDS.find((x) => x.id === c.id) || {}).suffix || ""}`;
   const chgLabel = chg.chords.map(chordName).join("  ·  ");
   const chgRecord = chgRecords[chgKey(chg.chords)] || { best: 0, last: 0, tries: 0 };
@@ -2929,19 +3659,23 @@ export default function App() {
     store.set("fretboard:changes", JSON.stringify(next)).catch(() => {});
     syncField("changes", next);
     const perMin = chg.duration > 0 ? Math.round((count * 60) / chg.duration) : count;
-    setGamify((g) => ({ ...g, counters: { ...g.counters, chordChangesTotal: (g.counters.chordChangesTotal || 0) + count, chordChangeBest: Math.max(g.counters.chordChangeBest || 0, perMin) } }));
+    setGamify((g) => ({
+      ...g,
+      counters: {
+        ...g.counters,
+        chordChangesTotal: (g.counters.chordChangesTotal || 0) + count,
+        chordChangeBest: Math.max(g.counters.chordChangeBest || 0, perMin),
+      },
+    }));
     track("changes_save", { count, new_best: beat });
     setToast(beat && count > 0 ? `New best · ${count} changes` : `Saved · ${count} changes`);
     setChg((c) => ({ ...c, phase: "idle", remaining: c.duration }));
     setChgEntry("");
   }, [chgEntry, chg.chords, chg.duration, chgRecords, syncField]);
 
-  const setChgChord = (i, patch) =>
-    setChg((c) => ({ ...c, chords: c.chords.map((x, j) => (j === i ? { ...x, ...patch } : x)) }));
-  const addChgChord = () =>
-    setChg((c) => (c.chords.length >= 8 ? c : { ...c, chords: [...c.chords, { root: 7, id: "maj" }] }));
-  const removeChgChord = (i) =>
-    setChg((c) => (c.chords.length <= 2 ? c : { ...c, chords: c.chords.filter((_, j) => j !== i) }));
+  const setChgChord = (i, patch) => setChg((c) => ({ ...c, chords: c.chords.map((x, j) => (j === i ? { ...x, ...patch } : x)) }));
+  const addChgChord = () => setChg((c) => (c.chords.length >= 8 ? c : { ...c, chords: [...c.chords, { root: 7, id: "maj" }] }));
+  const removeChgChord = (i) => setChg((c) => (c.chords.length <= 2 ? c : { ...c, chords: c.chords.filter((_, j) => j !== i) }));
 
   /* ---- share links: current view encoded in the URL hash ---- */
   const buildShareLink = useCallback(() => {
@@ -2954,12 +3688,33 @@ export default function App() {
       const cust = customProgs.find((x) => x.id === progId);
       if (cust) Object.assign(p, { bars: cust.bars, nm: cust.name, sec: cust.sections });
     } else if (mode === "interval") Object.assign(p, { r: ivRoot, iv: [...ivOn] });
-    else if (mode === "melody") Object.assign(p, { steps: melSteps.map((st) => (st.rest ? null : [st.s, st.f])), nm: melName.trim() || undefined });
+    else if (mode === "melody")
+      Object.assign(p, { steps: melSteps.map((st) => (st.rest ? null : [st.s, st.f])), nm: melName.trim() || undefined });
     if (capo) p.capo = capo;
     if (settings.tuningId !== "std" && settings.tuningId !== "custom") p.tun = settings.tuningId;
-    const enc = btoa(encodeURIComponent(JSON.stringify(p))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const enc = btoa(encodeURIComponent(JSON.stringify(p)))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
     return `${window.location.origin}/#s=${enc}`;
-  }, [mode, scaleRoot, scaleId, chordRoot, chordId, progRoot, progId, customProgs, ivRoot, ivOn, melSteps, melName, capo, settings.tuningId, arpRoot, arpId]);
+  }, [
+    mode,
+    scaleRoot,
+    scaleId,
+    chordRoot,
+    chordId,
+    progRoot,
+    progId,
+    customProgs,
+    ivRoot,
+    ivOn,
+    melSteps,
+    melName,
+    capo,
+    settings.tuningId,
+    arpRoot,
+    arpId,
+  ]);
 
   const shareable = ["scale", "chord", "prog", "interval", "melody", "arp"].includes(mode);
   const doShare = useCallback(async () => {
@@ -2988,29 +3743,55 @@ export default function App() {
       const p = JSON.parse(decodeURIComponent(atob(mt[1].replace(/-/g, "+").replace(/_/g, "/") + pad)));
       const pc = (v) => Number.isInteger(v) && v >= 0 && v < 12;
       if (p.m === "scale" && pc(p.r) && SCALES.some((x) => x.id === p.id)) {
-        setScaleRoot(p.r); setScaleId(p.id); setMode("scale"); pvMode = "scale";
+        setScaleRoot(p.r);
+        setScaleId(p.id);
+        setMode("scale");
+        pvMode = "scale";
       } else if (p.m === "arp" && pc(p.r) && CHORDS.some((x) => x.id === p.id)) {
-        setArpRoot(p.r); setArpId(p.id); setMode("arp"); pvMode = "arp";
+        setArpRoot(p.r);
+        setArpId(p.id);
+        setMode("arp");
+        pvMode = "arp";
       } else if (p.m === "chord" && pc(p.r) && CHORDS.some((x) => x.id === p.id)) {
-        setChordRoot(p.r); setChordId(p.id); setMode("chord"); pvMode = "chord";
+        setChordRoot(p.r);
+        setChordId(p.id);
+        setMode("chord");
+        pvMode = "chord";
       } else if (p.m === "prog" && pc(p.r)) {
         setProgRoot(p.r);
-        if (Array.isArray(p.bars) && p.bars.length && p.bars.every((b) => typeof b === "string" && Object.prototype.hasOwnProperty.call(ROMAN, b))) {
+        if (
+          Array.isArray(p.bars) &&
+          p.bars.length &&
+          p.bars.every((b) => typeof b === "string" && Object.prototype.hasOwnProperty.call(ROMAN, b))
+        ) {
           const sec = {};
-          if (p.sec && typeof p.sec === "object") for (const [k, v] of Object.entries(p.sec)) if (/^[0-9]+$/.test(k) && typeof v === "string") sec[+k] = v.slice(0, 16);
+          if (p.sec && typeof p.sec === "object")
+            for (const [k, v] of Object.entries(p.sec)) if (/^[0-9]+$/.test(k) && typeof v === "string") sec[+k] = v.slice(0, 16);
           setBuilder({ bars: p.bars.slice(0, 64), name: typeof p.nm === "string" ? p.nm.slice(0, 40) : "", sections: sec });
           setProgId("custom");
         } else if (PROGRESSIONS.some((x) => x.id === p.id)) {
           setProgId(p.id);
         }
-        setMode("prog"); pvMode = "prog";
+        setMode("prog");
+        pvMode = "prog";
       } else if (p.m === "interval" && pc(p.r) && Array.isArray(p.iv)) {
         setIvRoot(p.r);
         setIvOn(new Set(p.iv.filter((i) => Number.isInteger(i) && i >= 0 && i < 12)));
-        setMode("interval"); pvMode = "interval";
+        setMode("interval");
+        pvMode = "interval";
       } else if (p.m === "melody" && Array.isArray(p.steps)) {
         const steps = p.steps
-          .filter((st) => st === null || (Array.isArray(st) && Number.isInteger(st[0]) && Number.isInteger(st[1]) && st[0] >= 0 && st[0] < settings.midis.length && st[1] >= 0 && st[1] <= fretCount))
+          .filter(
+            (st) =>
+              st === null ||
+              (Array.isArray(st) &&
+                Number.isInteger(st[0]) &&
+                Number.isInteger(st[1]) &&
+                st[0] >= 0 &&
+                st[0] < settings.midis.length &&
+                st[1] >= 0 &&
+                st[1] <= fretCount),
+          )
           .slice(0, MEL_MAX_BARS * MEL_SLOTS)
           .map((st) => (st === null ? { rest: true } : { s: st[0], f: st[1] }));
         if (steps.length) {
@@ -3018,7 +3799,8 @@ export default function App() {
           setMelBars(Math.max(2, Math.min(MEL_MAX_BARS, Math.ceil(steps.length / MEL_SLOTS))));
           setMelCursor(0);
           if (typeof p.nm === "string") setMelName(p.nm.slice(0, 60));
-          setMode("melody"); pvMode = "melody";
+          setMode("melody");
+          pvMode = "melody";
         }
       }
       if (Number.isInteger(p.capo) && p.capo >= 0 && p.capo <= 12) setCapo(p.capo);
@@ -3033,8 +3815,7 @@ export default function App() {
     firePageView(pvMode);
     /* apply once: land on the shared view's real path and drop the hash, so a
        reload reflects the current view rather than re-applying the link */
-    if (window.history && window.history.replaceState)
-      window.history.replaceState(null, "", pathForMode(pvMode) + window.location.search);
+    if (window.history && window.history.replaceState) window.history.replaceState(null, "", pathForMode(pvMode) + window.location.search);
     routedRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
@@ -3055,7 +3836,10 @@ export default function App() {
   useEffect(() => {
     const onPop = () => {
       const m = modeForPath(window.location.pathname);
-      if (m) { fromPopRef.current = true; setMode(m); }
+      if (m) {
+        fromPopRef.current = true;
+        setMode(m);
+      }
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -3069,7 +3853,11 @@ export default function App() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (strictShareRef.current && !shareHandledRef.current) return;
-    if (fromPopRef.current) { fromPopRef.current = false; routedRef.current = true; return; }
+    if (fromPopRef.current) {
+      fromPopRef.current = false;
+      routedRef.current = true;
+      return;
+    }
     const path = pathForMode(mode);
     if (window.location.pathname !== path) {
       const url = path + window.location.search;
@@ -3086,33 +3874,40 @@ export default function App() {
   }, [toast]);
 
   useEffect(() => stopPlayback, [stopPlayback]);
-  useEffect(() => { stopPlayback(); }, [mode, scaleId, scaleRoot, chordId, chordRoot, capo, progId, progRoot, arpRoot, arpId, arpDir, melSteps, stopPlayback]);
+  useEffect(() => {
+    stopPlayback();
+  }, [mode, scaleId, scaleRoot, chordId, chordRoot, capo, progId, progRoot, arpRoot, arpId, arpDir, melSteps, stopPlayback]);
 
   /* ---- readout ---- */
   const readout = useMemo(() => {
-    if (mode === "scale")
-      return `${nameOf(scaleRoot, effFlats)} ${scaleDef.name} · ${scaleDef.iv.length} notes`;
-    if (mode === "chord")
-      return `${nameOf(chordRoot, effFlats)}${chordDef.suffix || ""} · ${shownVoicings.length} voicings`;
-    if (mode === "prog")
-      return `${nameOf(progRoot, effFlats)} \u00b7 ${progDef.name} \u00b7 ${progDef.bars.length} bars`;
+    if (mode === "scale") return `${nameOf(scaleRoot, effFlats)} ${scaleDef.name} · ${scaleDef.iv.length} notes`;
+    if (mode === "chord") return `${nameOf(chordRoot, effFlats)}${chordDef.suffix || ""} · ${shownVoicings.length} voicings`;
+    if (mode === "prog") return `${nameOf(progRoot, effFlats)} \u00b7 ${progDef.name} \u00b7 ${progDef.bars.length} bars`;
     if (mode === "bank") return `Bank \u00b7 ${bank.length} saved`;
     if (mode === "interval")
-      return `${nameOf(ivRoot, effFlats)} root · ${[...ivOn].sort((a, b) => a - b).map((i) => DEG[i]).join(" ")}`;
-    if (mode === "changes")
-      return `Chord changes · ${chgLabel}`;
+      return `${nameOf(ivRoot, effFlats)} root · ${[...ivOn]
+        .sort((a, b) => a - b)
+        .map((i) => DEG[i])
+        .join(" ")}`;
+    if (mode === "changes") return `Chord changes · ${chgLabel}`;
     if (mode === "about") return "About";
     if (mode === "faq") return "FAQ";
     if (mode === "strum") return `Strumming \u00b7 ${nameOf(chordRoot, effFlats)}${chordDef.suffix}`;
-    if (mode === "melody") { const nn = melSteps.filter((s) => s && !s.rest).length; return `Melody \u00b7 ${nn} ${nn === 1 ? "note" : "notes"}`; }
-    if (mode === "arp")
-      return `${nameOf(arpRoot, effFlats)}${arpDef.suffix || ""} arpeggio \u00b7 ${arpDef.iv.length} tones`;
+    if (mode === "melody") {
+      const nn = melSteps.filter((s) => s && !s.rest).length;
+      return `Melody \u00b7 ${nn} ${nn === 1 ? "note" : "notes"}`;
+    }
+    if (mode === "arp") return `${nameOf(arpRoot, effFlats)}${arpDef.suffix || ""} arpeggio \u00b7 ${arpDef.iv.length} tones`;
     if (mode === "ear")
       return `Ear training \u00b7 ${ear.correct + ear.wrong ? Math.round((ear.correct / (ear.correct + ear.wrong)) * 100) + "%" : "ready"}`;
     if (mode === "plog") return `Practice log \u00b7 ${practiceStats.streak} day streak`;
     if (mode === "routine") return `Practice routine \u00b7 ${known.length} known`;
     if (mode === "finder")
-      return finderInfo.exact.length ? `Chord finder \u00b7 ${finderInfo.exact[0].name}` : finderSel.size ? "Chord finder \u00b7 no exact match" : "Chord finder";
+      return finderInfo.exact.length
+        ? `Chord finder \u00b7 ${finderInfo.exact[0].name}`
+        : finderSel.size
+          ? "Chord finder \u00b7 no exact match"
+          : "Chord finder";
     if (mode === "settings") return "Settings";
     if (mode === "tuner") {
       const t = TUNINGS.find((x) => x.id === settings.tuningId);
@@ -3123,10 +3918,40 @@ export default function App() {
       quiz.source === "scale"
         ? `${nameOf(scaleRoot, effFlats)} ${scaleDef.name}`
         : quiz.source === "interval"
-        ? `${nameOf(ivRoot, effFlats)} · ${[...ivOn].sort((a, b) => a - b).map((i) => DEG[i]).join(" ")}`
-        : `${nameOf(chordRoot, effFlats)}${chordDef.suffix || ""}`;
+          ? `${nameOf(ivRoot, effFlats)} · ${[...ivOn]
+              .sort((a, b) => a - b)
+              .map((i) => DEG[i])
+              .join(" ")}`
+          : `${nameOf(chordRoot, effFlats)}${chordDef.suffix || ""}`;
     return `Fretboard Quiz · ${src} · ${quiz.hidden ? quiz.hidden.size - quiz.found.size : 0} to find`;
-  }, [mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, shownVoicings.length, effFlats, quiz, progRoot, progDef, bank.length, chgLabel, authUser, uname, settings.tuningId, melSteps, ear.correct, ear.wrong, arpRoot, arpDef, practiceStats.streak, finderInfo, finderSel.size, known.length]);
+  }, [
+    mode,
+    scaleRoot,
+    scaleDef,
+    chordRoot,
+    chordDef,
+    ivRoot,
+    ivOn,
+    shownVoicings.length,
+    effFlats,
+    quiz,
+    progRoot,
+    progDef,
+    bank.length,
+    chgLabel,
+    authUser,
+    uname,
+    settings.tuningId,
+    melSteps,
+    ear.correct,
+    ear.wrong,
+    arpRoot,
+    arpDef,
+    practiceStats.streak,
+    finderInfo,
+    finderSel.size,
+    known.length,
+  ]);
 
   const total = quiz.correct + quiz.wrong;
   const accuracy = total ? Math.round((quiz.correct / total) * 100) : 0;
@@ -3162,14 +3987,26 @@ export default function App() {
   /* ---- guided practice routine, built from what you know ---- */
   const gotoSegment = useCallback((item) => {
     if (!item) return;
-    if (item.kind === "scale") { setScaleRoot(item.root); setScaleId(item.id); setMode("scale"); }
-    else if (item.kind === "chord") { setChordRoot(item.root); setChordId(item.id); setMode("chord"); }
-    else if (item.kind === "arp") { setArpRoot(item.root); setArpId(item.id); setMode("arp"); }
+    if (item.kind === "scale") {
+      setScaleRoot(item.root);
+      setScaleId(item.id);
+      setMode("scale");
+    } else if (item.kind === "chord") {
+      setChordRoot(item.root);
+      setChordId(item.id);
+      setMode("chord");
+    } else if (item.kind === "arp") {
+      setArpRoot(item.root);
+      setArpId(item.id);
+      setMode("arp");
+    }
   }, []);
 
   const pickStretch = (knownList) => {
     const counts = {};
-    knownList.forEach((k) => { counts[k.kind] = (counts[k.kind] || 0) + 1; });
+    knownList.forEach((k) => {
+      counts[k.kind] = (counts[k.kind] || 0) + 1;
+    });
     const kind = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0] || "chord";
     const order = kind === "scale" ? SCALE_ORDER : CHORD_ORDER;
     const knownIds = new Set(knownList.filter((k) => k.kind === kind).map((k) => k.id));
@@ -3178,7 +4015,8 @@ export default function App() {
     const root = knownList.find((k) => k.kind === kind)?.root ?? 0;
     const def = kind === "scale" ? SCALES.find((s) => s.id === nextId) : CHORDS.find((c) => c.id === nextId);
     if (!def) return null;
-    const label = kind === "scale" ? `${nameOf(root, false)} ${def.name}` : `${nameOf(root, false)}${def.suffix}${kind === "arp" ? " arpeggio" : ""}`;
+    const label =
+      kind === "scale" ? `${nameOf(root, false)} ${def.name}` : `${nameOf(root, false)}${def.suffix}${kind === "arp" ? " arpeggio" : ""}`;
     return { sig: `k-${kind}:${root}:${nextId}`, kind, root, id: nextId, label, isStretch: true };
   };
 
@@ -3197,7 +4035,11 @@ export default function App() {
     };
     const weights = list.map(weightOf);
     const wSum = weights.reduce((a, b) => a + b, 0) || 1;
-    const segments = list.map((it, i) => ({ item: it, seconds: Math.max(30, Math.round((totalSec * weights[i]) / wSum)), stretch: !!it.isStretch }));
+    const segments = list.map((it, i) => ({
+      item: it,
+      seconds: Math.max(30, Math.round((totalSec * weights[i]) / wSum)),
+      stretch: !!it.isStretch,
+    }));
     track("routine_start", { minutes: routineDur, items: segments.length });
     setRoutine({ phase: "running", segments, idx: 0, remaining: segments[0].seconds, duration: routineDur });
   };
@@ -3213,7 +4055,10 @@ export default function App() {
 
   const rateRoutine = (stars) => {
     const next = { ...routineRatings };
-    if (routine) routine.segments.forEach((seg) => { if (!seg.stretch) next[seg.item.sig] = stars; });
+    if (routine)
+      routine.segments.forEach((seg) => {
+        if (!seg.stretch) next[seg.item.sig] = stars;
+      });
     setRoutineRatings(next);
     store.set("fretboard:routineratings", JSON.stringify(next)).catch(() => {});
     track("routine_done", { minutes: routine ? routine.duration : 0, stars });
@@ -3247,7 +4092,11 @@ export default function App() {
     <button
       className={`dnav ${mode === id ? "on" : ""}`}
       aria-current={mode === id ? "page" : undefined}
-      onClick={() => { setMode(id); setOpenPanel(null); closeNav(); }}
+      onClick={() => {
+        setMode(id);
+        setOpenPanel(null);
+        closeNav();
+      }}
     >
       {label}
       {extra}
@@ -3293,17 +4142,71 @@ export default function App() {
 
   /* live-app guided tour: each step sets up the real view, then spotlights it */
   const tourSteps = [
-    { title: "Welcome to Fretwork", body: "A quick tour of the neck and the practice tools. About a minute, and you can skip any time.", target: null, before: () => setDrawer(false) },
-    { title: "The menu", body: "Everything lives here, grouped into Learn, Practice, Tools and your Profile. Simple mode at the top keeps things focused while you find your feet; flip it off any time to unlock everything.", target: ".drawer", before: () => setDrawer(true) },
-    { title: "The fretboard", body: "Every view shares this neck. Tap any note to hear it, or drag the capo along the top. It is fully keyboard operable too.", target: ".neckwrap", before: () => { setDrawer(false); setMode("chord"); setOpenPanel(null); } },
-    { title: "Pick anything", body: "Choose a root and a chord, scale or arpeggio with the same compact pickers. Tap the star to keep anything in your Bank.", target: ".pane .row.wrap", before: () => { setDrawer(false); setMode("chord"); } },
-    { title: "Share it", body: "The share button copies a link to exactly what you are looking at, so you can send a shape or a progression to anyone.", target: ".sharebtn", before: () => { setDrawer(false); setMode("chord"); } },
-    { title: "Practise", body: "Quiz yourself, drill chord changes, train your ear, and write or paste in melodies from tab. Your practice time builds a streak.", target: "[data-tour=practice]", before: () => setDrawer(true) },
-    { title: "Tools", body: "A metronome with subdivisions, a real microphone tuner that listens to your guitar, and a chord finder that names the shapes you tap on the neck.", target: "[data-tour=tools]", before: () => setDrawer(true) },
-    { title: "That is the tour", body: "Have a play. The About page has learning resources and a place to send feedback. Enjoy.", target: null, before: () => setDrawer(false) },
+    {
+      title: "Welcome to Fretwork",
+      body: "A quick tour of the neck and the practice tools. About a minute, and you can skip any time.",
+      target: null,
+      before: () => setDrawer(false),
+    },
+    {
+      title: "The menu",
+      body: "Everything lives here, grouped into Learn, Practice, Tools and your Profile. Simple mode at the top keeps things focused while you find your feet; flip it off any time to unlock everything.",
+      target: ".drawer",
+      before: () => setDrawer(true),
+    },
+    {
+      title: "The fretboard",
+      body: "Every view shares this neck. Tap any note to hear it, or drag the capo along the top. It is fully keyboard operable too.",
+      target: ".neckwrap",
+      before: () => {
+        setDrawer(false);
+        setMode("chord");
+        setOpenPanel(null);
+      },
+    },
+    {
+      title: "Pick anything",
+      body: "Choose a root and a chord, scale or arpeggio with the same compact pickers. Tap the star to keep anything in your Bank.",
+      target: ".pane .row.wrap",
+      before: () => {
+        setDrawer(false);
+        setMode("chord");
+      },
+    },
+    {
+      title: "Share it",
+      body: "The share button copies a link to exactly what you are looking at, so you can send a shape or a progression to anyone.",
+      target: ".sharebtn",
+      before: () => {
+        setDrawer(false);
+        setMode("chord");
+      },
+    },
+    {
+      title: "Practise",
+      body: "Quiz yourself, drill chord changes, train your ear, and write or paste in melodies from tab. Your practice time builds a streak.",
+      target: "[data-tour=practice]",
+      before: () => setDrawer(true),
+    },
+    {
+      title: "Tools",
+      body: "A metronome with subdivisions, a real microphone tuner that listens to your guitar, and a chord finder that names the shapes you tap on the neck.",
+      target: "[data-tour=tools]",
+      before: () => setDrawer(true),
+    },
+    {
+      title: "That is the tour",
+      body: "Have a play. The About page has learning resources and a place to send feedback. Enjoy.",
+      target: null,
+      before: () => setDrawer(false),
+    },
   ];
 
-  const startTour = useCallback(() => { setTour(0); track("tour_start"); setGamify((g) => (g.counters.tourTaken ? g : { ...g, counters: { ...g.counters, tourTaken: 1 } })); }, []);
+  const startTour = useCallback(() => {
+    setTour(0);
+    track("tour_start");
+    setGamify((g) => (g.counters.tourTaken ? g : { ...g, counters: { ...g.counters, tourTaken: 1 } }));
+  }, []);
   const endTour = useCallback(() => {
     setTour(-1);
     setTourRect(null);
@@ -3316,17 +4219,28 @@ export default function App() {
     if (step.before) step.before();
     let raf = 0;
     const measure = () => {
-      if (!step.target) { setTourRect(null); return; }
+      if (!step.target) {
+        setTourRect(null);
+        return;
+      }
       const el = document.querySelector(step.target);
       if (el) {
         const r = el.getBoundingClientRect();
         setTourRect({ x: r.left, y: r.top, w: r.width, h: r.height });
       } else setTourRect(null);
     };
-    const t = setTimeout(() => { measure(); raf = requestAnimationFrame(measure); }, 320);
+    const t = setTimeout(() => {
+      measure();
+      raf = requestAnimationFrame(measure);
+    }, 320);
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
-    return () => { clearTimeout(t); cancelAnimationFrame(raf); window.removeEventListener("resize", measure); window.removeEventListener("scroll", measure, true); };
+    return () => {
+      clearTimeout(t);
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure, true);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tour]);
 
@@ -3345,25 +4259,42 @@ export default function App() {
       }
       if (!cancelled && !seen && !hadShareHashRef.current) startTour();
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
   /* tour as an operable modal: focus in, trap Tab, Escape closes */
   useEffect(() => {
     if (tour < 0) return;
-    const t = setTimeout(() => { if (tourCardRef.current) tourCardRef.current.focus(); }, 60);
+    const t = setTimeout(() => {
+      if (tourCardRef.current) tourCardRef.current.focus();
+    }, 60);
     const onKey = (e) => {
-      if (e.key === "Escape") { e.preventDefault(); endTour(); return; }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        endTour();
+        return;
+      }
       if (e.key !== "Tab" || !tourCardRef.current) return;
       const f = tourCardRef.current.querySelectorAll("button");
       if (!f.length) return;
-      const first = f[0], last = f[f.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      const first = f[0],
+        last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKey);
-    return () => { clearTimeout(t); window.removeEventListener("keydown", onKey); };
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("keydown", onKey);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tour]);
 
@@ -3385,8 +4316,6 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [drawer]);
 
-
-
   return (
     <div className={`app ${settings.dark ? "dark" : ""} ${settings.highContrast ? "hc" : ""} ${settings.lowMotion ? "lowmotion" : ""}`}>
       <style>{CSS}</style>
@@ -3397,16 +4326,25 @@ export default function App() {
             className={`simpletoggle ${settings.simple ? "on" : ""}`}
             role="switch"
             aria-checked={settings.simple}
-            onClick={() => { track("simple_toggle", { on: !settings.simple }); setSettings((s) => ({ ...s, simple: !s.simple })); setGamify((g) => (g.counters.triedSimple ? g : { ...g, counters: { ...g.counters, triedSimple: 1 } })); }}
+            onClick={() => {
+              track("simple_toggle", { on: !settings.simple });
+              setSettings((s) => ({ ...s, simple: !s.simple }));
+              setGamify((g) => (g.counters.triedSimple ? g : { ...g, counters: { ...g.counters, triedSimple: 1 } }));
+            }}
             data-tip="Fewer menus and options, for starting out"
           >
             <span className="simplelabel">Simple mode</span>
-            <span className="simpletrack" aria-hidden="true"><span className="simpleknob" /></span>
+            <span className="simpletrack" aria-hidden="true">
+              <span className="simpleknob" />
+            </span>
           </button>
 
           <button className="dhead dcat" aria-expanded={openCats.learn} onClick={() => toggleCat("learn")}>
-            <HeadIcon kind="learn" />Learn
-            <span className={`dcaret ${openCats.learn ? "open" : ""}`} aria-hidden="true">&#8250;</span>
+            <HeadIcon kind="learn" />
+            Learn
+            <span className={`dcaret ${openCats.learn ? "open" : ""}`} aria-hidden="true">
+              &#8250;
+            </span>
           </button>
           {openCats.learn && (
             <div className="dcatbody">
@@ -3419,8 +4357,11 @@ export default function App() {
           )}
 
           <button className="dhead dcat" data-tour="practice" aria-expanded={openCats.practice} onClick={() => toggleCat("practice")}>
-            <HeadIcon kind="practice" />Practice
-            <span className={`dcaret ${openCats.practice ? "open" : ""}`} aria-hidden="true">&#8250;</span>
+            <HeadIcon kind="practice" />
+            Practice
+            <span className={`dcaret ${openCats.practice ? "open" : ""}`} aria-hidden="true">
+              &#8250;
+            </span>
           </button>
           {openCats.practice && (
             <div className="dcatbody">
@@ -3434,14 +4375,20 @@ export default function App() {
           )}
 
           <button className="dhead dcat" data-tour="tools" aria-expanded={openCats.tools} onClick={() => toggleCat("tools")}>
-            <HeadIcon kind="tools" />Tools
-            <span className={`dcaret ${openCats.tools ? "open" : ""}`} aria-hidden="true">&#8250;</span>
+            <HeadIcon kind="tools" />
+            Tools
+            <span className={`dcaret ${openCats.tools ? "open" : ""}`} aria-hidden="true">
+              &#8250;
+            </span>
           </button>
           {openCats.tools && (
             <div className="dcatbody">
               <button
                 className={`dnav ${openPanel === "metro" ? "on" : ""}`}
-                onClick={() => { setOpenPanel((v) => (v === "metro" ? null : "metro")); closeNav(); }}
+                onClick={() => {
+                  setOpenPanel((v) => (v === "metro" ? null : "metro"));
+                  closeNav();
+                }}
                 aria-expanded={openPanel === "metro"}
               >
                 Metronome
@@ -3453,8 +4400,11 @@ export default function App() {
           )}
 
           <button className="dhead dcat" aria-expanded={openCats.profile} onClick={() => toggleCat("profile")}>
-            <HeadIcon kind="profile" />Profile
-            <span className={`dcaret ${openCats.profile ? "open" : ""}`} aria-hidden="true">&#8250;</span>
+            <HeadIcon kind="profile" />
+            Profile
+            <span className={`dcaret ${openCats.profile ? "open" : ""}`} aria-hidden="true">
+              &#8250;
+            </span>
           </button>
           {openCats.profile && (
             <div className="dcatbody">
@@ -3464,745 +4414,275 @@ export default function App() {
             </div>
           )}
 
-          <div className="dbank">
-            {navItem("bank", "Bank", bank.length > 0 ? <span className="badge">{bank.length}</span> : null)}
-          </div>
+          <div className="dbank">{navItem("bank", "Bank", bank.length > 0 ? <span className="badge">{bank.length}</span> : null)}</div>
 
           <div className="dspacer" aria-hidden="true" />
           <div className="dfoot">
             <button
               className={`dnav soft ${mode === "about" ? "on" : ""}`}
               aria-current={mode === "about" ? "page" : undefined}
-              onClick={() => { setMode("about"); setOpenPanel(null); closeNav(); }}
+              onClick={() => {
+                setMode("about");
+                setOpenPanel(null);
+                closeNav();
+              }}
             >
               About
             </button>
             <button
               className={`dnav soft ${mode === "faq" ? "on" : ""}`}
               aria-current={mode === "faq" ? "page" : undefined}
-              onClick={() => { setMode("faq"); setOpenPanel(null); closeNav(); }}
+              onClick={() => {
+                setMode("faq");
+                setOpenPanel(null);
+                closeNav();
+              }}
             >
               FAQ
             </button>
-            <button className="dnav soft" onClick={() => { startTour(); closeNav(); }}>Tour</button>
+            <button
+              className="dnav soft"
+              onClick={() => {
+                startTour();
+                closeNav();
+              }}
+            >
+              Tour
+            </button>
           </div>
         </div>
       </nav>
-      <div className={`scrim ${drawer ? "on" : ""}`} onClick={() => { if (burgerRef.current) burgerRef.current.focus(); setDrawer(false); }} aria-hidden="true" />
+      <div
+        className={`scrim ${drawer ? "on" : ""}`}
+        onClick={() => {
+          if (burgerRef.current) burgerRef.current.focus();
+          setDrawer(false);
+        }}
+        aria-hidden="true"
+      />
 
       <div className="stage">
-      <header className="chassis">
-        <button
-          ref={burgerRef}
-          className={`burger ${drawer ? "on" : ""}`}
-          onClick={() => setDrawer((v) => !v)}
-          aria-expanded={drawer}
-          aria-label={drawer ? "Close menu" : "Open menu"}
-          data-tip={drawer ? "Close menu" : "Menu"}
-        >
-          <i /><i /><i />
-        </button>
-        <div className="brand">
-          <span className="mark" aria-hidden="true" />
-          <h1>Fretwork</h1>
-        </div>
-        <div className="readout" aria-live="polite" role="heading" aria-level="2">
-          <span className="rdot" />
-          {readout}
-        </div>
-        {shareable && (
-          <button className="gear sharebtn" onClick={doShare} data-tip="Copy a link to this exact view" aria-label="Copy share link">
-            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="4" cy="8" r="2.2" /><circle cx="12" cy="3.5" r="2.2" /><circle cx="12" cy="12.5" r="2.2" />
-              <path d="M6 7l4-2.6M6 9l4 2.6" />
-            </svg>
-            <span className="sharetxt">Share</span>
+        <header className="chassis">
+          <button
+            ref={burgerRef}
+            className={`burger ${drawer ? "on" : ""}`}
+            onClick={() => setDrawer((v) => !v)}
+            aria-expanded={drawer}
+            aria-label={drawer ? "Close menu" : "Open menu"}
+            data-tip={drawer ? "Close menu" : "Menu"}
+          >
+            <i />
+            <i />
+            <i />
           </button>
-        )}
-      </header>
-
-      {openPanel === "metro" && (
-        <section className="setup" aria-label="Metronome">
-          <div className="metrorow">
-            <button
-              className={`transport ${metroOn ? "on" : ""}`}
-              onClick={() => { track("metronome_toggle", { on: !metroOn, bpm: settings.bpm }); setMetroOn((v) => !v); }}
-              aria-pressed={metroOn}
-            >
-              {metroOn ? "Stop" : "Start"}
+          <div className="brand">
+            <span className="mark" aria-hidden="true" />
+            <h1>Fretwork</h1>
+          </div>
+          <div className="readout" aria-live="polite" role="heading" aria-level="2">
+            <span className="rdot" />
+            {readout}
+          </div>
+          {shareable && (
+            <button className="gear sharebtn" onClick={doShare} data-tip="Copy a link to this exact view" aria-label="Copy share link">
+              <svg
+                viewBox="0 0 16 16"
+                width="14"
+                height="14"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="4" cy="8" r="2.2" />
+                <circle cx="12" cy="3.5" r="2.2" />
+                <circle cx="12" cy="12.5" r="2.2" />
+                <path d="M6 7l4-2.6M6 9l4 2.6" />
+              </svg>
+              <span className="sharetxt">Share</span>
             </button>
-            <div className="beats" aria-hidden="true">
-              {Array.from({ length: settings.beats }, (_, i) => (
-                <span
-                  key={i}
-                  className={`bdot ${beat === i ? "lit" : ""} ${
-                    (settings.accent === "down" && i === 0) || (settings.accent === "back" && i % 2 === 1) ? "acc" : ""
-                  }`}
-                />
-              ))}
-            </div>
-            <div className="bpmbox">
-              <button className="mini" aria-label="Slower by five beats per minute" onClick={() => setSettings((s2) => ({ ...s2, bpm: Math.max(30, s2.bpm - 5) }))}>{"\u2212"}</button>
-              <input
-                type="range" min="30" max="240" value={settings.bpm}
-                aria-label="Tempo in beats per minute"
-                onChange={(e) => setSettings((s2) => ({ ...s2, bpm: +e.target.value }))}
-              />
-              <button className="mini" aria-label="Faster by five beats per minute" onClick={() => setSettings((s2) => ({ ...s2, bpm: Math.min(240, s2.bpm + 5) }))}>+</button>
-              <span className="bpmval">{settings.bpm} bpm</span>
-            </div>
-            <Field label="Time">
-              <select
-                value={settings.beats}
-                aria-label="Time signature"
-                onChange={(e) => setSettings((s2) => ({ ...s2, beats: +e.target.value }))}
-              >
-                {TIME_SIGS.map((t) => <option key={t.v} value={t.v}>{t.l}</option>)}
-              </select>
-            </Field>
-            <Field label="Click sound">
-              <Seg small
-                options={[{ v: "click", l: "Click" }, { v: "beep", l: "Beep" }, { v: "woodblock", l: "Wood" }, { v: "rim", l: "Rim" }]}
-                value={settings.clickSound} onChange={(v) => setSettings((s2) => ({ ...s2, clickSound: v }))} />
-            </Field>
-            <Field label="Accent">
-              <Seg small
-                options={[{ v: "down", l: "Downbeat" }, { v: "back", l: "Backbeat" }, { v: "none", l: "Even" }]}
-                value={settings.accent} onChange={(v) => setSettings((s2) => ({ ...s2, accent: v }))} />
-            </Field>
-            {!settings.simple && (
-              <Field label="Subdivision">
-                <Seg small
-                  options={[
-                    { v: "1", l: "Quarter" }, { v: "2", l: "Eighth" }, { v: "swing", l: "Swing" },
-                    { v: "3", l: "Triplet" }, { v: "4", l: "16th" },
-                  ]}
-                  value={settings.subdiv} onChange={(v) => { track("metronome_subdiv", { subdiv: v }); setSettings((s2) => ({ ...s2, subdiv: v })); }} />
-              </Field>
-            )}
-          </div>
-        </section>
-      )}
-
-      {!["changes", "about", "faq", "account", "settings", "tuner", "ear", "plog"].includes(mode) && (
-      <section className="neckwrap" aria-label="Fretboard">
-        <div className="neckscroll">
-          <Fretboard
-            fretCount={fretCount}
-            midis={midis}
-            rowToString={rowToString}
-            geo={geo}
-            marks={marks}
-            capo={capo}
-            onCapo={setCapo}
-            onCell={onCell}
-            flats={effFlats}
-            labelMode={mode === "chord" || mode === "prog" ? chordLabel : mode === "scale" ? scaleLabel : mode === "arp" ? arpLabel : settings.labelMode}
-            colourMode={mode === "interval" ? "interval" : settings.colourMode}
-            barre={(() => {
-              const v = mode === "chord" ? activeVoicing : mode === "prog" ? activeProgVoicing : null;
-              return v && v.barreFret != null ? { fret: v.barreFret, from: v.barreFrom, to: v.barreTo } : null;
-            })()}
-            ghosts={ghosts}
-            flash={flash}
-            quizRange={quiz.range}
-            quizActive={mode === "quiz"}
-          />
-        </div>
-        <div className="neckfoot">
-          <span className="hint">
-            {capo > 0 ? `Capo at fret ${capo}` : "Drag the capo onto the neck"}
-          </span>
-          {capo > 0 && (
-            <button className="mini" onClick={() => setCapo(0)}>Remove capo</button>
           )}
-        </div>
-      </section>
-      )}
+        </header>
 
-      <main className="panel" key={mode}>
-        {mode === "scale" && (
-          <div className="pane">
-            <p className="panelead">Map out any scale across the fretboard in any key, hear it played, and learn its shapes position by position.</p>
-            <div className="knownrow">
-              <KnownButton
-                known={known.some((k) => k.sig === `k-scale:${scaleRoot}:${scaleId}`)}
-                onClick={() => toggleKnown({ sig: `k-scale:${scaleRoot}:${scaleId}`, kind: "scale", root: scaleRoot, id: scaleId, label: `${nameOf(scaleRoot, effFlats)} ${scaleDef.name}` })}
-              />
-            </div>
-            <div className="row wrap">
-              <Field label="Key"><KeyPicker value={scaleRoot} onChange={setScaleRoot} flats={effFlats} /></Field>
-              <Field label="Scale">
-                <CatPicker
-                  value={scaleId}
-                  onChange={setScaleId}
-                  label="Scale"
-                  groups={groupItems(SCALE_GROUPS, SCALES, SIMPLE_SCALES, settings.simple, scaleId)}
-                />
-              </Field>
+        {openPanel === "metro" && (
+          <section className="setup" aria-label="Metronome">
+            <div className="metrorow">
               <button
-                className={`btn primary ${playing != null ? "live" : ""}`}
-                onClick={playing != null ? stopPlayback : () => { track("hear_scale", { scale: scaleId }); playScale(); }}
-                data-tip="Play the scale and light each note as it sounds"
-              >
-                {playing != null ? "Stop" : "Hear it"}
-              </button>
-              <StarSave
-                label={`${nameOf(scaleRoot, effFlats)} ${scaleDef.name}`}
-                saved={bank.some((b) => b.sig === `scale:${scaleRoot}:${scaleId}:${scalePos == null ? "all" : scalePos}`)}
-                onClick={() => saveToBank({
-                  id: `b${Date.now()}`,
-                  sig: `scale:${scaleRoot}:${scaleId}:${scalePos == null ? "all" : scalePos}`,
-                  kind: "scale",
-                  root: scaleRoot,
-                  scaleId,
-                  pos: scalePos,
-                  tun: settings.tuningId,
-                  label: `${nameOf(scaleRoot, effFlats)} ${scaleDef.name}${scalePos == null ? "" : ` · pos ${scalePos + 1}`}`,
-                })}
-              />
-            </div>
-
-            <Field label="Position">
-              <div className="posrow">
-                <button
-                  className={`poschip ${scalePos == null ? "on" : ""}`}
-                  onClick={() => setScalePos(null)}
-                  data-tip="Every position at once"
-                >
-                  Whole neck
-                </button>
-                {positions.map((pos, i) => (
-                  <button
-                    key={i}
-                    className={`poschip ${scalePos === i ? "on" : ""}`}
-                    onClick={() => setScalePos(i)}
-                    data-tip={`Frets ${pos.from} to ${pos.to}, starting on the ${DEG[pos.deg]}`}
-                  >
-                    {i + 1}
-                  </button>
-                ))}
-                {scalePos != null && positions[scalePos] && (
-                  <span className="poshint">
-                    Frets {positions[scalePos].from} to {positions[scalePos].to}
-                  </span>
-                )}
-              </div>
-            </Field>
-            <Field label="Neck shows">
-              <Seg small
-                options={[{ v: "both", l: "Degree + note" }, { v: "name", l: "Notes" }, { v: "degree", l: "Degrees" }, { v: "none", l: "Blank" }]}
-                value={scaleLabel} onChange={setScaleLabel} />
-            </Field>
-            <div className="degrees">
-              {scaleDef.iv.map((iv) => (
-                <span key={iv} className="chip" style={{ borderColor: FUNC_COLOUR[iv % 12] }}>
-                  <b style={{ color: FUNC_COLOUR[iv % 12] }}>{DEG[iv % 12]}</b>
-                  {nameOf(scaleRoot + iv, effFlats)}
-                </span>
-              ))}
-            </div>
-            <div className="keyjump">
-              <span className="note">In {nameOf(scaleRoot, effFlats)}:</span>
-              <button className="jumpchip" onClick={() => carryKey("chord", scaleRoot)}>Chords</button>
-              <button className="jumpchip" onClick={() => carryKey("arp", scaleRoot)}>Arpeggios</button>
-              {!settings.simple && <button className="jumpchip" onClick={() => carryKey("prog", scaleRoot)}>Progressions</button>}
-            </div>
-          </div>
-        )}
-
-        {mode === "chord" && (
-          <div className="pane">
-            <p className="panelead">Find playable shapes for any chord in any key, then hear and save the ones you want to learn.</p>
-            <div className="knownrow">
-              <KnownButton
-                known={known.some((k) => k.sig === `k-chord:${chordRoot}:${chordId}`)}
-                onClick={() => toggleKnown({ sig: `k-chord:${chordRoot}:${chordId}`, kind: "chord", root: chordRoot, id: chordId, label: `${nameOf(chordRoot, effFlats)}${chordDef.suffix}` })}
-              />
-            </div>
-            {shownVoicings.length === 0 ? (
-              <p className="empty">
-                No playable shape for {nameOf(chordRoot, effFlats)}{chordDef.suffix} in this tuning at this
-                stretch. In Settings, widen Chord stretch or turn on Inversions.
-              </p>
-            ) : (
-              <div className="voicings">
-                {shownVoicings.map((v, i) => {
-                  const vsig = `chord:${chordRoot}:${chordId}:${v.key || ""}`;
-                  const label = `${nameOf(chordRoot, effFlats)}${chordDef.suffix} shape ${i + 1}`;
-                  return (
-                    <div key={v.key} className="voicewrap">
-                      <ChordDiagram
-                        voicing={v}
-                        lefty={settings.leftHanded}
-                        midis={midis}
-                        rootPc={chordRoot}
-                        capo={capo}
-                        flats={effFlats}
-                        showDegrees={settings.labelMode === "degree"}
-                        selected={i === Math.min(voiceIdx, shownVoicings.length - 1)}
-                        onSelect={() => {
-                          lastActiveRef.current = Date.now();
-                          setVoiceIdx(i);
-                          if (settings.sound) {
-                            let j = 0;
-                            for (let st = 0; st < n; st++) {
-                              const f = v.frets[st];
-                              if (f === null) continue;
-                              pluck(midis[st] + f, j * 0.035);
-                              j++;
-                            }
-                          }
-                        }}
-                      />
-                      <span className="voicestar">
-                        <StarSave
-                          label={label}
-                          saved={bank.some((b) => b.sig === vsig)}
-                          onClick={() => saveToBank({
-                            id: `b${Date.now()}`,
-                            sig: vsig,
-                            kind: "chord",
-                            root: chordRoot,
-                            chordId,
-                            voicing: v,
-                            midis,
-                            capo,
-                            tun: settings.tuningId,
-                            label,
-                          })}
-                        />
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {!settings.simple && chordAreas.length > 1 && (
-              <Field label="Neck area">
-                <div className="posrow">
-                  <button
-                    className={`poschip ${chordArea == null ? "on" : ""}`}
-                    onClick={() => setChordArea(null)}
-                    data-tip="Every shape, all the way up the neck"
-                  >
-                    Anywhere
-                  </button>
-                  {chordAreas.map((f) => (
-                    <button
-                      key={f}
-                      className={`poschip ${chordArea === f ? "on" : ""}`}
-                      onClick={() => setChordArea(f)}
-                      data-tip={f === capo ? "Shapes using open strings" : `Shapes starting at fret ${f}`}
-                    >
-                      {f === capo ? "Open" : f}
-                    </button>
-                  ))}
-                </div>
-              </Field>
-            )}
-
-            <p className="note">
-              Numbers on the dots are fingers: 1 index, 2 middle, 3 ring, 4 little. A dark bar means one
-              finger lies flat across those strings.
-            </p>
-
-            <div className="row wrap">
-              <Field label="Root"><KeyPicker value={chordRoot} onChange={setChordRoot} flats={effFlats} /></Field>
-              <Field label="Chord">
-                <CatPicker
-                  value={chordId}
-                  onChange={setChordId}
-                  label="Chord type"
-                  groups={groupItems(CHORD_GROUPS, CHORDS, SIMPLE_CHORDS, settings.simple, chordId)}
-                />
-              </Field>
-              <button className="btn primary" onClick={() => { track("strum_chord", { chord: chordId }); strumVoicing(); }} disabled={!activeVoicing} data-tip="Hear the selected shape">Strum</button>
-            </div>
-
-            <div className="keyjump">
-              <span className="note">In {nameOf(chordRoot, effFlats)}:</span>
-              <button className="jumpchip" onClick={() => carryKey("scale", chordRoot)}>Scale</button>
-              <button className="jumpchip" onClick={() => carryKey("arp", chordRoot)}>Arpeggio</button>
-              <button className="jumpchip" onClick={() => carryKey("strum", chordRoot)}>Strum along</button>
-            </div>
-
-            {!settings.simple && (
-              <div className="optrow">
-                <Field label="Neck shows">
-                  <Seg small options={[{ v: "finger", l: "Fingers" }, { v: "name", l: "Notes" }, { v: "degree", l: "Degrees" }]}
-                    value={chordLabel} onChange={setChordLabel} />
-                </Field>
-                <Field label="Other tones">
-                  <Seg small options={[{ v: true, l: "Ghost" }, { v: false, l: "Hide" }]}
-                    value={showAllTones} onChange={setShowAllTones} />
-                </Field>
-              </div>
-            )}
-          </div>
-        )}
-
-        {mode === "prog" && (
-          <div className="pane">
-            <p className="panelead">Play through common chord progressions in any key, seeing every chord shape as the sequence moves along.</p>
-            {progVoicings.some(Boolean) ? (
-              hasSections ? (
-                <div className="songsheet">
-                  {songBlocks.map((blk, bi) => (
-                    <div className="songsec" key={bi}>
-                      {blk.name && <p className="secname">{blk.name}</p>}
-                      <div className="voicings">{blk.groups.map(renderProgDiagram)}</div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="voicings">{progGroups.map(renderProgDiagram)}</div>
-              )
-            ) : (
-              <p className="empty">No playable shapes for this progression in the current tuning.</p>
-            )}
-
-            <div className="row wrap actions">
-              <button className={`btn primary ${progPlaying ? "live" : ""}`} onClick={progPlaying ? stopPlayback : playProgression} disabled={!progChords.length}>
-                {progPlaying ? "Stop" : "Preview"}
-              </button>
-              <span className="actspacer" aria-hidden="true" />
-              <button
-                className="btn ghost iconbtn"
-                onClick={() => saveToBank({
-                  id: `b${Date.now()}`,
-                  sig: `prog:${progRoot}:${progId}:${progDef.bars.join(",")}`,
-                  kind: "prog",
-                  root: progRoot,
-                  progId,
-                  bars: progDef.bars,
-                  sections: progDef.sections,
-                  name: progDef.name,
-                  label: `${nameOf(progRoot, effFlats)} \u00b7 ${progDef.name}`,
-                })}
-              >
-                <svg viewBox="0 0 24 24" width="14" height="14" fill={bank.some((b) => b.sig === `prog:${progRoot}:${progId}:${progDef.bars.join(",")}`) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" aria-hidden="true"><path d="M12 3.2l2.6 5.7 6.2.6-4.7 4.2 1.4 6.1L12 16.8 6.5 19.8l1.4-6.1L3.2 9.5l6.2-.6z" /></svg>
-                Save to Bank
-              </button>
-              <button
-                className="btn ghost iconbtn"
+                className={`transport ${metroOn ? "on" : ""}`}
                 onClick={() => {
-                  const c = progChords[progIdx];
-                  if (!c) return;
-                  setChordRoot(c.rootPc);
-                  setChordId(c.chordId);
-                  setMode("chord");
+                  track("metronome_toggle", { on: !metroOn, bpm: settings.bpm });
+                  setMetroOn((v) => !v);
                 }}
+                aria-pressed={metroOn}
               >
-                <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 3h7v7M13 3L7 9M6 13H3V3" /></svg>
-                Open in chords
+                {metroOn ? "Stop" : "Start"}
               </button>
-            </div>
-
-            <div className="row wrap">
-              <Field label="Key"><KeyPicker value={progRoot} onChange={setProgRoot} flats={effFlats} /></Field>
-              <Field label="Progression">
-              <CatPicker
-                value={progId}
-                onChange={setProgId}
-                label="Progression"
-                groups={[
-                  ...["major", "minor"].map((t) => ({
-                    label: t === "major" ? "Major keys" : "Minor keys",
-                    items: simpleList(PROGRESSIONS, SIMPLE_PROGS, settings.simple, progId)
-                      .filter((x) => x.tonality === t)
-                      .map((x) => ({ id: x.id, name: x.name, sub: x.note })),
-                  })),
-                  ...(customProgs.length
-                    ? [{ label: "Your progressions", items: customProgs.map((x) => ({ id: x.id, name: x.name, sub: `${x.bars.length} bars` })) }]
-                    : []),
-                  { label: "Build", items: [{ id: "custom", name: "Custom progression", sub: "Choose your own chords, bar by bar" }] },
-                ]}
-              />
+              <div className="beats" aria-hidden="true">
+                {Array.from({ length: settings.beats }, (_, i) => (
+                  <span
+                    key={i}
+                    className={`bdot ${beat === i ? "lit" : ""} ${
+                      (settings.accent === "down" && i === 0) || (settings.accent === "back" && i % 2 === 1) ? "acc" : ""
+                    }`}
+                  />
+                ))}
+              </div>
+              <div className="bpmbox">
+                <button
+                  className="mini"
+                  aria-label="Slower by five beats per minute"
+                  onClick={() => setSettings((s2) => ({ ...s2, bpm: Math.max(30, s2.bpm - 5) }))}
+                >
+                  {"\u2212"}
+                </button>
+                <input
+                  type="range"
+                  min="30"
+                  max="240"
+                  value={settings.bpm}
+                  aria-label="Tempo in beats per minute"
+                  onChange={(e) => setSettings((s2) => ({ ...s2, bpm: +e.target.value }))}
+                />
+                <button
+                  className="mini"
+                  aria-label="Faster by five beats per minute"
+                  onClick={() => setSettings((s2) => ({ ...s2, bpm: Math.min(240, s2.bpm + 5) }))}
+                >
+                  +
+                </button>
+                <span className="bpmval">{settings.bpm} bpm</span>
+              </div>
+              <Field label="Time">
+                <select
+                  value={settings.beats}
+                  aria-label="Time signature"
+                  onChange={(e) => setSettings((s2) => ({ ...s2, beats: +e.target.value }))}
+                >
+                  {TIME_SIGS.map((t) => (
+                    <option key={t.v} value={t.v}>
+                      {t.l}
+                    </option>
+                  ))}
+                </select>
               </Field>
-            </div>
-
-            {progId === "custom" && (
-              <div className="builderbox">
-                <Field label={`Bars \u00b7 ${builder.bars.length}`}>
-                  <div className="barstrip">
-                    {builder.bars.length === 0 && (
-                      <span className="note">Tap chords below to add bars. The same chord can repeat as many times as the song needs.</span>
-                    )}
-                    {builder.bars.map((b, i) => (
-                      <React.Fragment key={i}>
-                        {builder.sections && builder.sections[i] && (
-                          <button
-                            className="secchip"
-                            onClick={() => setBuilder((bl) => { const sc = { ...bl.sections }; delete sc[i]; return { ...bl, sections: sc }; })}
-                            data-tip="Remove this section marker"
-                          >
-                            {builder.sections[i]}
-                          </button>
-                        )}
-                        <button
-                          className="barchip"
-                          onClick={() => setBuilder((bl) => {
-                            const sections = {};
-                            Object.entries(bl.sections || {}).forEach(([k, v]) => {
-                              const idx = +k;
-                              if (idx < i) sections[idx] = v;
-                              else if (idx > i) sections[idx - 1] = v;
-                            });
-                            return { ...bl, bars: bl.bars.filter((_, j) => j !== i), sections };
-                          })}
-                          aria-label={`Remove bar ${i + 1}, ${b}`}
-                        >
-                          {b}
-                          <span aria-hidden="true">{"\u00d7"}</span>
-                        </button>
-                      </React.Fragment>
-                    ))}
-                  </div>
-                </Field>
-                <Field label="Song sections (optional)">
-                  <div className="posrow">
-                    {["Intro", "Verse", "Chorus", "Bridge", "Solo", "Outro"].map((sec) => (
-                      <button
-                        key={sec}
-                        className="poschip"
-                        onClick={() => setBuilder((bl) => ({ ...bl, sections: { ...bl.sections, [bl.bars.length]: sec } }))}
-                        data-tip={`Start a ${sec} section at the next bar`}
-                      >
-                        + {sec}
-                      </button>
-                    ))}
-                  </div>
-                </Field>
-                <Field label="Add chords by name in this key">
+              <Field label="Click sound">
+                <Seg
+                  small
+                  options={[
+                    { v: "click", l: "Click" },
+                    { v: "beep", l: "Beep" },
+                    { v: "woodblock", l: "Wood" },
+                    { v: "rim", l: "Rim" },
+                  ]}
+                  value={settings.clickSound}
+                  onChange={(v) => setSettings((s2) => ({ ...s2, clickSound: v }))}
+                />
+              </Field>
+              <Field label="Accent">
+                <Seg
+                  small
+                  options={[
+                    { v: "down", l: "Downbeat" },
+                    { v: "back", l: "Backbeat" },
+                    { v: "none", l: "Even" },
+                  ]}
+                  value={settings.accent}
+                  onChange={(v) => setSettings((s2) => ({ ...s2, accent: v }))}
+                />
+              </Field>
+              {!settings.simple && (
+                <Field label="Subdivision">
                   <Seg
                     small
-                    ariaLabel="Key type for the chord names"
-                    options={[{ v: "major", l: "Major key" }, { v: "minor", l: "Minor key" }]}
-                    value={builderKeyQual}
-                    onChange={setBuilderKeyQual}
-                  />
-                  <p className="note keyhint">These are the chords that belong to {nameOf(progRoot, keyPrefersFlats(progRoot, builderKeyQual === "minor" ? [3] : [4]))} {builderKeyQual}. Tap one to add it.</p>
-                  <div className="romangrid">
-                    {(builderKeyQual === "minor"
-                      ? ["i", "ii°", "III", "iv", "v", "VI", "VII"]
-                      : ["I", "ii", "iii", "IV", "V", "vi", "vii°"]
-                    ).map((rn) => {
-                      const [off, q] = ROMAN[rn];
-                      const cd = CHORDS.find((c) => c.id === q);
-                      const nmFlats = keyPrefersFlats(progRoot, builderKeyQual === "minor" ? [3] : [4]);
-                      const nm = nameOf((progRoot + off) % 12, nmFlats) + (cd ? cd.suffix : "");
-                      return (
-                        <button
-                          key={rn}
-                          className="key chordkey"
-                          data-tip={`${rn} in the key of ${nameOf(progRoot, nmFlats)} ${builderKeyQual}`}
-                          onClick={() => setBuilder((bl) => ({ ...bl, bars: [...bl.bars, rn] }))}
-                        >
-                          {nm}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </Field>
-                <Field label="Or add by Roman numeral (advanced)">
-                  <div className="romangrid">
-                    {Object.keys(ROMAN).map((rn) => (
-                      <button key={rn} className="key" onClick={() => setBuilder((bl) => ({ ...bl, bars: [...bl.bars, rn] }))}>
-                        {rn}
-                      </button>
-                    ))}
-                  </div>
-                </Field>
-                <div className="row wrap">
-                  <Field id="progname" label="Name">
-                    <input
-                      id="progname"
-                      type="text"
-                      value={builder.name}
-                      maxLength={40}
-                      placeholder="My song"
-                      onChange={(e) => setBuilder((bl) => ({ ...bl, name: e.target.value }))}
-                    />
-                  </Field>
-                  <button
-                    className="btn primary"
-                    disabled={!builder.bars.length || !builder.name.trim()}
-                    onClick={() => {
-                      const def = {
-                        id: `c${Date.now()}`,
-                        name: builder.name.trim(),
-                        note: "Custom",
-                        tonality: MINOR_STARTS.has(builder.bars[0]) ? "minor" : "major",
-                        bars: builder.bars,
-                        sections: builder.sections,
-                      };
-                      saveCustomProgs([...customProgs, def]);
-                      setProgId(def.id);
-                      setBuilder({ bars: [], name: "", sections: {} });
-                      track("custom_prog_save", { bars: def.bars.length });
-                      setToast("Progression saved");
+                    options={[
+                      { v: "1", l: "Quarter" },
+                      { v: "2", l: "Eighth" },
+                      { v: "swing", l: "Swing" },
+                      { v: "3", l: "Triplet" },
+                      { v: "4", l: "16th" },
+                    ]}
+                    value={settings.subdiv}
+                    onChange={(v) => {
+                      track("metronome_subdiv", { subdiv: v });
+                      setSettings((s2) => ({ ...s2, subdiv: v }));
                     }}
-                  >
-                    Save progression
-                  </button>
-                  <button className="btn ghost" disabled={!builder.bars.length} onClick={() => setBuilder((bl) => ({ ...bl, bars: [], sections: {} }))}>
-                    Clear
-                  </button>
-                </div>
-              </div>
-            )}
+                  />
+                </Field>
+              )}
+            </div>
+          </section>
+        )}
 
-            {customProgs.some((p) => p.id === progId) && (
-              <div className="row">
-                <button
-                  className="btn ghost danger"
-                  onClick={() => {
-                    saveCustomProgs(customProgs.filter((p) => p.id !== progId));
-                    setProgId("p1564");
-                    setToast("Progression deleted");
-                  }}
-                >
-                  Delete this progression
+        {!["changes", "about", "faq", "account", "settings", "tuner", "ear", "plog"].includes(mode) && (
+          <section className="neckwrap" aria-label="Fretboard">
+            <div className="neckscroll">
+              <Fretboard
+                fretCount={fretCount}
+                midis={midis}
+                rowToString={rowToString}
+                geo={geo}
+                marks={marks}
+                capo={capo}
+                onCapo={setCapo}
+                onCell={onCell}
+                flats={effFlats}
+                labelMode={
+                  mode === "chord" || mode === "prog"
+                    ? chordLabel
+                    : mode === "scale"
+                      ? scaleLabel
+                      : mode === "arp"
+                        ? arpLabel
+                        : settings.labelMode
+                }
+                colourMode={mode === "interval" ? "interval" : settings.colourMode}
+                barre={(() => {
+                  const v = mode === "chord" ? activeVoicing : mode === "prog" ? activeProgVoicing : null;
+                  return v && v.barreFret != null ? { fret: v.barreFret, from: v.barreFrom, to: v.barreTo } : null;
+                })()}
+                ghosts={ghosts}
+                flash={flash}
+                quizRange={quiz.range}
+                quizActive={mode === "quiz"}
+              />
+            </div>
+            <div className="neckfoot">
+              <span className="hint">{capo > 0 ? `Capo at fret ${capo}` : "Drag the capo onto the neck"}</span>
+              {capo > 0 && (
+                <button className="mini" onClick={() => setCapo(0)}>
+                  Remove capo
                 </button>
-              </div>
-            )}
-
-            <p className="note">Preview follows the metronome tempo, one bar per chord.</p>
-          </div>
+              )}
+            </div>
+          </section>
         )}
 
-        {mode === "bank" && (
-          <div className="pane">
-            {bank.length === 0 ? (
-              <p className="note">
-                Nothing saved yet. Tap the star on a chord, scale, arpeggio or progression to keep it here,
-                grouped by type and ready to practise. You can share any saved item from here too.
+        <main className="panel" key={mode}>
+          {mode === "scale" && (
+            <div className="pane">
+              <p className="panelead">
+                Map out any scale across the fretboard in any key, hear it played, and learn its shapes position by position.
               </p>
-            ) : (
-              [
-                { kind: "chord", label: "Chords" },
-                { kind: "scale", label: "Scales" },
-                { kind: "arp", label: "Arpeggios" },
-                { kind: "prog", label: "Progressions" },
-              ].map((group) => {
-                const items = bank.filter((b) => (b.kind || "chord") === group.kind);
-                if (!items.length) return null;
-                return (
-                  <section className="banksec" key={group.kind}>
-                    <h2 className="abouthead">{group.label}</h2>
-                    <div className="banklist">
-                      {items.map((item) => (
-                        <div className="bankitem" key={item.id}>
-                          {item.kind === "chord" && item.voicing ? (
-                            <ChordDiagram
-                              voicing={item.voicing}
-                              lefty={settings.leftHanded}
-                              midis={item.midis || midis}
-                              rootPc={item.root}
-                              capo={item.capo || 0}
-                              flats={flatsFor(item.root, (CHORDS.find((c) => c.id === item.chordId) || CHORDS[0]).iv)}
-                              showDegrees={false}
-                              selected={false}
-                              onSelect={() => openBankItem(item)}
-                            />
-                          ) : null}
-                          <div className="bankmeta">
-                            <b>{item.label}</b>
-                            <div className="row wrap">
-                              <button className="mini" onClick={() => openBankItem(item)}>Open</button>
-                              <button className="mini" onClick={() => shareBankItem(item)} aria-label={`Share ${item.label}`}>Share</button>
-                              <button className="mini" onClick={() => saveBank(bank.filter((b) => b.id !== item.id))} aria-label={`Remove ${item.label}`}>Remove</button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                );
-              })
-            )}
-          </div>
-        )}
-
-        {mode === "interval" && (
-          <div className="pane">
-            <p className="panelead">See how each interval sits against the root across the fretboard, so the distances between notes become familiar.</p>
-            <Field label="Root"><KeyPicker value={ivRoot} onChange={setIvRoot} flats={effFlats} /></Field>
-            {settings.simple ? (
-              <Field label="Show">
-                <div className="posrow">
-                  {INTERVAL_PRESETS.map((pr) => {
-                    const on = pr.iv.length === ivOn.size && pr.iv.every((i) => ivOn.has(i));
-                    return (
-                      <button
-                        key={pr.id}
-                        className={`poschip wide ${on ? "on" : ""}`}
-                        aria-pressed={on}
-                        onClick={() => setIvOn(new Set(pr.iv))}
-                      >
-                        {pr.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </Field>
-            ) : (
-              <Field label="Intervals from the root">
-                <IntervalGrid root={ivRoot} on={ivOn} onToggle={toggleIv} flats={effFlats} />
-              </Field>
-            )}
-
-            <div className="degrees">
-              {[...ivOn].sort((a, b) => a - b).map((i) => (
-                <span key={i} className="chip" style={{ borderLeftColor: FUNC_COLOUR[i] }}>
-                  <b style={{ color: FUNC_COLOUR[i] }}>{DEG[i]}</b>
-                  {nameOf(ivRoot + i, effFlats)}
-                </span>
-              ))}
-            </div>
-            {!settings.simple && (
-            <div className="row wrap">
-              {[
-                { l: "Root only", iv: [0] },
-                { l: "Major triad", iv: [0, 4, 7] },
-                { l: "Minor triad", iv: [0, 3, 7] },
-                { l: "Dominant 7th", iv: [0, 4, 7, 10] },
-                { l: "All twelve", iv: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
-              ].map((pr) => {
-                const on = pr.iv.length === ivOn.size && pr.iv.every((i) => ivOn.has(i));
-                return (
-                  <button key={pr.l} className={`btn ghost ${on ? "sel" : ""}`} aria-pressed={on} onClick={() => setIvOn(new Set(pr.iv))}>
-                    {pr.l}
-                  </button>
-                );
-              })}
-            </div>
-            )}
-            <p className="note" hidden={settings.simple}>Filled dots are natural degrees. Rings are flattened ones. Colour groups intervals by function: seconds, thirds, fourths, fifths, sixths, sevenths.</p>
-          </div>
-        )}
-
-        {mode === "quiz" && (
-          <div className="pane">
-            <p className="panelead">Quiz yourself on scales, chords and intervals by naming the notes Fretwork lights up on the neck.</p>
-            <div className="scoreboard">
-              <div className="score"><b>{quiz.correct}</b><span>correct</span></div>
-              <div className="score"><b className="bad">{quiz.wrong}</b><span>wrong</span></div>
-              <div className="score"><b>{accuracy}%</b><span>accuracy</span></div>
-              <div className="score"><b>{quiz.streak}</b><span>streak</span></div>
-              <div className="score"><b>{quiz.best}</b><span>best run</span></div>
-              <div className="score"><b>{quiz.rounds}</b><span>rounds</span></div>
-            </div>
-
-            <div className="row wrap">
-              <Field label="Test me on">
-                <Seg small
-                  options={[{ v: "scale", l: "A scale" }, { v: "chord", l: "A chord" }, { v: "interval", l: "Intervals" }]}
-                  value={quiz.source} onChange={(v) => setQuiz((q) => ({ ...q, source: v }))} />
-              </Field>
-              {quiz.source === "scale" && (
+              <div className="knownrow">
+                <KnownButton
+                  known={known.some((k) => k.sig === `k-scale:${scaleRoot}:${scaleId}`)}
+                  onClick={() =>
+                    toggleKnown({
+                      sig: `k-scale:${scaleRoot}:${scaleId}`,
+                      kind: "scale",
+                      root: scaleRoot,
+                      id: scaleId,
+                      label: `${nameOf(scaleRoot, effFlats)} ${scaleDef.name}`,
+                    })
+                  }
+                />
+              </div>
+              <div className="row wrap">
+                <Field label="Key">
+                  <KeyPicker value={scaleRoot} onChange={setScaleRoot} flats={effFlats} />
+                </Field>
                 <Field label="Scale">
                   <CatPicker
                     value={scaleId}
@@ -4211,8 +4691,213 @@ export default function App() {
                     groups={groupItems(SCALE_GROUPS, SCALES, SIMPLE_SCALES, settings.simple, scaleId)}
                   />
                 </Field>
+                <button
+                  className={`btn primary ${playing != null ? "live" : ""}`}
+                  onClick={
+                    playing != null
+                      ? stopPlayback
+                      : () => {
+                          track("hear_scale", { scale: scaleId });
+                          playScale();
+                        }
+                  }
+                  data-tip="Play the scale and light each note as it sounds"
+                >
+                  {playing != null ? "Stop" : "Hear it"}
+                </button>
+                <StarSave
+                  label={`${nameOf(scaleRoot, effFlats)} ${scaleDef.name}`}
+                  saved={bank.some((b) => b.sig === `scale:${scaleRoot}:${scaleId}:${scalePos == null ? "all" : scalePos}`)}
+                  onClick={() =>
+                    saveToBank({
+                      id: `b${Date.now()}`,
+                      sig: `scale:${scaleRoot}:${scaleId}:${scalePos == null ? "all" : scalePos}`,
+                      kind: "scale",
+                      root: scaleRoot,
+                      scaleId,
+                      pos: scalePos,
+                      tun: settings.tuningId,
+                      label: `${nameOf(scaleRoot, effFlats)} ${scaleDef.name}${scalePos == null ? "" : ` · pos ${scalePos + 1}`}`,
+                    })
+                  }
+                />
+              </div>
+
+              <Field label="Position">
+                <div className="posrow">
+                  <button
+                    className={`poschip ${scalePos == null ? "on" : ""}`}
+                    onClick={() => setScalePos(null)}
+                    data-tip="Every position at once"
+                  >
+                    Whole neck
+                  </button>
+                  {positions.map((pos, i) => (
+                    <button
+                      key={i}
+                      className={`poschip ${scalePos === i ? "on" : ""}`}
+                      onClick={() => setScalePos(i)}
+                      data-tip={`Frets ${pos.from} to ${pos.to}, starting on the ${DEG[pos.deg]}`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                  {scalePos != null && positions[scalePos] && (
+                    <span className="poshint">
+                      Frets {positions[scalePos].from} to {positions[scalePos].to}
+                    </span>
+                  )}
+                </div>
+              </Field>
+              <Field label="Neck shows">
+                <Seg
+                  small
+                  options={[
+                    { v: "both", l: "Degree + note" },
+                    { v: "name", l: "Notes" },
+                    { v: "degree", l: "Degrees" },
+                    { v: "none", l: "Blank" },
+                  ]}
+                  value={scaleLabel}
+                  onChange={setScaleLabel}
+                />
+              </Field>
+              <div className="degrees">
+                {scaleDef.iv.map((iv) => (
+                  <span key={iv} className="chip" style={{ borderColor: FUNC_COLOUR[iv % 12] }}>
+                    <b style={{ color: FUNC_COLOUR[iv % 12] }}>{DEG[iv % 12]}</b>
+                    {nameOf(scaleRoot + iv, effFlats)}
+                  </span>
+                ))}
+              </div>
+              <div className="keyjump">
+                <span className="note">In {nameOf(scaleRoot, effFlats)}:</span>
+                <button className="jumpchip" onClick={() => carryKey("chord", scaleRoot)}>
+                  Chords
+                </button>
+                <button className="jumpchip" onClick={() => carryKey("arp", scaleRoot)}>
+                  Arpeggios
+                </button>
+                {!settings.simple && (
+                  <button className="jumpchip" onClick={() => carryKey("prog", scaleRoot)}>
+                    Progressions
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {mode === "chord" && (
+            <div className="pane">
+              <p className="panelead">Find playable shapes for any chord in any key, then hear and save the ones you want to learn.</p>
+              <div className="knownrow">
+                <KnownButton
+                  known={known.some((k) => k.sig === `k-chord:${chordRoot}:${chordId}`)}
+                  onClick={() =>
+                    toggleKnown({
+                      sig: `k-chord:${chordRoot}:${chordId}`,
+                      kind: "chord",
+                      root: chordRoot,
+                      id: chordId,
+                      label: `${nameOf(chordRoot, effFlats)}${chordDef.suffix}`,
+                    })
+                  }
+                />
+              </div>
+              {shownVoicings.length === 0 ? (
+                <p className="empty">
+                  No playable shape for {nameOf(chordRoot, effFlats)}
+                  {chordDef.suffix} in this tuning at this stretch. In Settings, widen Chord stretch or turn on Inversions.
+                </p>
+              ) : (
+                <div className="voicings">
+                  {shownVoicings.map((v, i) => {
+                    const vsig = `chord:${chordRoot}:${chordId}:${v.key || ""}`;
+                    const label = `${nameOf(chordRoot, effFlats)}${chordDef.suffix} shape ${i + 1}`;
+                    return (
+                      <div key={v.key} className="voicewrap">
+                        <ChordDiagram
+                          voicing={v}
+                          lefty={settings.leftHanded}
+                          midis={midis}
+                          rootPc={chordRoot}
+                          capo={capo}
+                          flats={effFlats}
+                          showDegrees={settings.labelMode === "degree"}
+                          selected={i === Math.min(voiceIdx, shownVoicings.length - 1)}
+                          onSelect={() => {
+                            lastActiveRef.current = Date.now();
+                            setVoiceIdx(i);
+                            if (settings.sound) {
+                              let j = 0;
+                              for (let st = 0; st < n; st++) {
+                                const f = v.frets[st];
+                                if (f === null) continue;
+                                pluck(midis[st] + f, j * 0.035);
+                                j++;
+                              }
+                            }
+                          }}
+                        />
+                        <span className="voicestar">
+                          <StarSave
+                            label={label}
+                            saved={bank.some((b) => b.sig === vsig)}
+                            onClick={() =>
+                              saveToBank({
+                                id: `b${Date.now()}`,
+                                sig: vsig,
+                                kind: "chord",
+                                root: chordRoot,
+                                chordId,
+                                voicing: v,
+                                midis,
+                                capo,
+                                tun: settings.tuningId,
+                                label,
+                              })
+                            }
+                          />
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
-              {quiz.source === "chord" && (
+
+              {!settings.simple && chordAreas.length > 1 && (
+                <Field label="Neck area">
+                  <div className="posrow">
+                    <button
+                      className={`poschip ${chordArea == null ? "on" : ""}`}
+                      onClick={() => setChordArea(null)}
+                      data-tip="Every shape, all the way up the neck"
+                    >
+                      Anywhere
+                    </button>
+                    {chordAreas.map((f) => (
+                      <button
+                        key={f}
+                        className={`poschip ${chordArea === f ? "on" : ""}`}
+                        onClick={() => setChordArea(f)}
+                        data-tip={f === capo ? "Shapes using open strings" : `Shapes starting at fret ${f}`}
+                      >
+                        {f === capo ? "Open" : f}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+              )}
+
+              <p className="note">
+                Numbers on the dots are fingers: 1 index, 2 middle, 3 ring, 4 little. A dark bar means one finger lies flat across those
+                strings.
+              </p>
+
+              <div className="row wrap">
+                <Field label="Root">
+                  <KeyPicker value={chordRoot} onChange={setChordRoot} flats={effFlats} />
+                </Field>
                 <Field label="Chord">
                   <CatPicker
                     value={chordId}
@@ -4221,1465 +4906,2565 @@ export default function App() {
                     groups={groupItems(CHORD_GROUPS, CHORDS, SIMPLE_CHORDS, settings.simple, chordId)}
                   />
                 </Field>
-              )}
-            </div>
-
-            <Field label={quiz.source === "scale" ? "Key" : "Root"}>
-              <KeyPicker
-                value={quiz.source === "scale" ? scaleRoot : quiz.source === "interval" ? ivRoot : chordRoot}
-                onChange={quiz.source === "scale" ? setScaleRoot : quiz.source === "interval" ? setIvRoot : setChordRoot}
-                flats={effFlats}
-              />
-            </Field>
-
-            {quiz.source === "interval" && (
-              <Field label="Intervals to find">
-                <IntervalGrid root={ivRoot} on={ivOn} onToggle={toggleIv} flats={effFlats} />
-              </Field>
-            )}
-
-            <div className="row">
-              <Field label={`Difficulty · ${quiz.hidden ? quiz.hidden.size : 0} of ${quiz.target ? quiz.target.length : 0} hidden`}>
-                <input
-                  type="range" min="0" max="1" step="0.01" value={quiz.difficulty} aria-label="Quiz difficulty"
-                  onChange={(e) => setQuiz((q) => ({ ...q, difficulty: +e.target.value }))}
-                />
-                <output>{quiz.difficulty < 0.2 ? "Easy" : quiz.difficulty < 0.5 ? "Steady" : quiz.difficulty < 0.85 ? "Hard" : "Blank neck"}</output>
-              </Field>
-            </div>
-
-            <Field label={`Frets ${quiz.range[0]} to ${quiz.range[1]}`}>
-              <DualRange
-                min={0}
-                max={fretCount}
-                lo={quiz.range[0]}
-                hi={quiz.range[1]}
-                onChange={(r) => setQuiz((q) => ({ ...q, range: r }))}
-              />
-            </Field>
-
-            <p
-              role="status"
-              aria-live="polite"
-              className={quiz.source === "interval" && ivOn.size === 0 ? "empty" : quiz.done ? "done" : "note"}
-            >
-              {quiz.source === "interval" && ivOn.size === 0
-                ? "Pick at least one interval to be tested on."
-                : quiz.done
-                ? `Round complete. ${quiz.hidden ? quiz.hidden.size : 0} found, streak of ${quiz.streak}.`
-                : "Tap every hidden position on the neck. Wrong taps count against you."}
-            </p>
-
-            <div className="row actionbar">
-              <button className="btn primary" onClick={() => { track("quiz_new_round", { app_mode: quiz.source }); newRound(); }}>New round</button>
-              <button
-                className="btn ghost danger"
-                onClick={() => {
-                  const cleared = { ...quiz, correct: 0, wrong: 0, streak: 0, best: 0, rounds: 0 };
-                  setQuiz(cleared);
-                  saveStats(cleared);
-                }}
-              >
-                Reset score
-              </button>
-            </div>
-          </div>
-        )}
-
-        {mode === "changes" && (
-          <div className="pane">
-            <p className="panelead">Build speed by counting how many clean chord changes you can make between two shapes before the clock runs out.</p>
-            <div className="chgstage">
-              <div
-                role="timer"
-                aria-label="Time remaining"
-                className={`chgclock ${
-                  chg.phase === "running"
-                    ? chg.duration === 0 || chg.remaining > 10 ? "run" : "low"
-                    : chg.phase === "done" ? "low" : ""
-                }`}
-              >
-                {chg.phase === "done"
-                  ? "Time!"
-                  : chg.duration === 0
-                  ? chg.phase === "running"
-                    ? "Free"
-                    : "\u221e"
-                  : `${Math.floor(chg.remaining / 60)}:${String(chg.remaining % 60).padStart(2, "0")}`}
+                <button
+                  className="btn primary"
+                  onClick={() => {
+                    track("strum_chord", { chord: chordId });
+                    strumVoicing();
+                  }}
+                  disabled={!activeVoicing}
+                  data-tip="Hear the selected shape"
+                >
+                  Strum
+                </button>
               </div>
-              <div className="chgnames">{chgLabel}</div>
-              <div className="chgstatus" role="status" aria-live="assertive">
-                {chg.phase === "done" ? "Time. Enter how many changes you got." : ""}
+
+              <div className="keyjump">
+                <span className="note">In {nameOf(chordRoot, effFlats)}:</span>
+                <button className="jumpchip" onClick={() => carryKey("scale", chordRoot)}>
+                  Scale
+                </button>
+                <button className="jumpchip" onClick={() => carryKey("arp", chordRoot)}>
+                  Arpeggio
+                </button>
+                <button className="jumpchip" onClick={() => carryKey("strum", chordRoot)}>
+                  Strum along
+                </button>
               </div>
-              {(chgRecord.best > 0 || chgRecord.tries > 0) && (
-                <div className="chgbest">
-                  <span>best <b>{chgRecord.best}</b></span>
-                  <span>last <b>{chgRecord.last}</b></span>
-                  <span>tries <b>{chgRecord.tries}</b></span>
-                </div>
-              )}
-            </div>
 
-            {chgVoicings.some(Boolean) ? (
-              <div className="voicings">
-                {chg.chords.map((c, i) =>
-                  chgVoicings[i] ? (
-                    <ChordDiagram
-                      key={i}
-                      voicing={chgVoicings[i]}
-                      lefty={settings.leftHanded}
-                      midis={midis}
-                      rootPc={c.root}
-                      capo={0}
-                      flats={effFlats}
-                      showDegrees={false}
-                      title={chordName(c)}
-                      onSelect={() => {
-                        if (!settings.sound) return;
-                        let j = 0;
-                        for (let st = 0; st < n; st++) {
-                          const f = chgVoicings[i].frets[st];
-                          if (f === null) continue;
-                          pluck(midis[st] + f, j * 0.035);
-                          j++;
-                        }
-                      }}
-                    />
-                  ) : (
-                    <p className="empty" key={i}>No easy shape for {chordName(c)} in this tuning.</p>
-                  )
-                )}
-              </div>
-            ) : (
-              <p className="empty">No playable shapes for these chords in this tuning.</p>
-            )}
-
-            {chg.phase === "idle" && (
-              <>
-                <Field label="Chords to switch between">
-                  <div className="chgslots">
-                    {chg.chords.map((c, i) => (
-                      <div className="chgslot" key={i}>
-                        <KeyPicker value={c.root} onChange={(v) => setChgChord(i, { root: v })} flats={effFlats} />
-                        <div className="chgslotbtm">
-                          <CatPicker
-                            value={c.id}
-                            onChange={(v) => setChgChord(i, { id: v })}
-                            label="Chord type"
-                            groups={groupItems(CHORD_GROUPS, CHORDS, SIMPLE_CHORDS, settings.simple, c.id)}
-                          />
-                          <button
-                            className="mini"
-                            onClick={() => removeChgChord(i)}
-                            disabled={chg.chords.length <= 2}
-                            data-tip="Remove this chord"
-                            aria-label={`Remove ${chordName(c)}`}
-                          >
-                            {"✕"}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                    {chg.chords.length < 8 && (
-                      <button className="btn ghost wide" onClick={addChgChord}>+ Add a chord</button>
-                    )}
-                  </div>
-                </Field>
-
-                <div className="row">
-                  <Field label="Length">
+              {!settings.simple && (
+                <div className="optrow">
+                  <Field label="Neck shows">
                     <Seg
                       small
-                      options={[{ v: 30, l: "0:30" }, { v: 60, l: "1:00" }, { v: 120, l: "2:00" }, { v: 0, l: "Free" }]}
-                      value={chg.duration}
-                      onChange={(v) => setChg((c) => ({ ...c, duration: v, remaining: v }))}
+                      options={[
+                        { v: "finger", l: "Fingers" },
+                        { v: "name", l: "Notes" },
+                        { v: "degree", l: "Degrees" },
+                      ]}
+                      value={chordLabel}
+                      onChange={setChordLabel}
                     />
                   </Field>
-                  <button className="transport" onClick={startRun} disabled={!chgVoicings.some(Boolean)}>Start</button>
-                </div>
-                <p className="note">
-                  Change between the chords as many times as you can before the clock runs out. Count each clean
-                  change, then enter your total when time is up, and beat your best.
-                </p>
-              </>
-            )}
-
-            {chg.phase === "running" && (
-              <div className="row">
-                <button className="transport on" onClick={stopRun}>Stop</button>
-                <p className="note">
-                  {chg.duration === 0
-                    ? `Practise switching between ${chgLabel} at your own pace. Stop whenever you are done.`
-                    : `Switch between ${chgLabel}. Count each clean change.`}
-                </p>
-              </div>
-            )}
-
-            {chg.phase === "done" && (
-              <div className="chgentry">
-                <Field label="How many changes did you get?">
-                  <input
-                    type="number"
-                    aria-label="How many changes did you get?"
-                    min="0"
-                    inputMode="numeric"
-                    value={chgEntry}
-                    autoFocus
-                    onChange={(e) => setChgEntry(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") saveChangeScore(); }}
-                  />
-                </Field>
-                <button className="btn" onClick={saveChangeScore}>Save</button>
-                <button className="btn ghost" onClick={stopRun}>Discard</button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {mode === "about" && (
-          <div className="pane about">
-            <section className="aboutblock">
-              <h2 className="abouthead">About Fretwork</h2>
-              <p className="note">
-                Fretwork is a free, interactive guitar fretboard for learning the neck: scales, chords with
-                fingerings, intervals, progressions, and practice drills with a metronome. It works offline
-                and you can install it on your home screen.
-              </p>
-              <p className="note freeline">
-                Fretwork is, and always will be, free and without ads.
-              </p>
-            </section>
-
-            <section className="aboutblock">
-              <h2 className="abouthead">New to guitar, or to Fretwork?</h2>
-              <p className="note">
-                The FAQ is a plain-language guide to chords, scales, intervals, rhythm and reading
-                the fretboard, alongside how each tool in Fretwork works. It is written for beginners.
-              </p>
-              <button className="btn" onClick={() => { setMode("faq"); setOpenPanel(null); }}>Open the FAQ</button>
-            </section>
-
-            <section className="aboutblock">
-              <h2 className="abouthead">What's new</h2>
-              {CHANGELOG.map((rel) => (
-                <div key={rel.date} className="release">
-                  <h3 className="releasedate">{rel.date}</h3>
-                  <ul className="releaselist">
-                    {rel.items.map((it) => (
-                      <li key={it} className="note">{it}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </section>
-
-            <section className="aboutblock">
-              <h2 className="abouthead">Your data</h2>
-              <p className="note">
-                Fretwork uses Google Analytics, Vercel Analytics and Amplitude to understand how the app is
-                used and improve it. There is no session recording. Feedback sent from this page is stored so
-                it can be acted on. No account or personal details are required to use the app.
-              </p>
-            </section>
-
-            <section className="aboutblock">
-              <h2 className="abouthead">Good places to learn</h2>
-              <p className="note">These are the resources most often recommended across the guitar-learning world. Fretwork sits alongside them as your reference and practice companion.</p>
-              <ul className="resources">
-                {RESOURCES.map((r) => (
-                  <li key={r.name}>
-                    <a href={r.url} target="_blank" rel="noopener noreferrer" onClick={() => track("resource_click", { site: r.name })}>
-                      {r.name}
-                    </a>
-                    <span>{r.blurb}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-
-            <section className="aboutblock">
-              <h2 className="abouthead">New here?</h2>
-              <p className="note">Take a quick guided tour of the neck and the practice tools.</p>
-              <button className="btn" onClick={() => { setMode("chord"); startTour(); }}>Take the tour</button>
-            </section>
-
-            <section className="aboutblock">
-              <h2 className="abouthead">Accessibility</h2>
-              <p className="note">
-                Music should be for everyone, and Fretwork aims to be usable by everyone. What works today:
-                the whole app can be driven from a keyboard alone, including moving around the fretboard with
-                the arrow keys; menus and dialogs manage focus properly and close with Escape; controls carry
-                screen-reader labels and important changes are announced; and Settings offers high contrast,
-                reduced animation and zoom, alongside the system reduced-motion preference, which is always
-                respected.
-              </p>
-              <p className="note">
-                Known gaps: some audio feedback has no visual equivalent yet, and the app has not had a
-                formal WCAG audit. Chord shapes are described string by string to screen readers. If something
-                gets in your way, please say so in the form below, and it will be treated as a bug.
-              </p>
-            </section>
-
-            <section className="aboutblock">
-              <h2 className="abouthead">Suggest a feature</h2>
-              <FeedbackForm />
-            </section>
-
-            {SHOW_DONATE && (
-              <section className="aboutblock">
-                <h2 className="abouthead">Support Fretwork</h2>
-                <p className="note">
-                  This web app is a personal project created by Jonathan Courtney. Donate £2 to help with
-                  hosting costs if you enjoy it.
-                </p>
-                <DonateButton />
-              </section>
-            )}
-          </div>
-        )}
-
-        {mode === "faq" && (
-          <div className="pane about faq-pane">
-            <section className="aboutblock">
-              <h2 className="abouthead">FAQ</h2>
-              <p className="note">
-                A plain-language guide for anyone learning guitar. It explains the words you will meet, such
-                as chords, intervals, keys and time signatures, shows how to read a chord chart and the
-                fretboard, and covers how each tool in Fretwork works. Tap a question to see the answer.
-              </p>
-              <div className="row wrap faqtoc" aria-label="Jump to a section">
-                {FAQ_SECTIONS.map((s) => (
-                  <button
-                    key={s.id}
-                    className="jumpchip"
-                    onClick={() => {
-                      const el = document.getElementById(`faq-${s.id}`);
-                      if (el) el.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
-                    }}
-                  >
-                    {s.title}
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            {FAQ_SECTIONS.map((s) => (
-              <section className="aboutblock" id={`faq-${s.id}`} key={s.id}>
-                <h2 className="abouthead">{s.title}</h2>
-                <div className="faq">
-                  {s.items.map((f) => (
-                    <details className="faqitem" key={f.q}>
-                      <summary>{f.q}</summary>
-                      <p className="note">{f.a}</p>
-                      {f.view && VIEW_META[f.view] && (
-                        <button
-                          className="jumpchip faqjump"
-                          onClick={() => { setMode(f.view); setOpenPanel(null); if (typeof window !== "undefined") window.scrollTo({ top: 0 }); }}
-                        >
-                          Open {VIEW_META[f.view].title}
-                        </button>
-                      )}
-                    </details>
-                  ))}
-                </div>
-              </section>
-            ))}
-
-            <section className="aboutblock">
-              <h2 className="abouthead">Still stuck?</h2>
-              <p className="note">
-                If your question is not answered here, suggest it from the About page and it will be treated
-                as feedback.
-              </p>
-              <button className="btn" onClick={() => { setMode("about"); setOpenPanel(null); }}>Go to About</button>
-            </section>
-          </div>
-        )}
-
-        {mode === "arp" && (
-          <div className="pane">
-            <p className="panelead">Hear and see any arpeggio across the neck in any key, moving up, down or through the shape you choose.</p>
-            <div className="knownrow">
-              <KnownButton
-                known={known.some((k) => k.sig === `k-arp:${arpRoot}:${arpId}`)}
-                onClick={() => toggleKnown({ sig: `k-arp:${arpRoot}:${arpId}`, kind: "arp", root: arpRoot, id: arpId, label: `${nameOf(arpRoot, effFlats)}${arpDef.suffix} arpeggio` })}
-              />
-            </div>
-            <div className="row wrap">
-              <Field label="Root"><KeyPicker value={arpRoot} onChange={setArpRoot} flats={effFlats} /></Field>
-              <Field label="Arpeggio">
-                <CatPicker
-                  value={arpId}
-                  onChange={setArpId}
-                  label="Arpeggio type"
-                  groups={groupItems(CHORD_GROUPS, CHORDS, SIMPLE_CHORDS, settings.simple, arpId)}
-                />
-              </Field>
-              <Field label="Direction">
-                <Seg small ariaLabel="Arpeggio direction"
-                  options={[
-                    { v: "up", l: "Up" }, { v: "down", l: "Down" }, { v: "updown", l: "Up-down" }, { v: "downup", l: "Down-up" },
-                    ...(settings.simple ? [] : [{ v: "thirds", l: "In thirds" }, { v: "pedal", l: "Pedal root" }]),
-                  ]}
-                  value={arpDir} onChange={setArpDir} />
-              </Field>
-              <button
-                className={`btn primary ${playing != null ? "live" : ""}`}
-                onClick={playing != null ? stopPlayback : () => { track("hear_arp", { arp: arpId, dir: arpDir }); playArpeggio(); }}
-                data-tip="Play the arpeggio and light each tone, following the chosen position and direction"
-              >
-                {playing != null ? "Stop" : "Hear it"}
-              </button>
-              <StarSave
-                label={`${nameOf(arpRoot, effFlats)}${arpDef.suffix} arpeggio`}
-                saved={bank.some((b) => b.sig === `arp:${arpRoot}:${arpId}:${arpDir}:${arpPos == null ? "all" : arpPos}`)}
-                onClick={() => saveToBank({
-                  id: `b${Date.now()}`,
-                  sig: `arp:${arpRoot}:${arpId}:${arpDir}:${arpPos == null ? "all" : arpPos}`,
-                  kind: "arp",
-                  root: arpRoot,
-                  arpId,
-                  dir: arpDir,
-                  pos: arpPos,
-                  tun: settings.tuningId,
-                  label: `${nameOf(arpRoot, effFlats)}${arpDef.suffix} arpeggio${arpPos == null ? "" : ` · pos ${arpPos + 1}`}`,
-                })}
-              />
-            </div>
-
-            <div className="keyjump">
-              <span className="note">In {nameOf(arpRoot, effFlats)}:</span>
-              <button className="jumpchip" onClick={() => carryKey("scale", arpRoot)}>Scale</button>
-              <button className="jumpchip" onClick={() => carryKey("chord", arpRoot)}>Chords</button>
-            </div>
-
-            <Field label="Position">
-              <div className="posrow">
-                <button
-                  className={`poschip ${arpPos == null ? "on" : ""}`}
-                  onClick={() => setArpPos(null)}
-                  data-tip="Every position at once"
-                >
-                  Whole neck
-                </button>
-                {arpPositions.map((pos, i) => (
-                  <button
-                    key={i}
-                    className={`poschip ${arpPos === i ? "on" : ""}`}
-                    onClick={() => setArpPos(i)}
-                    data-tip={`Frets ${pos.from} to ${pos.to}, starting on the ${DEG[pos.deg]}`}
-                  >
-                    {i + 1}
-                  </button>
-                ))}
-                {arpPos != null && arpPositions[arpPos] && (
-                  <span className="poshint">Frets {arpPositions[arpPos].from} to {arpPositions[arpPos].to}</span>
-                )}
-              </div>
-            </Field>
-            <Field label="Neck shows">
-              <Seg small
-                options={[{ v: "both", l: "Degree + note" }, { v: "name", l: "Notes" }, { v: "degree", l: "Degrees" }, { v: "order", l: "Play order" }, { v: "none", l: "Blank" }]}
-                value={arpLabel} onChange={setArpLabel} />
-            </Field>
-
-            <div className="degrees">
-              {arpDef.iv.map((i) => (
-                <span key={i} className="chip" style={{ borderLeftColor: FUNC_COLOUR[i % 12] }}>
-                  <b style={{ color: FUNC_COLOUR[i % 12] }}>{DEG[i % 12]}</b>
-                  {nameOf(arpRoot + i, effFlats)}
-                </span>
-              ))}
-            </div>
-
-            <p className="note">
-              Every place these chord tones live on the neck. Narrow to one position, then follow the playback
-              direction with your pick.
-            </p>
-          </div>
-        )}
-
-        {mode === "routine" && (
-          <div className="pane">
-            <p className="note">
-              Mark scales, chords and arpeggios you know with the lightbulb, then build a short routine here.
-              Fretwork practises the ones you rated shaky for longer and adds one new "stretch" item. Rate the
-              session afterwards to shape the next one.
-            </p>
-            {known.length === 0 ? (
-              <p className="empty">
-                Nothing marked yet. On the Scales, Chords or Arpeggios views, tap the lightbulb next to the star
-                to mark something you know, then come back to build a routine.
-              </p>
-            ) : (
-              <>
-                <div className="row wrap actions">
-                  <Field label="How long?">
-                    <Seg small ariaLabel="Routine length"
-                      options={[{ v: 5, l: "5 min" }, { v: 10, l: "10 min" }, { v: 15, l: "15 min" }, { v: 20, l: "20 min" }]}
-                      value={routineDur} onChange={setRoutineDur} />
+                  <Field label="Other tones">
+                    <Seg
+                      small
+                      options={[
+                        { v: true, l: "Ghost" },
+                        { v: false, l: "Hide" },
+                      ]}
+                      value={showAllTones}
+                      onChange={setShowAllTones}
+                    />
                   </Field>
-                  <button className="btn primary" onClick={buildRoutine}>Build and start</button>
                 </div>
-                <p className="note">
-                  You know {known.length} thing{known.length === 1 ? "" : "s"}. Your {routineDur} minute routine will
-                  run through {known.length === 1 ? "it" : "them"} plus one new stretch to grow into.
-                </p>
-                <Field label="Things you know">
-                  <div className="knownlist">
-                    {known.map((k) => (
-                      <div className="knownitem" key={k.sig}>
-                        <span className="knowndot" aria-hidden="true" />
-                        <b>{k.label}</b>
-                        {routineRatings[k.sig] ? <em className="knownrate">{"★".repeat(routineRatings[k.sig])}</em> : null}
-                        <button className="mini" aria-label={`Forget ${k.label}`} onClick={() => toggleKnown(k)}>{"✕"}</button>
+              )}
+            </div>
+          )}
+
+          {mode === "prog" && (
+            <div className="pane">
+              <p className="panelead">
+                Play through common chord progressions in any key, seeing every chord shape as the sequence moves along.
+              </p>
+              {progVoicings.some(Boolean) ? (
+                hasSections ? (
+                  <div className="songsheet">
+                    {songBlocks.map((blk, bi) => (
+                      <div className="songsec" key={bi}>
+                        {blk.name && <p className="secname">{blk.name}</p>}
+                        <div className="voicings">{blk.groups.map(renderProgDiagram)}</div>
                       </div>
                     ))}
                   </div>
-                </Field>
-              </>
-            )}
-          </div>
-        )}
+                ) : (
+                  <div className="voicings">{progGroups.map(renderProgDiagram)}</div>
+                )
+              ) : (
+                <p className="empty">No playable shapes for this progression in the current tuning.</p>
+              )}
 
-        {mode === "strum" && (
-          <div className="pane">
-            <p className="note">
-              Pick a chord and a strumming pattern, hit Play, and strum along in time. A down arrow is a
-              downstroke (low strings to high), an up arrow is an upstroke. Set the tempo to suit you.
-            </p>
-
-            <div className="row wrap">
-              <Field label="Root"><KeyPicker value={chordRoot} onChange={setChordRoot} flats={effFlats} /></Field>
-              <Field label="Chord">
-                <CatPicker
-                  value={chordId}
-                  onChange={setChordId}
-                  label="Chord type"
-                  groups={groupItems(CHORD_GROUPS, CHORDS, SIMPLE_CHORDS, settings.simple, chordId)}
-                />
-              </Field>
-            </div>
-
-            {activeVoicing && (
-              <div className="voicings">
-                <div className="voicewrap">
-                  <ChordDiagram
-                    voicing={activeVoicing}
-                    lefty={settings.leftHanded}
-                    midis={midis}
-                    rootPc={chordRoot}
-                    capo={capo}
-                    flats={effFlats}
-                    showDegrees={false}
-                    selected
-                  />
-                </div>
+              <div className="row wrap actions">
+                <button
+                  className={`btn primary ${progPlaying ? "live" : ""}`}
+                  onClick={progPlaying ? stopPlayback : playProgression}
+                  disabled={!progChords.length}
+                >
+                  {progPlaying ? "Stop" : "Preview"}
+                </button>
+                <span className="actspacer" aria-hidden="true" />
+                <button
+                  className="btn ghost iconbtn"
+                  onClick={() =>
+                    saveToBank({
+                      id: `b${Date.now()}`,
+                      sig: `prog:${progRoot}:${progId}:${progDef.bars.join(",")}`,
+                      kind: "prog",
+                      root: progRoot,
+                      progId,
+                      bars: progDef.bars,
+                      sections: progDef.sections,
+                      name: progDef.name,
+                      label: `${nameOf(progRoot, effFlats)} \u00b7 ${progDef.name}`,
+                    })
+                  }
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill={bank.some((b) => b.sig === `prog:${progRoot}:${progId}:${progDef.bars.join(",")}`) ? "currentColor" : "none"}
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 3.2l2.6 5.7 6.2.6-4.7 4.2 1.4 6.1L12 16.8 6.5 19.8l1.4-6.1L3.2 9.5l6.2-.6z" />
+                  </svg>
+                  Save to Bank
+                </button>
+                <button
+                  className="btn ghost iconbtn"
+                  onClick={() => {
+                    const c = progChords[progIdx];
+                    if (!c) return;
+                    setChordRoot(c.rootPc);
+                    setChordId(c.chordId);
+                    setMode("chord");
+                  }}
+                >
+                  <svg
+                    viewBox="0 0 16 16"
+                    width="13"
+                    height="13"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M6 3h7v7M13 3L7 9M6 13H3V3" />
+                  </svg>
+                  Open in chords
+                </button>
               </div>
-            )}
 
-            <Field label="Pattern">
               <div className="row wrap">
-                {STRUM_PATTERNS.filter((p) => !settings.simple || p.simple).map((p) => (
-                  <button
-                    key={p.id}
-                    aria-pressed={strumPatId === p.id}
-                    className={`btn ${strumPatId === p.id ? "primary" : "ghost"}`}
-                    onClick={() => { if (strumOn) stopPlayback(); setStrumPatId(p.id); }}
-                  >
-                    {p.name}
-                  </button>
-                ))}
+                <Field label="Key">
+                  <KeyPicker value={progRoot} onChange={setProgRoot} flats={effFlats} />
+                </Field>
+                <Field label="Progression">
+                  <CatPicker
+                    value={progId}
+                    onChange={setProgId}
+                    label="Progression"
+                    groups={[
+                      ...["major", "minor"].map((t) => ({
+                        label: t === "major" ? "Major keys" : "Minor keys",
+                        items: simpleList(PROGRESSIONS, SIMPLE_PROGS, settings.simple, progId)
+                          .filter((x) => x.tonality === t)
+                          .map((x) => ({ id: x.id, name: x.name, sub: x.note })),
+                      })),
+                      ...(customProgs.length
+                        ? [
+                            {
+                              label: "Your progressions",
+                              items: customProgs.map((x) => ({ id: x.id, name: x.name, sub: `${x.bars.length} bars` })),
+                            },
+                          ]
+                        : []),
+                      { label: "Build", items: [{ id: "custom", name: "Custom progression", sub: "Choose your own chords, bar by bar" }] },
+                    ]}
+                  />
+                </Field>
               </div>
-            </Field>
 
-            <div className="strumbar" role="group" aria-label="Strum pattern. Bold arrows are accented.">
-              {(STRUM_PATTERNS.find((p) => p.id === strumPatId) || STRUM_PATTERNS[0]).slots.map((st, i) => {
-                const dir = st ? st.toLowerCase() : null;
-                const accent = st && st === st.toUpperCase();
-                return (
-                  <div key={i} className={`strumslot ${strumStep === i ? "on" : ""} ${i % 2 === 0 ? "beat" : ""} ${accent ? "accent" : ""}`}>
-                    <span className="strumarrow" aria-hidden="true">{dir === "d" ? "↓" : dir === "u" ? "↑" : ""}</span>
-                    <span className="strumcount">{i % 2 === 0 ? String(i / 2 + 1) : "&"}</span>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="row wrap actions">
-              <button
-                className={`btn primary ${strumOn ? "live" : ""}`}
-                onClick={strumOn ? stopPlayback : playStrum}
-                disabled={!activeVoicing}
-              >
-                {strumOn ? "Stop" : "Play"}
-              </button>
-              <Field label="Tempo">
-                <div className="row">
-                  <button className="mini" aria-label="Slower" onClick={() => setSettings((s) => ({ ...s, bpm: Math.max(40, s.bpm - 5) }))}>{"−"}5</button>
-                  <b className="barcount">{settings.bpm}</b>
-                  <button className="mini" aria-label="Faster" onClick={() => setSettings((s) => ({ ...s, bpm: Math.min(240, s.bpm + 5) }))}>+5</button>
-                </div>
-              </Field>
-              <button
-                className={`btn ${strumClick ? "primary" : "ghost"}`}
-                aria-pressed={strumClick}
-                onClick={() => setStrumClick((v) => !v)}
-                data-tip="Play the metronome click on each beat, at this tempo"
-              >
-                Click: {strumClick ? "on" : "off"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {mode === "melody" && (
-          <div className="pane">
-            <p className="note">
-              Tap notes on the neck to drop them onto the timeline below, one eighth-note slot at a time. Tap a
-              slot to move the cursor there, or tap a filled slot again to clear it back to a rest. An empty slot
-              is a rest, the same note in two slots is a repeat.
-            </p>
-
-            <Field label={`Timeline \u00b7 ${melSteps.filter((s) => s && !s.rest).length} ${melSteps.filter((s) => s && !s.rest).length === 1 ? "note" : "notes"}`}>
-              <div className="timeline" role="group" aria-label="Melody timeline. Tap the neck to add a note at the cursor.">
-                {Array.from({ length: melBars }, (_, b) => (
-                  <div className="tbar" key={b}>
-                    {Array.from({ length: MEL_SLOTS }, (_, sc) => {
-                      const i = b * MEL_SLOTS + sc;
-                      const cell = melSteps[i];
-                      const filled = cell && !cell.rest;
-                      const nm = filled ? nameOf((settings.midis[cell.s] + cell.f) % 12, effFlats) : "";
-                      return (
-                        <button
-                          key={i}
-                          type="button"
-                          className={`tslot ${filled ? "filled" : "rest"} ${i === melCursor ? "cursor" : ""} ${melPlayIdx === i ? "playing" : ""} ${sc % 2 === 0 ? "beat" : ""}`}
-                          aria-label={filled ? `Slot ${i + 1}, ${nm}. Tap to select, tap again to clear.` : `Slot ${i + 1}, rest. Tap to select.`}
-                          aria-current={i === melCursor ? "true" : undefined}
-                          onClick={() => {
-                            if (i === melCursor && filled) {
-                              setMelSteps((st) => { const n = st.slice(); while (n.length <= i) n.push({ rest: true }); n[i] = { rest: true }; return n; });
-                            } else {
-                              setMelCursor(i);
-                              if (filled) playNote(settings.midis[cell.s] + cell.f);
+              {progId === "custom" && (
+                <div className="builderbox">
+                  <Field label={`Bars \u00b7 ${builder.bars.length}`}>
+                    <div className="barstrip">
+                      {builder.bars.length === 0 && (
+                        <span className="note">
+                          Tap chords below to add bars. The same chord can repeat as many times as the song needs.
+                        </span>
+                      )}
+                      {builder.bars.map((b, i) => (
+                        <React.Fragment key={i}>
+                          {builder.sections && builder.sections[i] && (
+                            <button
+                              className="secchip"
+                              onClick={() =>
+                                setBuilder((bl) => {
+                                  const sc = { ...bl.sections };
+                                  delete sc[i];
+                                  return { ...bl, sections: sc };
+                                })
+                              }
+                              data-tip="Remove this section marker"
+                            >
+                              {builder.sections[i]}
+                            </button>
+                          )}
+                          <button
+                            className="barchip"
+                            onClick={() =>
+                              setBuilder((bl) => {
+                                const sections = {};
+                                Object.entries(bl.sections || {}).forEach(([k, v]) => {
+                                  const idx = +k;
+                                  if (idx < i) sections[idx] = v;
+                                  else if (idx > i) sections[idx - 1] = v;
+                                });
+                                return { ...bl, bars: bl.bars.filter((_, j) => j !== i), sections };
+                              })
                             }
-                          }}
+                            aria-label={`Remove bar ${i + 1}, ${b}`}
+                          >
+                            {b}
+                            <span aria-hidden="true">{"\u00d7"}</span>
+                          </button>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </Field>
+                  <Field label="Song sections (optional)">
+                    <div className="posrow">
+                      {["Intro", "Verse", "Chorus", "Bridge", "Solo", "Outro"].map((sec) => (
+                        <button
+                          key={sec}
+                          className="poschip"
+                          onClick={() => setBuilder((bl) => ({ ...bl, sections: { ...bl.sections, [bl.bars.length]: sec } }))}
+                          data-tip={`Start a ${sec} section at the next bar`}
                         >
-                          <span className="tslotname">{nm}</span>
+                          + {sec}
                         </button>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            </Field>
-
-            <div className="row wrap barctl">
-              <span className="note">Bars</span>
-              <button
-                className="mini"
-                aria-label="Remove a bar"
-                disabled={melBars <= 1}
-                onClick={() => { const nb = Math.max(1, melBars - 1); setMelBars(nb); setMelSteps((st) => st.slice(0, nb * MEL_SLOTS)); setMelCursor((c) => Math.min(c, nb * MEL_SLOTS - 1)); }}
-              >{"\u2212"}</button>
-              <b className="barcount">{melBars}</b>
-              <button className="mini" aria-label="Add a bar" disabled={melBars >= MEL_MAX_BARS} onClick={() => setMelBars((b) => Math.min(MEL_MAX_BARS, b + 1))}>+</button>
-              <button
-                className="btn ghost"
-                onClick={() => { setMelSteps((st) => { const n = st.slice(); while (n.length <= melCursor) n.push({ rest: true }); n[melCursor] = { rest: true }; return n; }); setMelCursor((c) => Math.min(c + 1, melBars * MEL_SLOTS - 1)); }}
-              >Add rest</button>
-              <button
-                className="btn ghost"
-                disabled={melCursor === 0}
-                onClick={() => { const j = Math.max(0, melCursor - 1); setMelSteps((st) => { if (j >= st.length) return st; const n = st.slice(); n[j] = { rest: true }; return n; }); setMelCursor(j); }}
-              >Back</button>
-            </div>
-
-            {melKeyHint && (
-              <p className="note" role="status">
-                {melKeyHint.loose ? "Mostly fits" : "Fits"} {nameOf(melKeyHint.root, keyPrefersFlats(melKeyHint.root, [0, 2, 4, 5, 7, 9, 11]))} major
-                {" / "}{nameOf((melKeyHint.root + 9) % 12, keyPrefersFlats(melKeyHint.root, [0, 2, 4, 5, 7, 9, 11]))} minor.
-              </p>
-            )}
-
-            <div className="row wrap actions">
-              <button
-                className={`btn primary ${melPlayIdx != null ? "live" : ""}`}
-                onClick={melPlayIdx != null ? stopPlayback : playMelody}
-                disabled={!melSteps.some((s) => s && !s.rest)}
-              >
-                {melPlayIdx != null ? "Stop" : "Play"}
-              </button>
-              <button
-                className={`btn ${melLoop ? "primary" : "ghost"}`}
-                aria-pressed={melLoop}
-                onClick={() => { const nv = !melLoop; setMelLoop(nv); melLoopRef.current = nv; }}
-                data-tip="Repeat the melody until you press Stop"
-              >
-                Loop: {melLoop ? "on" : "off"}
-              </button>
-              <Field label="Speed">
-                <Seg small ariaLabel="Playback speed"
-                  options={[{ v: 1, l: "Slow" }, { v: 2, l: "Normal" }, { v: 4, l: "Fast" }]}
-                  value={melRate} onChange={setMelRate} />
-              </Field>
-              <Field label="Transpose">
-                <div className="row">
-                  <button className="mini" aria-label="Down one semitone" onClick={() => transposeMelody(-1)} disabled={!melSteps.some((s) => s && !s.rest)}>{"\u2212"}1</button>
-                  <button className="mini" aria-label="Up one semitone" onClick={() => transposeMelody(1)} disabled={!melSteps.some((s) => s && !s.rest)}>+1</button>
-                </div>
-              </Field>
-              <span className="actspacer" aria-hidden="true" />
-              <button className="btn ghost danger" onClick={() => { setMelSteps([]); setMelBars(2); setMelCursor(0); }} disabled={!melSteps.length}>Clear</button>
-            </div>
-
-            <div className="row wrap">
-              <Field id="melname" label="Name">
-                <input
-                  id="melname" type="text" value={melName} maxLength={60} placeholder="Riff I am learning"
-                  onChange={(e) => setMelName(e.target.value)}
-                  className="melinput"
-                />
-              </Field>
-              <button
-                className="btn"
-                disabled={!melSteps.some((s) => s && !s.rest) || !melName.trim()}
-                onClick={() => {
-                  saveMelodies([{ id: `m${Date.now()}`, name: melName.trim(), steps: melSteps, bars: melBars }, ...melodies]);
-                  track("melody_save", { notes: melSteps.filter((s) => s && !s.rest).length });
-                  setToast("Melody saved");
-                  setMelName("");
-                }}
-              >
-                Save melody
-              </button>
-            </div>
-
-            <div className="row wrap">
-              <button className="btn ghost" onClick={importTabFromClipboard}>Import tab from clipboard</button>
-              <button className="btn ghost" onClick={() => setMelImport((v) => !v)}>{melImport ? "Hide paste box" : "Paste a tab"}</button>
-            </div>
-            {melImport && (
-              <Field id="tabpaste" label="Paste a tab, then Import">
-                <textarea
-                  id="tabpaste"
-                  className="melinput tabbox"
-                  rows={7}
-                  value={melImportText}
-                  onChange={(e) => setMelImportText(e.target.value)}
-                  placeholder={"e|--0--3--0--|\nB|--1-----1--|\nG|--0-----0--|\nD|--2-----2--|\nA|--3--3--3--|\nE|-----------|"}
-                />
-                <div className="row">
-                  <button className="btn primary" onClick={() => doImportTab(melImportText)} disabled={!melImportText.trim()}>Import</button>
-                </div>
-              </Field>
-            )}
-
-            {melodies.length > 0 && (
-              <Field label="Saved melodies">
-                <div className="mellist">
-                  {melodies.map((m) => (
-                    <div className="melitem" key={m.id}>
-                      <button
-                        className="melload"
-                        onClick={() => {
-                          /* drop notes that fall off the current tuning/neck (fewer strings or frets) */
-                          const steps = m.steps.slice(0, MEL_MAX_BARS * MEL_SLOTS)
-                            .map((st) => (st && !st.rest && (st.s >= settings.midis.length || st.f > fretCount) ? { rest: true } : st));
-                          setMelSteps(steps);
-                          setMelBars(Math.max(2, Math.min(MEL_MAX_BARS, m.bars || Math.ceil(steps.length / MEL_SLOTS))));
-                          setMelCursor(0);
-                          setMelName(m.name);
-                          setToast(`Loaded ${m.name}`);
-                        }}
-                      >
-                        <b>{m.name}</b>
-                        <em>{m.steps.filter((s) => s && !s.rest).length} notes</em>
-                      </button>
-                      <button
-                        className="mini"
-                        aria-label={`Delete ${m.name}`}
-                        onClick={() => saveMelodies(melodies.filter((x) => x.id !== m.id))}
-                      >
-                        {"\u2715"}
-                      </button>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </Field>
-            )}
-          </div>
-        )}
-
-        {mode === "ear" && (
-          <div className="pane">
-            <p className="panelead">Train your ear to recognise intervals and chord types by sound, then check yourself against the answer.</p>
-            <div className="scoreboard">
-              <div className="score"><b>{ear.correct}</b><span>correct</span></div>
-              <div className="score"><b className="bad">{ear.wrong}</b><span>wrong</span></div>
-              <div className="score"><b>{ear.streak}</b><span>streak</span></div>
-            </div>
-
-            <div className="row wrap">
-              <Field label="Mode" tip="Identify what you hear, or choose a sound and listen to it">
-                <Seg small ariaLabel="Ear training mode"
-                  options={[{ v: "quiz", l: "Hear and identify" }, { v: "explore", l: "Choose and hear" }]}
-                  value={ear.dir} onChange={(v) => setEar((e) => ({ ...e, dir: v, current: null, picked: null, streak: 0 }))} />
-              </Field>
-              <Field label="Sounds">
-                <Seg small ariaLabel="Interval or chord sounds"
-                  options={[{ v: "interval", l: "Intervals" }, { v: "chord", l: "Chord types" }]}
-                  value={ear.source} onChange={(v) => setEar((e) => ({ ...e, source: v, current: null, picked: null, streak: 0 }))} />
-              </Field>
-              <Field label="Difficulty">
-                <Seg small ariaLabel="Difficulty"
-                  options={[{ v: "simple", l: "Common" }, { v: "all", l: "Everything" }]}
-                  value={ear.level} onChange={(v) => setEar((e) => ({ ...e, level: v, current: null, picked: null, streak: 0 }))} />
-              </Field>
-            </div>
-
-            {ear.dir === "quiz" ? (
-              <>
-                <div className="row">
-                  <button
-                    className="btn primary"
-                    onClick={() => (ear.current ? earPlay(ear.current.root, ear.current.answer) : earNext())}
-                  >
-                    {ear.current ? "Play again" : "Start"}
-                  </button>
-                </div>
-                <div className="earopts">
-                  {earPool.map((o) => {
-                    const answered = ear.picked != null;
-                    const isPick = ear.picked === o.v;
-                    const isRight = answered && ear.current && o.v === ear.current.answer;
-                    return (
-                      <button
-                        key={String(o.v)}
-                        className={`earopt ${isRight ? "right" : isPick ? "wrongpick" : ""}`}
-                        disabled={!ear.current || answered}
-                        onClick={() => earAnswer(o.v)}
-                      >
-                        {o.l}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="note" role="status" aria-live="polite">
-                  {ear.picked != null && ear.current
-                    ? ear.picked === ear.current.answer
-                      ? "Right. Next one coming up."
-                      : `It was ${earPool.find((o) => o.v === ear.current.answer)?.l}. Next one coming up.`
-                    : ear.current
-                    ? "What did you hear?"
-                    : "Press Start and identify what you hear."}
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="note">Tap a sound to hear it from a random root. Learn the colour, then flip to Hear and identify.</p>
-                <div className="earopts">
-                  {earPool.map((o) => (
-                    <button
-                      key={String(o.v)}
-                      className="earopt"
-                      onClick={() => {
-                        const root = 45 + Math.floor(Math.random() * 15);
-                        earPlay(root, o.v);
-                      }}
-                    >
-                      {o.l}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-
-            <div className="row">
-              <button className="btn ghost danger" onClick={() => setEar((e) => ({ ...e, correct: 0, wrong: 0, streak: 0 }))} disabled={!ear.correct && !ear.wrong}>
-                Reset score
-              </button>
-            </div>
-          </div>
-        )}
-
-        {mode === "plog" && (
-          <div className="pane about">
-            {(() => {
-              const fmt = (sec) => {
-                const m = Math.round(sec / 60);
-                if (m < 60) return `${m} min`;
-                return `${Math.floor(m / 60)}h ${m % 60}m`;
-              };
-              return (
-                <>
-                  <section className="progress">
-                    <div className="levelcard">
-                      <div className="levelring">
-                        <svg viewBox="0 0 44 44" width="72" height="72" aria-hidden="true">
-                          <circle cx="22" cy="22" r="19" className="lr-track" />
-                          <circle cx="22" cy="22" r="19" className="lr-fill" style={{ strokeDasharray: `${(gLevel.pct / 100) * 119.4} 119.4` }} />
-                        </svg>
-                        <div className="levelnum"><b>{gLevel.level}</b><span>level</span></div>
-                      </div>
-                      <div className="levelmeta">
-                        <div className="levelpts">{gPoints.toLocaleString("en-GB")} <span>points</span></div>
-                        <div className="levelbar"><div className="levelbarfill" style={{ width: `${gLevel.pct}%` }} /></div>
-                        <div className="levelnext">{gLevel.toNext.toLocaleString("en-GB")} points to level {gLevel.level + 1}</div>
-                      </div>
-                    </div>
-
-                    <h2 className="abouthead">Badges</h2>
-                    <div className="badgegrid">
-                      {[...BADGES].sort((a, b) => (badgeTier(b, gStats) > 0) - (badgeTier(a, gStats) > 0)).map((b) => {
-                        const tier = badgeTier(b, gStats);
-                        const max = b.tiers.length;
-                        const earned = tier > 0;
-                        const nextAt = tier < max ? b.tiers[tier] : null;
+                  </Field>
+                  <Field label="Add chords by name in this key">
+                    <Seg
+                      small
+                      ariaLabel="Key type for the chord names"
+                      options={[
+                        { v: "major", l: "Major key" },
+                        { v: "minor", l: "Minor key" },
+                      ]}
+                      value={builderKeyQual}
+                      onChange={setBuilderKeyQual}
+                    />
+                    <p className="note keyhint">
+                      These are the chords that belong to{" "}
+                      {nameOf(progRoot, keyPrefersFlats(progRoot, builderKeyQual === "minor" ? [3] : [4]))} {builderKeyQual}. Tap one to add
+                      it.
+                    </p>
+                    <div className="romangrid">
+                      {(builderKeyQual === "minor"
+                        ? ["i", "ii°", "III", "iv", "v", "VI", "VII"]
+                        : ["I", "ii", "iii", "IV", "V", "vi", "vii°"]
+                      ).map((rn) => {
+                        const [off, q] = ROMAN[rn];
+                        const cd = CHORDS.find((c) => c.id === q);
+                        const nmFlats = keyPrefersFlats(progRoot, builderKeyQual === "minor" ? [3] : [4]);
+                        const nm = nameOf((progRoot + off) % 12, nmFlats) + (cd ? cd.suffix : "");
                         return (
-                          <div key={b.id} className={`badge2 ${earned ? "earned" : "locked"}`}>
-                            <svg className="badgemedal" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
-                              <path d="M12 2.5l2.7 5.9 6.3.6-4.8 4.3 1.4 6.2L12 16.9 6.2 19.5l1.4-6.2L2.8 9l6.3-.6z" />
-                            </svg>
-                            <b className="badgename">{b.name}</b>
-                            <span className="badgetier">
-                              {!earned ? `Reach ${b.tiers[0]} ${b.unit}` : max > 1 ? (tier < max ? `Level ${tier} of ${max}` : "Maxed") : "Earned"}
-                            </span>
-                            {nextAt != null && earned && <span className="badgenext">Next at {nextAt} {b.unit}</span>}
-                          </div>
+                          <button
+                            key={rn}
+                            className="key chordkey"
+                            data-tip={`${rn} in the key of ${nameOf(progRoot, nmFlats)} ${builderKeyQual}`}
+                            onClick={() => setBuilder((bl) => ({ ...bl, bars: [...bl.bars, rn] }))}
+                          >
+                            {nm}
+                          </button>
                         );
                       })}
                     </div>
-                  </section>
-
-                  <div className="scoreboard">
-                    <div className="score"><b>{practiceStats.streak}</b><span>day streak</span></div>
-                    <div className="score"><b>{fmt(practiceStats.todayTotal)}</b><span>today</span></div>
-                    <div className="score"><b>{fmt(practiceStats.weekTotal)}</b><span>last 14 days</span></div>
-                    <div className="score"><b>{fmt(practiceStats.allTime)}</b><span>all time</span></div>
-                  </div>
-
-                  <section className="aboutblock">
-                    <h2 className="abouthead">Last 14 days</h2>
-                    <div className="plogbars" role="img" aria-label={`Practice minutes over the last fourteen days, ${fmt(practiceStats.weekTotal)} total`}>
-                      {practiceStats.week.map((d, i) => (
-                        <div className="plogday" key={d.k} title={`${d.label}: ${fmt(d.total)}`}>
-                          <div className="plogbarwrap">
-                            <div className="plogbar" style={{ height: `${d.total ? Math.max(4, (d.total / practiceStats.maxDay) * 100) : 0}%` }} />
-                          </div>
-                          <span className="ploglabel">{i % 2 === 0 ? d.label[0] : ""}</span>
-                        </div>
+                  </Field>
+                  <Field label="Or add by Roman numeral (advanced)">
+                    <div className="romangrid">
+                      {Object.keys(ROMAN).map((rn) => (
+                        <button key={rn} className="key" onClick={() => setBuilder((bl) => ({ ...bl, bars: [...bl.bars, rn] }))}>
+                          {rn}
+                        </button>
                       ))}
                     </div>
-                  </section>
+                  </Field>
+                  <div className="row wrap">
+                    <Field id="progname" label="Name">
+                      <input
+                        id="progname"
+                        type="text"
+                        value={builder.name}
+                        maxLength={40}
+                        placeholder="My song"
+                        onChange={(e) => setBuilder((bl) => ({ ...bl, name: e.target.value }))}
+                      />
+                    </Field>
+                    <button
+                      className="btn primary"
+                      disabled={!builder.bars.length || !builder.name.trim()}
+                      onClick={() => {
+                        const def = {
+                          id: `c${Date.now()}`,
+                          name: builder.name.trim(),
+                          note: "Custom",
+                          tonality: MINOR_STARTS.has(builder.bars[0]) ? "minor" : "major",
+                          bars: builder.bars,
+                          sections: builder.sections,
+                        };
+                        saveCustomProgs([...customProgs, def]);
+                        setProgId(def.id);
+                        setBuilder({ bars: [], name: "", sections: {} });
+                        track("custom_prog_save", { bars: def.bars.length });
+                        setToast("Progression saved");
+                      }}
+                    >
+                      Save progression
+                    </button>
+                    <button
+                      className="btn ghost"
+                      disabled={!builder.bars.length}
+                      onClick={() => setBuilder((bl) => ({ ...bl, bars: [], sections: {} }))}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              )}
 
-                  {practiceStats.modeRows.length > 0 ? (
-                    <section className="aboutblock">
-                      <h2 className="abouthead">By activity</h2>
-                      <div className="plogmodes">
-                        {practiceStats.modeRows.map(([m, sec]) => (
-                          <div className="plogmode" key={m}>
-                            <span className="plogmname">{PRACTICE_MODES[m] || m}</span>
-                            <div className="plogtrack"><div className="plogfill" style={{ width: `${(sec / practiceStats.modeRows[0][1]) * 100}%` }} /></div>
-                            <span className="plogmtime">{fmt(sec)}</span>
+              {customProgs.some((p) => p.id === progId) && (
+                <div className="row">
+                  <button
+                    className="btn ghost danger"
+                    onClick={() => {
+                      saveCustomProgs(customProgs.filter((p) => p.id !== progId));
+                      setProgId("p1564");
+                      setToast("Progression deleted");
+                    }}
+                  >
+                    Delete this progression
+                  </button>
+                </div>
+              )}
+
+              <p className="note">Preview follows the metronome tempo, one bar per chord.</p>
+            </div>
+          )}
+
+          {mode === "bank" && (
+            <div className="pane">
+              {bank.length === 0 ? (
+                <p className="note">
+                  Nothing saved yet. Tap the star on a chord, scale, arpeggio or progression to keep it here, grouped by type and ready to
+                  practise. You can share any saved item from here too.
+                </p>
+              ) : (
+                [
+                  { kind: "chord", label: "Chords" },
+                  { kind: "scale", label: "Scales" },
+                  { kind: "arp", label: "Arpeggios" },
+                  { kind: "prog", label: "Progressions" },
+                ].map((group) => {
+                  const items = bank.filter((b) => (b.kind || "chord") === group.kind);
+                  if (!items.length) return null;
+                  return (
+                    <section className="banksec" key={group.kind}>
+                      <h2 className="abouthead">{group.label}</h2>
+                      <div className="banklist">
+                        {items.map((item) => (
+                          <div className="bankitem" key={item.id}>
+                            {item.kind === "chord" && item.voicing ? (
+                              <ChordDiagram
+                                voicing={item.voicing}
+                                lefty={settings.leftHanded}
+                                midis={item.midis || midis}
+                                rootPc={item.root}
+                                capo={item.capo || 0}
+                                flats={flatsFor(item.root, (CHORDS.find((c) => c.id === item.chordId) || CHORDS[0]).iv)}
+                                showDegrees={false}
+                                selected={false}
+                                onSelect={() => openBankItem(item)}
+                              />
+                            ) : null}
+                            <div className="bankmeta">
+                              <b>{item.label}</b>
+                              <div className="row wrap">
+                                <button className="mini" onClick={() => openBankItem(item)}>
+                                  Open
+                                </button>
+                                <button className="mini" onClick={() => shareBankItem(item)} aria-label={`Share ${item.label}`}>
+                                  Share
+                                </button>
+                                <button
+                                  className="mini"
+                                  onClick={() => saveBank(bank.filter((b) => b.id !== item.id))}
+                                  aria-label={`Remove ${item.label}`}
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         ))}
                       </div>
                     </section>
-                  ) : (
-                    <p className="note">No practice recorded yet. Time spent in Scales, Chords, drills and the other practice views is logged here automatically, so you can see your streak build.</p>
-                  )}
-                  <p className="note">Practice is counted only while the app is open and you are active in a practice view. {authUser ? "Your log syncs to your account." : "Sign in to sync your log across devices."}</p>
-                </>
-              );
-            })()}
-          </div>
-        )}
-
-        {mode === "finder" && (
-          <div className="pane">
-            <p className="note">
-              Tap the notes of a chord on the neck (or focus it and use the arrow keys and Enter) and Fretwork
-              names it. Handy for the unfamiliar shapes you meet in tab.
-            </p>
-            <div className="degrees">
-              {finderInfo.pcs.length === 0 ? (
-                <span className="note">No notes selected yet.</span>
-              ) : (
-                finderInfo.pcs.map((pc) => (
-                  <span key={pc} className="chip"><b>{nameOf(pc, effFlats)}</b></span>
-                ))
+                  );
+                })
               )}
             </div>
+          )}
 
-            {finderInfo.exact.length > 0 ? (
-              <Field label="This chord is">
-                <div className="finderhits">
-                  {finderInfo.exact.map((m) => (
-                    <button key={`${m.root}${m.id}`} className="btn" onClick={() => { setChordRoot(m.root); setChordId(m.id); setMode("chord"); track("finder_open", { chord: m.id }); }}>
-                      {nameOf(m.root, effFlats)}{(CHORDS.find((c) => c.id === m.id) || {}).suffix}
-                    </button>
-                  ))}
-                </div>
+          {mode === "interval" && (
+            <div className="pane">
+              <p className="panelead">
+                See how each interval sits against the root across the fretboard, so the distances between notes become familiar.
+              </p>
+              <Field label="Root">
+                <KeyPicker value={ivRoot} onChange={setIvRoot} flats={effFlats} />
               </Field>
-            ) : finderInfo.partial.length > 0 ? (
-              <Field label="Could be part of">
-                <div className="finderhits">
-                  {finderInfo.partial.map((m) => (
-                    <button key={`${m.root}${m.id}`} className="btn ghost" onClick={() => { setChordRoot(m.root); setChordId(m.id); setMode("chord"); }}>
-                      {nameOf(m.root, effFlats)}{(CHORDS.find((c) => c.id === m.id) || {}).suffix}
-                    </button>
-                  ))}
-                </div>
-              </Field>
-            ) : finderInfo.pcs.length >= 2 ? (
-              <p className="empty" role="status">No standard chord matches those notes. Try adding or removing one.</p>
-            ) : (
-              <p className="note">Add at least two notes to name a chord.</p>
-            )}
-
-            <div className="row">
-              <button className="btn ghost danger" onClick={() => setFinderSel(new Set())} disabled={finderSel.size === 0}>Clear</button>
-            </div>
-          </div>
-        )}
-
-        {mode === "tuner" && (
-          <div className="pane">
-            <div className="tunerbox">
-              {!tuner.on ? (
-                <>
-                  <p className="note">
-                    Play a string and Fretwork shows how sharp or flat it is, so you can tune without relying
-                    on your ear. The microphone is only used while you are tuning, and nothing is recorded or
-                    sent anywhere.
-                  </p>
-                  <button className="btn primary" onClick={startTuner}>Start listening</button>
-                  {tuner.error && <p className="empty" role="status">{tuner.error}</p>}
-                </>
-              ) : (
-                <>
-                  {(() => {
-                    const target = tuner.note != null ? nearestStringTarget(tuner.note, settings.midis) : null;
-                    const inTune = tuner.note != null && Math.abs(tuner.cents) <= 5;
-                    return (
-                      <div className="tunelive" role="status" aria-live="polite">
-                        <div className={`tunenote ${inTune ? "intune" : ""}`}>
-                          {tuner.note != null ? nameOf(tuner.note % 12, effFlats) : "\u2014"}
-                          <span className="tuneoct">{tuner.note != null ? Math.floor(tuner.note / 12) - 1 : ""}</span>
-                        </div>
-                        <div className="tunemeter" aria-hidden="true">
-                          <div className="tunescale">
-                            <span className="tunetick c" />
-                            <div className="tuneneedle" style={{ left: `${50 + Math.max(-50, Math.min(50, tuner.cents)) }%` }} />
-                          </div>
-                          <div className="tunecents">
-                            {tuner.note == null ? "listening" : inTune ? "in tune" : `${tuner.cents > 0 ? "+" : ""}${tuner.cents} cents ${tuner.cents > 0 ? "sharp" : "flat"}`}
-                          </div>
-                        </div>
-                        {target && (
-                          <p className="note">
-                            Closest string: {target.label}. {target.diff === 0 ? "In tune." : target.diff > 0 ? "Tune down." : "Tune up."}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })()}
-                  <button className="btn ghost danger" onClick={stopTuner}>Stop listening</button>
-                </>
-              )}
-            </div>
-
-          <p className="note">Or set the strings and pick a preset tuning below.</p>
-          <div className="grid">
-            <Field label="Tuning">
-              <select aria-label="Tuning" value={settings.tuningId} onChange={(e) => setTuning(e.target.value)}>
-                {TUNINGS.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-                {settings.tuningId === "custom" && <option value="custom">Custom</option>}
-              </select>
-            </Field>
-          </div>
-
-          <div className="tuner">
-            <span className="flabel">Strings, low to high</span>
-            <div className="strings">
-              {midis.map((mv, i) => (
-                <div className="stringrow" key={i}>
-                  <span className="sidx">{i + 1}</span>
-                  <select
-                    aria-label={`Note for string ${i + 1}`}
-                    value={mv % 12}
-                    onChange={(e) => setStringNote(i, Math.floor(mv / 12) * 12 + +e.target.value)}
-                  >
-                    {Array.from({ length: 12 }, (_, pc) => (
-                      <option key={pc} value={pc}>{nameOf(pc, effFlats)}</option>
-                    ))}
-                  </select>
-                  <select
-                    aria-label={`Octave for string ${i + 1}`}
-                    value={Math.floor(mv / 12) - 1}
-                    onChange={(e) => setStringNote(i, (mv % 12) + (+e.target.value + 1) * 12)}
-                  >
-                    {[0, 1, 2, 3, 4, 5].map((o) => (
-                      <option key={o} value={o}>{o}</option>
-                    ))}
-                  </select>
-                  <button className="mini" aria-label={`Play string ${i + 1}`} onClick={() => playNote(mv)}>▸</button>
-                </div>
-              ))}
-            </div>
-            <div className="stringbtns">
-              <button
-                className="mini wide"
-                onClick={() => setSettings((s) => ({ ...s, midis: [s.midis[0] - 5, ...s.midis], tuningId: "custom" }))}
-                disabled={n >= 9}
-              >
-                Add low string
-              </button>
-              <button
-                className="mini wide"
-                onClick={() => setSettings((s) => ({ ...s, midis: s.midis.slice(1), tuningId: "custom" }))}
-                disabled={n <= 3}
-              >
-                Remove low string
-              </button>
-            </div>
-          </div>
-
-          <div className="capocalc">
-            <span className="flabel">Capo calculator</span>
-            <div className="row wrap">
-              <Field label="Chords you play"><KeyPicker value={capoShape} onChange={setCapoShape} flats={effFlats} /></Field>
-              <Field label="Key you want to hear"><KeyPicker value={capoTarget} onChange={setCapoTarget} flats={effFlats} /></Field>
-            </div>
-            {(() => {
-              const fret = ((capoTarget - capoShape) % 12 + 12) % 12;
-              return (
-                <p className="note">
-                  {fret === 0
-                    ? `Play ${nameOf(capoShape, effFlats)} shapes with no capo to hear ${nameOf(capoTarget, effFlats)}.`
-                    : `Play ${nameOf(capoShape, effFlats)} shapes with a capo at fret ${fret} to hear ${nameOf(capoTarget, effFlats)}.`}
-                </p>
-              );
-            })()}
-          </div>
-        </div>
-        )}
-
-        {mode === "settings" && (
-          <div className="pane">
-          <div className="grid">
-            <Field label="Frets" tip="How many frets the neck shows">
-              <input
-                type="range" min="7" max="27" value={settings.fretCount} aria-label="Frets shown"
-                onChange={(e) => setSettings((s) => ({ ...s, fretCount: +e.target.value }))}
-              />
-              <output>{settings.fretCount}</output>
-            </Field>
-          </div>
-
-          <div className="toggles">
-            <Field label="Note names" tip="Auto spells notes from the current key, so C minor reads Eb rather than D sharp">
-              <Seg small options={[{ v: "auto", l: "Auto" }, { v: "sharps", l: "Sharps" }, { v: "flats", l: "Flats" }]}
-                value={settings.noteNames} onChange={(v) => setSettings((s) => ({ ...s, noteNames: v }))} />
-            </Field>
-            <Field label="Dot labels" tip="What the dots on the neck display by default">
-              <Seg small options={[{ v: "name", l: "Names" }, { v: "degree", l: "Degrees" }, { v: "none", l: "Blank" }]}
-                value={settings.labelMode} onChange={(v) => setSettings((s) => ({ ...s, labelMode: v }))} />
-            </Field>
-            <Field label="Colour" tip="Colour dots by their interval from the root, by root only, or keep them plain">
-              <Seg small options={[{ v: "root", l: "Root" }, { v: "interval", l: "By interval" }, { v: "mono", l: "Mono" }]}
-                value={settings.colourMode} onChange={(v) => setSettings((s) => ({ ...s, colourMode: v }))} />
-            </Field>
-            <Field label="String order" tip="High on top reads like tab; low on top matches looking down at a guitar">
-              <Seg small options={[{ v: true, l: "High on top" }, { v: false, l: "Low on top" }]}
-                value={settings.highOnTop} onChange={(v) => setSettings((s) => ({ ...s, highOnTop: v }))} />
-            </Field>
-            <Field label="Handed" tip="Flips the neck for left-handed players">
-              <Seg small options={[{ v: false, l: "Right" }, { v: true, l: "Left" }]}
-                value={settings.leftHanded} onChange={(v) => setSettings((s) => ({ ...s, leftHanded: v }))} />
-            </Field>
-            <Field label="Chord stretch" tip="The widest fret span a suggested chord shape may use">
-              <Seg small options={[{ v: 3, l: "3 frets" }, { v: 4, l: "4" }, { v: 5, l: "5" }]}
-                value={settings.span} onChange={(v) => setSettings((s2) => ({ ...s2, span: v }))} />
-            </Field>
-            <Field label="Inversions" tip="Allow shapes whose lowest note is not the root">
-              <Seg small options={[{ v: false, l: "Root bass" }, { v: true, l: "Allow" }]}
-                value={settings.inversions} onChange={(v) => setSettings((s2) => ({ ...s2, inversions: v }))} />
-            </Field>
-            <Field label="Barres" tip="Allow shapes that lay one finger across several strings">
-              <Seg small options={[{ v: true, l: "Allow" }, { v: false, l: "Avoid" }]}
-                value={settings.barres} onChange={(v) => setSettings((s2) => ({ ...s2, barres: v }))} />
-            </Field>
-            <Field label="Theme" tip="Light or dark appearance">
-              <Seg small options={[{ v: false, l: "Light" }, { v: true, l: "Dark" }]}
-                value={settings.dark} onChange={(v) => { track("theme_set", { dark: v }); setSettings((s2) => ({ ...s2, dark: v })); }} />
-            </Field>
-            <Field label="Options shown" tip="Simple keeps only the scales, chords and controls a beginner needs">
-              <Seg small options={[{ v: true, l: "Simple" }, { v: false, l: "Everything" }]}
-                value={settings.simple} onChange={(v) => { track("simple_toggle", { on: v }); setSettings((s2) => ({ ...s2, simple: v })); setGamify((g) => (g.counters.triedSimple ? g : { ...g, counters: { ...g.counters, triedSimple: 1 } })); }} />
-            </Field>
-            <Field label="Sound" tip="Note and click playback throughout the app">
-              <Seg small options={[{ v: true, l: "On" }, { v: false, l: "Off" }]}
-                value={settings.sound} onChange={(v) => setSettings((s) => ({ ...s, sound: v }))} />
-            </Field>
-          </div>
-
-          <h3 className="sheetsec">Accessibility</h3>
-          <div className="toggles">
-            <Field label="High contrast" tip="Stronger borders and darker labels for readability">
-              <Seg small options={[{ v: false, l: "Off" }, { v: true, l: "On" }]}
-                value={settings.highContrast} onChange={(v) => { track("a11y_contrast", { on: v }); setSettings((s) => ({ ...s, highContrast: v })); }} />
-            </Field>
-            <Field label="Animation" tip="Reduced switches off movement effects; the system preference is always respected">
-              <Seg small options={[{ v: false, l: "Full" }, { v: true, l: "Reduced" }]}
-                value={settings.lowMotion} onChange={(v) => { track("a11y_motion", { reduced: v }); setSettings((s) => ({ ...s, lowMotion: v })); }} />
-            </Field>
-            <Field label="Zoom" tip="Scales the whole fretboard up for larger targets">
-              <input
-                type="range" min="0.7" max="2.2" step="0.1" value={settings.zoom}
-                aria-label="Fretboard zoom"
-                onChange={(e) => setSettings((s) => ({ ...s, zoom: +e.target.value }))}
-              />
-              <output>{settings.zoom.toFixed(1)}×</output>
-            </Field>
-          </div>
-          <p className="note">
-            The system reduced-motion preference is always respected. These controls apply on top of it.
-          </p>
-        </div>
-        )}
-
-        {mode === "account" && (
-          <div className="pane about">
-            {!authUser ? (
-              <section className="aboutblock">
-                <h2 className="abouthead">{authMode === "create" ? "Create an account" : "Sign in"}</h2>
-                <p className="note">
-                  An account syncs your Bank (saved chords and progressions) and your chord-change records
-                  across devices. Everything also works without one, saved on this device only.
-                </p>
-                <Seg
-                  small
-                  ariaLabel="Sign in or create account"
-                  options={[{ v: "signin", l: "Sign in" }, { v: "create", l: "Create account" }]}
-                  value={authMode}
-                  onChange={(v) => { setAuthMode(v); setAuthErr(""); }}
-                />
-                {authMode === "create" && (
-                  <div className="warnbox" role="note">
-                    <b>No email is required, so no recovery is possible.</b> If you lose your password, this
-                    account cannot be recovered. You can link an email later to enable recovery.
-                  </div>
-                )}
-                <form className="authform" onSubmit={doAuth}>
-                  <Field id="auth-name" label={authMode === "create" ? "Choose a username" : "Username (or linked email)"}>
-                    <input
-                      id="auth-name"
-                      type="text"
-                      value={authName}
-                      autoComplete="username"
-                      maxLength={80}
-                      onChange={(e) => setAuthName(e.target.value)}
-                    />
-                  </Field>
-                  <Field id="auth-pass" label="Password">
-                    <input
-                      id="auth-pass"
-                      type="password"
-                      value={authPass}
-                      autoComplete={authMode === "create" ? "new-password" : "current-password"}
-                      maxLength={100}
-                      onChange={(e) => setAuthPass(e.target.value)}
-                    />
-                  </Field>
-                  <div className="row">
-                    <button className="btn primary" type="submit" disabled={authBusy || !authName.trim() || !authPass}>
-                      {authBusy ? "Working" : authMode === "create" ? "Create account" : "Sign in"}
-                    </button>
-                    {authMode === "signin" && (
-                      <button className="btn ghost" type="button" onClick={doForgot} disabled={authBusy}>
-                        Forgot password
-                      </button>
-                    )}
-                  </div>
-                  <p className="empty" role="status" aria-live="polite">{authErr}</p>
-                </form>
-              </section>
-            ) : (
-              <>
-                {recoveryMode && (
-                  <section className="aboutblock">
-                    <h2 className="abouthead">Set a new password</h2>
-                    <form className="authform" onSubmit={doSetNewPassword}>
-                      <Field id="new-pass" label="New password">
-                        <input
-                          id="new-pass"
-                          type="password"
-                          value={newPass}
-                          autoComplete="new-password"
-                          maxLength={100}
-                          onChange={(e) => setNewPass(e.target.value)}
-                        />
-                      </Field>
-                      <div className="row">
-                        <button className="btn primary" type="submit" disabled={authBusy || !newPass}>
-                          {authBusy ? "Working" : "Save new password"}
+              {settings.simple ? (
+                <Field label="Show">
+                  <div className="posrow">
+                    {INTERVAL_PRESETS.map((pr) => {
+                      const on = pr.iv.length === ivOn.size && pr.iv.every((i) => ivOn.has(i));
+                      return (
+                        <button
+                          key={pr.id}
+                          className={`poschip wide ${on ? "on" : ""}`}
+                          aria-pressed={on}
+                          onClick={() => setIvOn(new Set(pr.iv))}
+                        >
+                          {pr.label}
                         </button>
-                        <p className="empty" role="status" aria-live="polite">{authErr}</p>
-                      </div>
-                    </form>
-                  </section>
+                      );
+                    })}
+                  </div>
+                </Field>
+              ) : (
+                <Field label="Intervals from the root">
+                  <IntervalGrid root={ivRoot} on={ivOn} onToggle={toggleIv} flats={effFlats} />
+                </Field>
+              )}
+
+              <div className="degrees">
+                {[...ivOn]
+                  .sort((a, b) => a - b)
+                  .map((i) => (
+                    <span key={i} className="chip" style={{ borderLeftColor: FUNC_COLOUR[i] }}>
+                      <b style={{ color: FUNC_COLOUR[i] }}>{DEG[i]}</b>
+                      {nameOf(ivRoot + i, effFlats)}
+                    </span>
+                  ))}
+              </div>
+              {!settings.simple && (
+                <div className="row wrap">
+                  {[
+                    { l: "Root only", iv: [0] },
+                    { l: "Major triad", iv: [0, 4, 7] },
+                    { l: "Minor triad", iv: [0, 3, 7] },
+                    { l: "Dominant 7th", iv: [0, 4, 7, 10] },
+                    { l: "All twelve", iv: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
+                  ].map((pr) => {
+                    const on = pr.iv.length === ivOn.size && pr.iv.every((i) => ivOn.has(i));
+                    return (
+                      <button
+                        key={pr.l}
+                        className={`btn ghost ${on ? "sel" : ""}`}
+                        aria-pressed={on}
+                        onClick={() => setIvOn(new Set(pr.iv))}
+                      >
+                        {pr.l}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <p className="note" hidden={settings.simple}>
+                Filled dots are natural degrees. Rings are flattened ones. Colour groups intervals by function: seconds, thirds, fourths,
+                fifths, sixths, sevenths.
+              </p>
+            </div>
+          )}
+
+          {mode === "quiz" && (
+            <div className="pane">
+              <p className="panelead">Quiz yourself on scales, chords and intervals by naming the notes Fretwork lights up on the neck.</p>
+              <div className="scoreboard">
+                <div className="score">
+                  <b>{quiz.correct}</b>
+                  <span>correct</span>
+                </div>
+                <div className="score">
+                  <b className="bad">{quiz.wrong}</b>
+                  <span>wrong</span>
+                </div>
+                <div className="score">
+                  <b>{accuracy}%</b>
+                  <span>accuracy</span>
+                </div>
+                <div className="score">
+                  <b>{quiz.streak}</b>
+                  <span>streak</span>
+                </div>
+                <div className="score">
+                  <b>{quiz.best}</b>
+                  <span>best run</span>
+                </div>
+                <div className="score">
+                  <b>{quiz.rounds}</b>
+                  <span>rounds</span>
+                </div>
+              </div>
+
+              <div className="row wrap">
+                <Field label="Test me on">
+                  <Seg
+                    small
+                    options={[
+                      { v: "scale", l: "A scale" },
+                      { v: "chord", l: "A chord" },
+                      { v: "interval", l: "Intervals" },
+                    ]}
+                    value={quiz.source}
+                    onChange={(v) => setQuiz((q) => ({ ...q, source: v }))}
+                  />
+                </Field>
+                {quiz.source === "scale" && (
+                  <Field label="Scale">
+                    <CatPicker
+                      value={scaleId}
+                      onChange={setScaleId}
+                      label="Scale"
+                      groups={groupItems(SCALE_GROUPS, SCALES, SIMPLE_SCALES, settings.simple, scaleId)}
+                    />
+                  </Field>
                 )}
-                <section className="aboutblock">
-                  <h2 className="abouthead">Account</h2>
-                  <p className="note">
-                    Signed in as <b className="unamechip">{uname}</b>. Your Bank and chord-change records sync
-                    to this account automatically.
-                  </p>
+                {quiz.source === "chord" && (
+                  <Field label="Chord">
+                    <CatPicker
+                      value={chordId}
+                      onChange={setChordId}
+                      label="Chord type"
+                      groups={groupItems(CHORD_GROUPS, CHORDS, SIMPLE_CHORDS, settings.simple, chordId)}
+                    />
+                  </Field>
+                )}
+              </div>
+
+              <Field label={quiz.source === "scale" ? "Key" : "Root"}>
+                <KeyPicker
+                  value={quiz.source === "scale" ? scaleRoot : quiz.source === "interval" ? ivRoot : chordRoot}
+                  onChange={quiz.source === "scale" ? setScaleRoot : quiz.source === "interval" ? setIvRoot : setChordRoot}
+                  flats={effFlats}
+                />
+              </Field>
+
+              {quiz.source === "interval" && (
+                <Field label="Intervals to find">
+                  <IntervalGrid root={ivRoot} on={ivOn} onToggle={toggleIv} flats={effFlats} />
+                </Field>
+              )}
+
+              <div className="row">
+                <Field label={`Difficulty · ${quiz.hidden ? quiz.hidden.size : 0} of ${quiz.target ? quiz.target.length : 0} hidden`}>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={quiz.difficulty}
+                    aria-label="Quiz difficulty"
+                    onChange={(e) => setQuiz((q) => ({ ...q, difficulty: +e.target.value }))}
+                  />
+                  <output>
+                    {quiz.difficulty < 0.2 ? "Easy" : quiz.difficulty < 0.5 ? "Steady" : quiz.difficulty < 0.85 ? "Hard" : "Blank neck"}
+                  </output>
+                </Field>
+              </div>
+
+              <Field label={`Frets ${quiz.range[0]} to ${quiz.range[1]}`}>
+                <DualRange
+                  min={0}
+                  max={fretCount}
+                  lo={quiz.range[0]}
+                  hi={quiz.range[1]}
+                  onChange={(r) => setQuiz((q) => ({ ...q, range: r }))}
+                />
+              </Field>
+
+              <p
+                role="status"
+                aria-live="polite"
+                className={quiz.source === "interval" && ivOn.size === 0 ? "empty" : quiz.done ? "done" : "note"}
+              >
+                {quiz.source === "interval" && ivOn.size === 0
+                  ? "Pick at least one interval to be tested on."
+                  : quiz.done
+                    ? `Round complete. ${quiz.hidden ? quiz.hidden.size : 0} found, streak of ${quiz.streak}.`
+                    : "Tap every hidden position on the neck. Wrong taps count against you."}
+              </p>
+
+              <div className="row actionbar">
+                <button
+                  className="btn primary"
+                  onClick={() => {
+                    track("quiz_new_round", { app_mode: quiz.source });
+                    newRound();
+                  }}
+                >
+                  New round
+                </button>
+                <button
+                  className="btn ghost danger"
+                  onClick={() => {
+                    const cleared = { ...quiz, correct: 0, wrong: 0, streak: 0, best: 0, rounds: 0 };
+                    setQuiz(cleared);
+                    saveStats(cleared);
+                  }}
+                >
+                  Reset score
+                </button>
+              </div>
+            </div>
+          )}
+
+          {mode === "changes" && (
+            <div className="pane">
+              <p className="panelead">
+                Build speed by counting how many clean chord changes you can make between two shapes before the clock runs out.
+              </p>
+              <div className="chgstage">
+                <div
+                  role="timer"
+                  aria-label="Time remaining"
+                  className={`chgclock ${
+                    chg.phase === "running" ? (chg.duration === 0 || chg.remaining > 10 ? "run" : "low") : chg.phase === "done" ? "low" : ""
+                  }`}
+                >
+                  {chg.phase === "done"
+                    ? "Time!"
+                    : chg.duration === 0
+                      ? chg.phase === "running"
+                        ? "Free"
+                        : "\u221e"
+                      : `${Math.floor(chg.remaining / 60)}:${String(chg.remaining % 60).padStart(2, "0")}`}
+                </div>
+                <div className="chgnames">{chgLabel}</div>
+                <div className="chgstatus" role="status" aria-live="assertive">
+                  {chg.phase === "done" ? "Time. Enter how many changes you got." : ""}
+                </div>
+                {(chgRecord.best > 0 || chgRecord.tries > 0) && (
+                  <div className="chgbest">
+                    <span>
+                      best <b>{chgRecord.best}</b>
+                    </span>
+                    <span>
+                      last <b>{chgRecord.last}</b>
+                    </span>
+                    <span>
+                      tries <b>{chgRecord.tries}</b>
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {chgVoicings.some(Boolean) ? (
+                <div className="voicings">
+                  {chg.chords.map((c, i) =>
+                    chgVoicings[i] ? (
+                      <ChordDiagram
+                        key={i}
+                        voicing={chgVoicings[i]}
+                        lefty={settings.leftHanded}
+                        midis={midis}
+                        rootPc={c.root}
+                        capo={0}
+                        flats={effFlats}
+                        showDegrees={false}
+                        title={chordName(c)}
+                        onSelect={() => {
+                          if (!settings.sound) return;
+                          let j = 0;
+                          for (let st = 0; st < n; st++) {
+                            const f = chgVoicings[i].frets[st];
+                            if (f === null) continue;
+                            pluck(midis[st] + f, j * 0.035);
+                            j++;
+                          }
+                        }}
+                      />
+                    ) : (
+                      <p className="empty" key={i}>
+                        No easy shape for {chordName(c)} in this tuning.
+                      </p>
+                    ),
+                  )}
+                </div>
+              ) : (
+                <p className="empty">No playable shapes for these chords in this tuning.</p>
+              )}
+
+              {chg.phase === "idle" && (
+                <>
+                  <Field label="Chords to switch between">
+                    <div className="chgslots">
+                      {chg.chords.map((c, i) => (
+                        <div className="chgslot" key={i}>
+                          <KeyPicker value={c.root} onChange={(v) => setChgChord(i, { root: v })} flats={effFlats} />
+                          <div className="chgslotbtm">
+                            <CatPicker
+                              value={c.id}
+                              onChange={(v) => setChgChord(i, { id: v })}
+                              label="Chord type"
+                              groups={groupItems(CHORD_GROUPS, CHORDS, SIMPLE_CHORDS, settings.simple, c.id)}
+                            />
+                            <button
+                              className="mini"
+                              onClick={() => removeChgChord(i)}
+                              disabled={chg.chords.length <= 2}
+                              data-tip="Remove this chord"
+                              aria-label={`Remove ${chordName(c)}`}
+                            >
+                              {"✕"}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      {chg.chords.length < 8 && (
+                        <button className="btn ghost wide" onClick={addChgChord}>
+                          + Add a chord
+                        </button>
+                      )}
+                    </div>
+                  </Field>
+
                   <div className="row">
-                    <button className="btn ghost danger" onClick={doSignOut}>Sign out</button>
+                    <Field label="Length">
+                      <Seg
+                        small
+                        options={[
+                          { v: 30, l: "0:30" },
+                          { v: 60, l: "1:00" },
+                          { v: 120, l: "2:00" },
+                          { v: 0, l: "Free" },
+                        ]}
+                        value={chg.duration}
+                        onChange={(v) => setChg((c) => ({ ...c, duration: v, remaining: v }))}
+                      />
+                    </Field>
+                    <button className="transport" onClick={startRun} disabled={!chgVoicings.some(Boolean)}>
+                      Start
+                    </button>
+                  </div>
+                  <p className="note">
+                    Change between the chords as many times as you can before the clock runs out. Count each clean change, then enter your
+                    total when time is up, and beat your best.
+                  </p>
+                </>
+              )}
+
+              {chg.phase === "running" && (
+                <div className="row">
+                  <button className="transport on" onClick={stopRun}>
+                    Stop
+                  </button>
+                  <p className="note">
+                    {chg.duration === 0
+                      ? `Practise switching between ${chgLabel} at your own pace. Stop whenever you are done.`
+                      : `Switch between ${chgLabel}. Count each clean change.`}
+                  </p>
+                </div>
+              )}
+
+              {chg.phase === "done" && (
+                <div className="chgentry">
+                  <Field label="How many changes did you get?">
+                    <input
+                      type="number"
+                      aria-label="How many changes did you get?"
+                      min="0"
+                      inputMode="numeric"
+                      value={chgEntry}
+                      autoFocus
+                      onChange={(e) => setChgEntry(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveChangeScore();
+                      }}
+                    />
+                  </Field>
+                  <button className="btn" onClick={saveChangeScore}>
+                    Save
+                  </button>
+                  <button className="btn ghost" onClick={stopRun}>
+                    Discard
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {mode === "about" && (
+            <div className="pane about">
+              <section className="aboutblock">
+                <h2 className="abouthead">About Fretwork</h2>
+                <p className="note">
+                  Fretwork is a free, interactive guitar fretboard for learning the neck: scales, chords with fingerings, intervals,
+                  progressions, and practice drills with a metronome. It works offline and you can install it on your home screen.
+                </p>
+                <p className="note freeline">Fretwork is, and always will be, free and without ads.</p>
+              </section>
+
+              <section className="aboutblock">
+                <h2 className="abouthead">New to guitar, or to Fretwork?</h2>
+                <p className="note">
+                  The FAQ is a plain-language guide to chords, scales, intervals, rhythm and reading the fretboard, alongside how each tool
+                  in Fretwork works. It is written for beginners.
+                </p>
+                <button
+                  className="btn"
+                  onClick={() => {
+                    setMode("faq");
+                    setOpenPanel(null);
+                  }}
+                >
+                  Open the FAQ
+                </button>
+              </section>
+
+              <section className="aboutblock">
+                <h2 className="abouthead">What's new</h2>
+                {CHANGELOG.map((rel) => (
+                  <div key={rel.date} className="release">
+                    <h3 className="releasedate">{rel.date}</h3>
+                    <ul className="releaselist">
+                      {rel.items.map((it) => (
+                        <li key={it} className="note">
+                          {it}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </section>
+
+              <section className="aboutblock">
+                <h2 className="abouthead">Your data</h2>
+                <p className="note">
+                  Fretwork uses Google Analytics, Vercel Analytics and Amplitude to understand how the app is used and improve it. There is
+                  no session recording. Feedback sent from this page is stored so it can be acted on. No account or personal details are
+                  required to use the app.
+                </p>
+              </section>
+
+              <section className="aboutblock">
+                <h2 className="abouthead">Good places to learn</h2>
+                <p className="note">
+                  These are the resources most often recommended across the guitar-learning world. Fretwork sits alongside them as your
+                  reference and practice companion.
+                </p>
+                <ul className="resources">
+                  {RESOURCES.map((r) => (
+                    <li key={r.name}>
+                      <a href={r.url} target="_blank" rel="noopener noreferrer" onClick={() => track("resource_click", { site: r.name })}>
+                        {r.name}
+                      </a>
+                      <span>{r.blurb}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+
+              <section className="aboutblock">
+                <h2 className="abouthead">New here?</h2>
+                <p className="note">Take a quick guided tour of the neck and the practice tools.</p>
+                <button
+                  className="btn"
+                  onClick={() => {
+                    setMode("chord");
+                    startTour();
+                  }}
+                >
+                  Take the tour
+                </button>
+              </section>
+
+              <section className="aboutblock">
+                <h2 className="abouthead">Accessibility</h2>
+                <p className="note">
+                  Music should be for everyone, and Fretwork aims to be usable by everyone. What works today: the whole app can be driven
+                  from a keyboard alone, including moving around the fretboard with the arrow keys; menus and dialogs manage focus properly
+                  and close with Escape; controls carry screen-reader labels and important changes are announced; and Settings offers high
+                  contrast, reduced animation and zoom, alongside the system reduced-motion preference, which is always respected.
+                </p>
+                <p className="note">
+                  Known gaps: some audio feedback has no visual equivalent yet, and the app has not had a formal WCAG audit. Chord shapes
+                  are described string by string to screen readers. If something gets in your way, please say so in the form below, and it
+                  will be treated as a bug.
+                </p>
+              </section>
+
+              <section className="aboutblock">
+                <h2 className="abouthead">Suggest a feature</h2>
+                <FeedbackForm />
+              </section>
+
+              {SHOW_DONATE && (
+                <section className="aboutblock">
+                  <h2 className="abouthead">Support Fretwork</h2>
+                  <p className="note">
+                    This web app is a personal project created by Jonathan Courtney. Donate £2 to help with hosting costs if you enjoy it.
+                  </p>
+                  <DonateButton />
+                </section>
+              )}
+            </div>
+          )}
+
+          {mode === "faq" && (
+            <div className="pane about faq-pane">
+              <section className="aboutblock">
+                <h2 className="abouthead">FAQ</h2>
+                <p className="note">
+                  A plain-language guide for anyone learning guitar. It explains the words you will meet, such as chords, intervals, keys
+                  and time signatures, shows how to read a chord chart and the fretboard, and covers how each tool in Fretwork works. Tap a
+                  question to see the answer.
+                </p>
+                <div className="row wrap faqtoc" aria-label="Jump to a section">
+                  {FAQ_SECTIONS.map((s) => (
+                    <button
+                      key={s.id}
+                      className="jumpchip"
+                      onClick={() => {
+                        const el = document.getElementById(`faq-${s.id}`);
+                        if (el)
+                          el.scrollIntoView({
+                            behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+                            block: "start",
+                          });
+                      }}
+                    >
+                      {s.title}
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              {FAQ_SECTIONS.map((s) => (
+                <section className="aboutblock" id={`faq-${s.id}`} key={s.id}>
+                  <h2 className="abouthead">{s.title}</h2>
+                  <div className="faq">
+                    {s.items.map((f) => (
+                      <details className="faqitem" key={f.q}>
+                        <summary>{f.q}</summary>
+                        <p className="note">{f.a}</p>
+                        {f.view && VIEW_META[f.view] && (
+                          <button
+                            className="jumpchip faqjump"
+                            onClick={() => {
+                              setMode(f.view);
+                              setOpenPanel(null);
+                              if (typeof window !== "undefined") window.scrollTo({ top: 0 });
+                            }}
+                          >
+                            Open {VIEW_META[f.view].title}
+                          </button>
+                        )}
+                      </details>
+                    ))}
                   </div>
                 </section>
-                <section className="aboutblock">
-                  <h2 className="abouthead">Account recovery</h2>
-                  {linkedEmail ? (
-                    <p className="note">
-                      Recovery email linked: <b>{linkedEmail}</b>. Sign in with this address. If you lose your
-                      password, use Forgot password on the sign-in screen to reset it by email.
-                    </p>
-                  ) : authUser.new_email ? (
-                    <p className="note">
-                      Email change pending for <b>{authUser.new_email}</b>. Click the link in that email to
-                      complete it. Until then, keep signing in with your username.
-                    </p>
-                  ) : (
-                    <>
+              ))}
+
+              <section className="aboutblock">
+                <h2 className="abouthead">Still stuck?</h2>
+                <p className="note">
+                  If your question is not answered here, suggest it from the About page and it will be treated as feedback.
+                </p>
+                <button
+                  className="btn"
+                  onClick={() => {
+                    setMode("about");
+                    setOpenPanel(null);
+                  }}
+                >
+                  Go to About
+                </button>
+              </section>
+            </div>
+          )}
+
+          {mode === "arp" && (
+            <div className="pane">
+              <p className="panelead">
+                Hear and see any arpeggio across the neck in any key, moving up, down or through the shape you choose.
+              </p>
+              <div className="knownrow">
+                <KnownButton
+                  known={known.some((k) => k.sig === `k-arp:${arpRoot}:${arpId}`)}
+                  onClick={() =>
+                    toggleKnown({
+                      sig: `k-arp:${arpRoot}:${arpId}`,
+                      kind: "arp",
+                      root: arpRoot,
+                      id: arpId,
+                      label: `${nameOf(arpRoot, effFlats)}${arpDef.suffix} arpeggio`,
+                    })
+                  }
+                />
+              </div>
+              <div className="row wrap">
+                <Field label="Root">
+                  <KeyPicker value={arpRoot} onChange={setArpRoot} flats={effFlats} />
+                </Field>
+                <Field label="Arpeggio">
+                  <CatPicker
+                    value={arpId}
+                    onChange={setArpId}
+                    label="Arpeggio type"
+                    groups={groupItems(CHORD_GROUPS, CHORDS, SIMPLE_CHORDS, settings.simple, arpId)}
+                  />
+                </Field>
+                <Field label="Direction">
+                  <Seg
+                    small
+                    ariaLabel="Arpeggio direction"
+                    options={[
+                      { v: "up", l: "Up" },
+                      { v: "down", l: "Down" },
+                      { v: "updown", l: "Up-down" },
+                      { v: "downup", l: "Down-up" },
+                      ...(settings.simple
+                        ? []
+                        : [
+                            { v: "thirds", l: "In thirds" },
+                            { v: "pedal", l: "Pedal root" },
+                          ]),
+                    ]}
+                    value={arpDir}
+                    onChange={setArpDir}
+                  />
+                </Field>
+                <button
+                  className={`btn primary ${playing != null ? "live" : ""}`}
+                  onClick={
+                    playing != null
+                      ? stopPlayback
+                      : () => {
+                          track("hear_arp", { arp: arpId, dir: arpDir });
+                          playArpeggio();
+                        }
+                  }
+                  data-tip="Play the arpeggio and light each tone, following the chosen position and direction"
+                >
+                  {playing != null ? "Stop" : "Hear it"}
+                </button>
+                <StarSave
+                  label={`${nameOf(arpRoot, effFlats)}${arpDef.suffix} arpeggio`}
+                  saved={bank.some((b) => b.sig === `arp:${arpRoot}:${arpId}:${arpDir}:${arpPos == null ? "all" : arpPos}`)}
+                  onClick={() =>
+                    saveToBank({
+                      id: `b${Date.now()}`,
+                      sig: `arp:${arpRoot}:${arpId}:${arpDir}:${arpPos == null ? "all" : arpPos}`,
+                      kind: "arp",
+                      root: arpRoot,
+                      arpId,
+                      dir: arpDir,
+                      pos: arpPos,
+                      tun: settings.tuningId,
+                      label: `${nameOf(arpRoot, effFlats)}${arpDef.suffix} arpeggio${arpPos == null ? "" : ` · pos ${arpPos + 1}`}`,
+                    })
+                  }
+                />
+              </div>
+
+              <div className="keyjump">
+                <span className="note">In {nameOf(arpRoot, effFlats)}:</span>
+                <button className="jumpchip" onClick={() => carryKey("scale", arpRoot)}>
+                  Scale
+                </button>
+                <button className="jumpchip" onClick={() => carryKey("chord", arpRoot)}>
+                  Chords
+                </button>
+              </div>
+
+              <Field label="Position">
+                <div className="posrow">
+                  <button
+                    className={`poschip ${arpPos == null ? "on" : ""}`}
+                    onClick={() => setArpPos(null)}
+                    data-tip="Every position at once"
+                  >
+                    Whole neck
+                  </button>
+                  {arpPositions.map((pos, i) => (
+                    <button
+                      key={i}
+                      className={`poschip ${arpPos === i ? "on" : ""}`}
+                      onClick={() => setArpPos(i)}
+                      data-tip={`Frets ${pos.from} to ${pos.to}, starting on the ${DEG[pos.deg]}`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                  {arpPos != null && arpPositions[arpPos] && (
+                    <span className="poshint">
+                      Frets {arpPositions[arpPos].from} to {arpPositions[arpPos].to}
+                    </span>
+                  )}
+                </div>
+              </Field>
+              <Field label="Neck shows">
+                <Seg
+                  small
+                  options={[
+                    { v: "both", l: "Degree + note" },
+                    { v: "name", l: "Notes" },
+                    { v: "degree", l: "Degrees" },
+                    { v: "order", l: "Play order" },
+                    { v: "none", l: "Blank" },
+                  ]}
+                  value={arpLabel}
+                  onChange={setArpLabel}
+                />
+              </Field>
+
+              <div className="degrees">
+                {arpDef.iv.map((i) => (
+                  <span key={i} className="chip" style={{ borderLeftColor: FUNC_COLOUR[i % 12] }}>
+                    <b style={{ color: FUNC_COLOUR[i % 12] }}>{DEG[i % 12]}</b>
+                    {nameOf(arpRoot + i, effFlats)}
+                  </span>
+                ))}
+              </div>
+
+              <p className="note">
+                Every place these chord tones live on the neck. Narrow to one position, then follow the playback direction with your pick.
+              </p>
+            </div>
+          )}
+
+          {mode === "routine" && (
+            <div className="pane">
+              <p className="note">
+                Mark scales, chords and arpeggios you know with the lightbulb, then build a short routine here. Fretwork practises the ones
+                you rated shaky for longer and adds one new "stretch" item. Rate the session afterwards to shape the next one.
+              </p>
+              {known.length === 0 ? (
+                <p className="empty">
+                  Nothing marked yet. On the Scales, Chords or Arpeggios views, tap the lightbulb next to the star to mark something you
+                  know, then come back to build a routine.
+                </p>
+              ) : (
+                <>
+                  <div className="row wrap actions">
+                    <Field label="How long?">
+                      <Seg
+                        small
+                        ariaLabel="Routine length"
+                        options={[
+                          { v: 5, l: "5 min" },
+                          { v: 10, l: "10 min" },
+                          { v: 15, l: "15 min" },
+                          { v: 20, l: "20 min" },
+                        ]}
+                        value={routineDur}
+                        onChange={setRoutineDur}
+                      />
+                    </Field>
+                    <button className="btn primary" onClick={buildRoutine}>
+                      Build and start
+                    </button>
+                  </div>
+                  <p className="note">
+                    You know {known.length} thing{known.length === 1 ? "" : "s"}. Your {routineDur} minute routine will run through{" "}
+                    {known.length === 1 ? "it" : "them"} plus one new stretch to grow into.
+                  </p>
+                  <Field label="Things you know">
+                    <div className="knownlist">
+                      {known.map((k) => (
+                        <div className="knownitem" key={k.sig}>
+                          <span className="knowndot" aria-hidden="true" />
+                          <b>{k.label}</b>
+                          {routineRatings[k.sig] ? <em className="knownrate">{"★".repeat(routineRatings[k.sig])}</em> : null}
+                          <button className="mini" aria-label={`Forget ${k.label}`} onClick={() => toggleKnown(k)}>
+                            {"✕"}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </Field>
+                </>
+              )}
+            </div>
+          )}
+
+          {mode === "strum" && (
+            <div className="pane">
+              <p className="note">
+                Pick a chord and a strumming pattern, hit Play, and strum along in time. A down arrow is a downstroke (low strings to high),
+                an up arrow is an upstroke. Set the tempo to suit you.
+              </p>
+
+              <div className="row wrap">
+                <Field label="Root">
+                  <KeyPicker value={chordRoot} onChange={setChordRoot} flats={effFlats} />
+                </Field>
+                <Field label="Chord">
+                  <CatPicker
+                    value={chordId}
+                    onChange={setChordId}
+                    label="Chord type"
+                    groups={groupItems(CHORD_GROUPS, CHORDS, SIMPLE_CHORDS, settings.simple, chordId)}
+                  />
+                </Field>
+              </div>
+
+              {activeVoicing && (
+                <div className="voicings">
+                  <div className="voicewrap">
+                    <ChordDiagram
+                      voicing={activeVoicing}
+                      lefty={settings.leftHanded}
+                      midis={midis}
+                      rootPc={chordRoot}
+                      capo={capo}
+                      flats={effFlats}
+                      showDegrees={false}
+                      selected
+                    />
+                  </div>
+                </div>
+              )}
+
+              <Field label="Pattern">
+                <div className="row wrap">
+                  {STRUM_PATTERNS.filter((p) => !settings.simple || p.simple).map((p) => (
+                    <button
+                      key={p.id}
+                      aria-pressed={strumPatId === p.id}
+                      className={`btn ${strumPatId === p.id ? "primary" : "ghost"}`}
+                      onClick={() => {
+                        if (strumOn) stopPlayback();
+                        setStrumPatId(p.id);
+                      }}
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+
+              <div className="strumbar" role="group" aria-label="Strum pattern. Bold arrows are accented.">
+                {(STRUM_PATTERNS.find((p) => p.id === strumPatId) || STRUM_PATTERNS[0]).slots.map((st, i) => {
+                  const dir = st ? st.toLowerCase() : null;
+                  const accent = st && st === st.toUpperCase();
+                  return (
+                    <div
+                      key={i}
+                      className={`strumslot ${strumStep === i ? "on" : ""} ${i % 2 === 0 ? "beat" : ""} ${accent ? "accent" : ""}`}
+                    >
+                      <span className="strumarrow" aria-hidden="true">
+                        {dir === "d" ? "↓" : dir === "u" ? "↑" : ""}
+                      </span>
+                      <span className="strumcount">{i % 2 === 0 ? String(i / 2 + 1) : "&"}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="row wrap actions">
+                <button
+                  className={`btn primary ${strumOn ? "live" : ""}`}
+                  onClick={strumOn ? stopPlayback : playStrum}
+                  disabled={!activeVoicing}
+                >
+                  {strumOn ? "Stop" : "Play"}
+                </button>
+                <Field label="Tempo">
+                  <div className="row">
+                    <button
+                      className="mini"
+                      aria-label="Slower"
+                      onClick={() => setSettings((s) => ({ ...s, bpm: Math.max(40, s.bpm - 5) }))}
+                    >
+                      {"−"}5
+                    </button>
+                    <b className="barcount">{settings.bpm}</b>
+                    <button
+                      className="mini"
+                      aria-label="Faster"
+                      onClick={() => setSettings((s) => ({ ...s, bpm: Math.min(240, s.bpm + 5) }))}
+                    >
+                      +5
+                    </button>
+                  </div>
+                </Field>
+                <button
+                  className={`btn ${strumClick ? "primary" : "ghost"}`}
+                  aria-pressed={strumClick}
+                  onClick={() => setStrumClick((v) => !v)}
+                  data-tip="Play the metronome click on each beat, at this tempo"
+                >
+                  Click: {strumClick ? "on" : "off"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {mode === "melody" && (
+            <div className="pane">
+              <p className="note">
+                Tap notes on the neck to drop them onto the timeline below, one eighth-note slot at a time. Tap a slot to move the cursor
+                there, or tap a filled slot again to clear it back to a rest. An empty slot is a rest, the same note in two slots is a
+                repeat.
+              </p>
+
+              <Field
+                label={`Timeline \u00b7 ${melSteps.filter((s) => s && !s.rest).length} ${melSteps.filter((s) => s && !s.rest).length === 1 ? "note" : "notes"}`}
+              >
+                <div className="timeline" role="group" aria-label="Melody timeline. Tap the neck to add a note at the cursor.">
+                  {Array.from({ length: melBars }, (_, b) => (
+                    <div className="tbar" key={b}>
+                      {Array.from({ length: MEL_SLOTS }, (_, sc) => {
+                        const i = b * MEL_SLOTS + sc;
+                        const cell = melSteps[i];
+                        const filled = cell && !cell.rest;
+                        const nm = filled ? nameOf((settings.midis[cell.s] + cell.f) % 12, effFlats) : "";
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            className={`tslot ${filled ? "filled" : "rest"} ${i === melCursor ? "cursor" : ""} ${melPlayIdx === i ? "playing" : ""} ${sc % 2 === 0 ? "beat" : ""}`}
+                            aria-label={
+                              filled ? `Slot ${i + 1}, ${nm}. Tap to select, tap again to clear.` : `Slot ${i + 1}, rest. Tap to select.`
+                            }
+                            aria-current={i === melCursor ? "true" : undefined}
+                            onClick={() => {
+                              if (i === melCursor && filled) {
+                                setMelSteps((st) => {
+                                  const n = st.slice();
+                                  while (n.length <= i) n.push({ rest: true });
+                                  n[i] = { rest: true };
+                                  return n;
+                                });
+                              } else {
+                                setMelCursor(i);
+                                if (filled) playNote(settings.midis[cell.s] + cell.f);
+                              }
+                            }}
+                          >
+                            <span className="tslotname">{nm}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </Field>
+
+              <div className="row wrap barctl">
+                <span className="note">Bars</span>
+                <button
+                  className="mini"
+                  aria-label="Remove a bar"
+                  disabled={melBars <= 1}
+                  onClick={() => {
+                    const nb = Math.max(1, melBars - 1);
+                    setMelBars(nb);
+                    setMelSteps((st) => st.slice(0, nb * MEL_SLOTS));
+                    setMelCursor((c) => Math.min(c, nb * MEL_SLOTS - 1));
+                  }}
+                >
+                  {"\u2212"}
+                </button>
+                <b className="barcount">{melBars}</b>
+                <button
+                  className="mini"
+                  aria-label="Add a bar"
+                  disabled={melBars >= MEL_MAX_BARS}
+                  onClick={() => setMelBars((b) => Math.min(MEL_MAX_BARS, b + 1))}
+                >
+                  +
+                </button>
+                <button
+                  className="btn ghost"
+                  onClick={() => {
+                    setMelSteps((st) => {
+                      const n = st.slice();
+                      while (n.length <= melCursor) n.push({ rest: true });
+                      n[melCursor] = { rest: true };
+                      return n;
+                    });
+                    setMelCursor((c) => Math.min(c + 1, melBars * MEL_SLOTS - 1));
+                  }}
+                >
+                  Add rest
+                </button>
+                <button
+                  className="btn ghost"
+                  disabled={melCursor === 0}
+                  onClick={() => {
+                    const j = Math.max(0, melCursor - 1);
+                    setMelSteps((st) => {
+                      if (j >= st.length) return st;
+                      const n = st.slice();
+                      n[j] = { rest: true };
+                      return n;
+                    });
+                    setMelCursor(j);
+                  }}
+                >
+                  Back
+                </button>
+              </div>
+
+              {melKeyHint && (
+                <p className="note" role="status">
+                  {melKeyHint.loose ? "Mostly fits" : "Fits"}{" "}
+                  {nameOf(melKeyHint.root, keyPrefersFlats(melKeyHint.root, [0, 2, 4, 5, 7, 9, 11]))} major
+                  {" / "}
+                  {nameOf((melKeyHint.root + 9) % 12, keyPrefersFlats(melKeyHint.root, [0, 2, 4, 5, 7, 9, 11]))} minor.
+                </p>
+              )}
+
+              <div className="row wrap actions">
+                <button
+                  className={`btn primary ${melPlayIdx != null ? "live" : ""}`}
+                  onClick={melPlayIdx != null ? stopPlayback : playMelody}
+                  disabled={!melSteps.some((s) => s && !s.rest)}
+                >
+                  {melPlayIdx != null ? "Stop" : "Play"}
+                </button>
+                <button
+                  className={`btn ${melLoop ? "primary" : "ghost"}`}
+                  aria-pressed={melLoop}
+                  onClick={() => {
+                    const nv = !melLoop;
+                    setMelLoop(nv);
+                    melLoopRef.current = nv;
+                  }}
+                  data-tip="Repeat the melody until you press Stop"
+                >
+                  Loop: {melLoop ? "on" : "off"}
+                </button>
+                <Field label="Speed">
+                  <Seg
+                    small
+                    ariaLabel="Playback speed"
+                    options={[
+                      { v: 1, l: "Slow" },
+                      { v: 2, l: "Normal" },
+                      { v: 4, l: "Fast" },
+                    ]}
+                    value={melRate}
+                    onChange={setMelRate}
+                  />
+                </Field>
+                <Field label="Transpose">
+                  <div className="row">
+                    <button
+                      className="mini"
+                      aria-label="Down one semitone"
+                      onClick={() => transposeMelody(-1)}
+                      disabled={!melSteps.some((s) => s && !s.rest)}
+                    >
+                      {"\u2212"}1
+                    </button>
+                    <button
+                      className="mini"
+                      aria-label="Up one semitone"
+                      onClick={() => transposeMelody(1)}
+                      disabled={!melSteps.some((s) => s && !s.rest)}
+                    >
+                      +1
+                    </button>
+                  </div>
+                </Field>
+                <span className="actspacer" aria-hidden="true" />
+                <button
+                  className="btn ghost danger"
+                  onClick={() => {
+                    setMelSteps([]);
+                    setMelBars(2);
+                    setMelCursor(0);
+                  }}
+                  disabled={!melSteps.length}
+                >
+                  Clear
+                </button>
+              </div>
+
+              <div className="row wrap">
+                <Field id="melname" label="Name">
+                  <input
+                    id="melname"
+                    type="text"
+                    value={melName}
+                    maxLength={60}
+                    placeholder="Riff I am learning"
+                    onChange={(e) => setMelName(e.target.value)}
+                    className="melinput"
+                  />
+                </Field>
+                <button
+                  className="btn"
+                  disabled={!melSteps.some((s) => s && !s.rest) || !melName.trim()}
+                  onClick={() => {
+                    saveMelodies([{ id: `m${Date.now()}`, name: melName.trim(), steps: melSteps, bars: melBars }, ...melodies]);
+                    track("melody_save", { notes: melSteps.filter((s) => s && !s.rest).length });
+                    setToast("Melody saved");
+                    setMelName("");
+                  }}
+                >
+                  Save melody
+                </button>
+              </div>
+
+              <div className="row wrap">
+                <button className="btn ghost" onClick={importTabFromClipboard}>
+                  Import tab from clipboard
+                </button>
+                <button className="btn ghost" onClick={() => setMelImport((v) => !v)}>
+                  {melImport ? "Hide paste box" : "Paste a tab"}
+                </button>
+              </div>
+              {melImport && (
+                <Field id="tabpaste" label="Paste a tab, then Import">
+                  <textarea
+                    id="tabpaste"
+                    className="melinput tabbox"
+                    rows={7}
+                    value={melImportText}
+                    onChange={(e) => setMelImportText(e.target.value)}
+                    placeholder={"e|--0--3--0--|\nB|--1-----1--|\nG|--0-----0--|\nD|--2-----2--|\nA|--3--3--3--|\nE|-----------|"}
+                  />
+                  <div className="row">
+                    <button className="btn primary" onClick={() => doImportTab(melImportText)} disabled={!melImportText.trim()}>
+                      Import
+                    </button>
+                  </div>
+                </Field>
+              )}
+
+              {melodies.length > 0 && (
+                <Field label="Saved melodies">
+                  <div className="mellist">
+                    {melodies.map((m) => (
+                      <div className="melitem" key={m.id}>
+                        <button
+                          className="melload"
+                          onClick={() => {
+                            /* drop notes that fall off the current tuning/neck (fewer strings or frets) */
+                            const steps = m.steps
+                              .slice(0, MEL_MAX_BARS * MEL_SLOTS)
+                              .map((st) => (st && !st.rest && (st.s >= settings.midis.length || st.f > fretCount) ? { rest: true } : st));
+                            setMelSteps(steps);
+                            setMelBars(Math.max(2, Math.min(MEL_MAX_BARS, m.bars || Math.ceil(steps.length / MEL_SLOTS))));
+                            setMelCursor(0);
+                            setMelName(m.name);
+                            setToast(`Loaded ${m.name}`);
+                          }}
+                        >
+                          <b>{m.name}</b>
+                          <em>{m.steps.filter((s) => s && !s.rest).length} notes</em>
+                        </button>
+                        <button
+                          className="mini"
+                          aria-label={`Delete ${m.name}`}
+                          onClick={() => saveMelodies(melodies.filter((x) => x.id !== m.id))}
+                        >
+                          {"\u2715"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </Field>
+              )}
+            </div>
+          )}
+
+          {mode === "ear" && (
+            <div className="pane">
+              <p className="panelead">
+                Train your ear to recognise intervals and chord types by sound, then check yourself against the answer.
+              </p>
+              <div className="scoreboard">
+                <div className="score">
+                  <b>{ear.correct}</b>
+                  <span>correct</span>
+                </div>
+                <div className="score">
+                  <b className="bad">{ear.wrong}</b>
+                  <span>wrong</span>
+                </div>
+                <div className="score">
+                  <b>{ear.streak}</b>
+                  <span>streak</span>
+                </div>
+              </div>
+
+              <div className="row wrap">
+                <Field label="Mode" tip="Identify what you hear, or choose a sound and listen to it">
+                  <Seg
+                    small
+                    ariaLabel="Ear training mode"
+                    options={[
+                      { v: "quiz", l: "Hear and identify" },
+                      { v: "explore", l: "Choose and hear" },
+                    ]}
+                    value={ear.dir}
+                    onChange={(v) => setEar((e) => ({ ...e, dir: v, current: null, picked: null, streak: 0 }))}
+                  />
+                </Field>
+                <Field label="Sounds">
+                  <Seg
+                    small
+                    ariaLabel="Interval or chord sounds"
+                    options={[
+                      { v: "interval", l: "Intervals" },
+                      { v: "chord", l: "Chord types" },
+                    ]}
+                    value={ear.source}
+                    onChange={(v) => setEar((e) => ({ ...e, source: v, current: null, picked: null, streak: 0 }))}
+                  />
+                </Field>
+                <Field label="Difficulty">
+                  <Seg
+                    small
+                    ariaLabel="Difficulty"
+                    options={[
+                      { v: "simple", l: "Common" },
+                      { v: "all", l: "Everything" },
+                    ]}
+                    value={ear.level}
+                    onChange={(v) => setEar((e) => ({ ...e, level: v, current: null, picked: null, streak: 0 }))}
+                  />
+                </Field>
+              </div>
+
+              {ear.dir === "quiz" ? (
+                <>
+                  <div className="row">
+                    <button
+                      className="btn primary"
+                      onClick={() => (ear.current ? earPlay(ear.current.root, ear.current.answer) : earNext())}
+                    >
+                      {ear.current ? "Play again" : "Start"}
+                    </button>
+                  </div>
+                  <div className="earopts">
+                    {earPool.map((o) => {
+                      const answered = ear.picked != null;
+                      const isPick = ear.picked === o.v;
+                      const isRight = answered && ear.current && o.v === ear.current.answer;
+                      return (
+                        <button
+                          key={String(o.v)}
+                          className={`earopt ${isRight ? "right" : isPick ? "wrongpick" : ""}`}
+                          disabled={!ear.current || answered}
+                          onClick={() => earAnswer(o.v)}
+                        >
+                          {o.l}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="note" role="status" aria-live="polite">
+                    {ear.picked != null && ear.current
+                      ? ear.picked === ear.current.answer
+                        ? "Right. Next one coming up."
+                        : `It was ${earPool.find((o) => o.v === ear.current.answer)?.l}. Next one coming up.`
+                      : ear.current
+                        ? "What did you hear?"
+                        : "Press Start and identify what you hear."}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="note">Tap a sound to hear it from a random root. Learn the colour, then flip to Hear and identify.</p>
+                  <div className="earopts">
+                    {earPool.map((o) => (
+                      <button
+                        key={String(o.v)}
+                        className="earopt"
+                        onClick={() => {
+                          const root = 45 + Math.floor(Math.random() * 15);
+                          earPlay(root, o.v);
+                        }}
+                      >
+                        {o.l}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <div className="row">
+                <button
+                  className="btn ghost danger"
+                  onClick={() => setEar((e) => ({ ...e, correct: 0, wrong: 0, streak: 0 }))}
+                  disabled={!ear.correct && !ear.wrong}
+                >
+                  Reset score
+                </button>
+              </div>
+            </div>
+          )}
+
+          {mode === "plog" && (
+            <div className="pane about">
+              {(() => {
+                const fmt = (sec) => {
+                  const m = Math.round(sec / 60);
+                  if (m < 60) return `${m} min`;
+                  return `${Math.floor(m / 60)}h ${m % 60}m`;
+                };
+                return (
+                  <>
+                    <section className="progress">
+                      <div className="levelcard">
+                        <div className="levelring">
+                          <svg viewBox="0 0 44 44" width="72" height="72" aria-hidden="true">
+                            <circle cx="22" cy="22" r="19" className="lr-track" />
+                            <circle
+                              cx="22"
+                              cy="22"
+                              r="19"
+                              className="lr-fill"
+                              style={{ strokeDasharray: `${(gLevel.pct / 100) * 119.4} 119.4` }}
+                            />
+                          </svg>
+                          <div className="levelnum">
+                            <b>{gLevel.level}</b>
+                            <span>level</span>
+                          </div>
+                        </div>
+                        <div className="levelmeta">
+                          <div className="levelpts">
+                            {gPoints.toLocaleString("en-GB")} <span>points</span>
+                          </div>
+                          <div className="levelbar">
+                            <div className="levelbarfill" style={{ width: `${gLevel.pct}%` }} />
+                          </div>
+                          <div className="levelnext">
+                            {gLevel.toNext.toLocaleString("en-GB")} points to level {gLevel.level + 1}
+                          </div>
+                        </div>
+                      </div>
+
+                      <h2 className="abouthead">Badges</h2>
+                      <div className="badgegrid">
+                        {[...BADGES]
+                          .sort((a, b) => (badgeTier(b, gStats) > 0) - (badgeTier(a, gStats) > 0))
+                          .map((b) => {
+                            const tier = badgeTier(b, gStats);
+                            const max = b.tiers.length;
+                            const earned = tier > 0;
+                            const nextAt = tier < max ? b.tiers[tier] : null;
+                            return (
+                              <div key={b.id} className={`badge2 ${earned ? "earned" : "locked"}`}>
+                                <svg className="badgemedal" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+                                  <path d="M12 2.5l2.7 5.9 6.3.6-4.8 4.3 1.4 6.2L12 16.9 6.2 19.5l1.4-6.2L2.8 9l6.3-.6z" />
+                                </svg>
+                                <b className="badgename">{b.name}</b>
+                                <span className="badgetier">
+                                  {!earned
+                                    ? `Reach ${b.tiers[0]} ${b.unit}`
+                                    : max > 1
+                                      ? tier < max
+                                        ? `Level ${tier} of ${max}`
+                                        : "Maxed"
+                                      : "Earned"}
+                                </span>
+                                {nextAt != null && earned && (
+                                  <span className="badgenext">
+                                    Next at {nextAt} {b.unit}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </section>
+
+                    <div className="scoreboard">
+                      <div className="score">
+                        <b>{practiceStats.streak}</b>
+                        <span>day streak</span>
+                      </div>
+                      <div className="score">
+                        <b>{fmt(practiceStats.todayTotal)}</b>
+                        <span>today</span>
+                      </div>
+                      <div className="score">
+                        <b>{fmt(practiceStats.weekTotal)}</b>
+                        <span>last 14 days</span>
+                      </div>
+                      <div className="score">
+                        <b>{fmt(practiceStats.allTime)}</b>
+                        <span>all time</span>
+                      </div>
+                    </div>
+
+                    <section className="aboutblock">
+                      <h2 className="abouthead">Last 14 days</h2>
+                      <div
+                        className="plogbars"
+                        role="img"
+                        aria-label={`Practice minutes over the last fourteen days, ${fmt(practiceStats.weekTotal)} total`}
+                      >
+                        {practiceStats.week.map((d, i) => (
+                          <div className="plogday" key={d.k} title={`${d.label}: ${fmt(d.total)}`}>
+                            <div className="plogbarwrap">
+                              <div
+                                className="plogbar"
+                                style={{ height: `${d.total ? Math.max(4, (d.total / practiceStats.maxDay) * 100) : 0}%` }}
+                              />
+                            </div>
+                            <span className="ploglabel">{i % 2 === 0 ? d.label[0] : ""}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+
+                    {practiceStats.modeRows.length > 0 ? (
+                      <section className="aboutblock">
+                        <h2 className="abouthead">By activity</h2>
+                        <div className="plogmodes">
+                          {practiceStats.modeRows.map(([m, sec]) => (
+                            <div className="plogmode" key={m}>
+                              <span className="plogmname">{PRACTICE_MODES[m] || m}</span>
+                              <div className="plogtrack">
+                                <div className="plogfill" style={{ width: `${(sec / practiceStats.modeRows[0][1]) * 100}%` }} />
+                              </div>
+                              <span className="plogmtime">{fmt(sec)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    ) : (
                       <p className="note">
-                        No email is linked, so this account cannot be recovered if the password is lost.
-                        Linking is optional. Once confirmed, you sign in with the address instead of your
-                        username, and password reset by email becomes available.
+                        No practice recorded yet. Time spent in Scales, Chords, drills and the other practice views is logged here
+                        automatically, so you can see your streak build.
                       </p>
-                      <form className="authform" onSubmit={doLinkEmail}>
-                        <Field id="link-email" label="Email address">
+                    )}
+                    <p className="note">
+                      Practice is counted only while the app is open and you are active in a practice view.{" "}
+                      {authUser ? "Your log syncs to your account." : "Sign in to sync your log across devices."}
+                    </p>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+
+          {mode === "finder" && (
+            <div className="pane">
+              <p className="note">
+                Tap the notes of a chord on the neck (or focus it and use the arrow keys and Enter) and Fretwork names it. Handy for the
+                unfamiliar shapes you meet in tab.
+              </p>
+              <div className="degrees">
+                {finderInfo.pcs.length === 0 ? (
+                  <span className="note">No notes selected yet.</span>
+                ) : (
+                  finderInfo.pcs.map((pc) => (
+                    <span key={pc} className="chip">
+                      <b>{nameOf(pc, effFlats)}</b>
+                    </span>
+                  ))
+                )}
+              </div>
+
+              {finderInfo.exact.length > 0 ? (
+                <Field label="This chord is">
+                  <div className="finderhits">
+                    {finderInfo.exact.map((m) => (
+                      <button
+                        key={`${m.root}${m.id}`}
+                        className="btn"
+                        onClick={() => {
+                          setChordRoot(m.root);
+                          setChordId(m.id);
+                          setMode("chord");
+                          track("finder_open", { chord: m.id });
+                        }}
+                      >
+                        {nameOf(m.root, effFlats)}
+                        {(CHORDS.find((c) => c.id === m.id) || {}).suffix}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+              ) : finderInfo.partial.length > 0 ? (
+                <Field label="Could be part of">
+                  <div className="finderhits">
+                    {finderInfo.partial.map((m) => (
+                      <button
+                        key={`${m.root}${m.id}`}
+                        className="btn ghost"
+                        onClick={() => {
+                          setChordRoot(m.root);
+                          setChordId(m.id);
+                          setMode("chord");
+                        }}
+                      >
+                        {nameOf(m.root, effFlats)}
+                        {(CHORDS.find((c) => c.id === m.id) || {}).suffix}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+              ) : finderInfo.pcs.length >= 2 ? (
+                <p className="empty" role="status">
+                  No standard chord matches those notes. Try adding or removing one.
+                </p>
+              ) : (
+                <p className="note">Add at least two notes to name a chord.</p>
+              )}
+
+              <div className="row">
+                <button className="btn ghost danger" onClick={() => setFinderSel(new Set())} disabled={finderSel.size === 0}>
+                  Clear
+                </button>
+              </div>
+            </div>
+          )}
+
+          {mode === "tuner" && (
+            <div className="pane">
+              <div className="tunerbox">
+                {!tuner.on ? (
+                  <>
+                    <p className="note">
+                      Play a string and Fretwork shows how sharp or flat it is, so you can tune without relying on your ear. The microphone
+                      is only used while you are tuning, and nothing is recorded or sent anywhere.
+                    </p>
+                    <button className="btn primary" onClick={startTuner}>
+                      Start listening
+                    </button>
+                    {tuner.error && (
+                      <p className="empty" role="status">
+                        {tuner.error}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {(() => {
+                      const target = tuner.note != null ? nearestStringTarget(tuner.note, settings.midis) : null;
+                      const inTune = tuner.note != null && Math.abs(tuner.cents) <= 5;
+                      return (
+                        <div className="tunelive" role="status" aria-live="polite">
+                          <div className={`tunenote ${inTune ? "intune" : ""}`}>
+                            {tuner.note != null ? nameOf(tuner.note % 12, effFlats) : "\u2014"}
+                            <span className="tuneoct">{tuner.note != null ? Math.floor(tuner.note / 12) - 1 : ""}</span>
+                          </div>
+                          <div className="tunemeter" aria-hidden="true">
+                            <div className="tunescale">
+                              <span className="tunetick c" />
+                              <div className="tuneneedle" style={{ left: `${50 + Math.max(-50, Math.min(50, tuner.cents))}%` }} />
+                            </div>
+                            <div className="tunecents">
+                              {tuner.note == null
+                                ? "listening"
+                                : inTune
+                                  ? "in tune"
+                                  : `${tuner.cents > 0 ? "+" : ""}${tuner.cents} cents ${tuner.cents > 0 ? "sharp" : "flat"}`}
+                            </div>
+                          </div>
+                          {target && (
+                            <p className="note">
+                              Closest string: {target.label}. {target.diff === 0 ? "In tune." : target.diff > 0 ? "Tune down." : "Tune up."}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
+                    <button className="btn ghost danger" onClick={stopTuner}>
+                      Stop listening
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <p className="note">Or set the strings and pick a preset tuning below.</p>
+              <div className="grid">
+                <Field label="Tuning">
+                  <select aria-label="Tuning" value={settings.tuningId} onChange={(e) => setTuning(e.target.value)}>
+                    {TUNINGS.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                    {settings.tuningId === "custom" && <option value="custom">Custom</option>}
+                  </select>
+                </Field>
+              </div>
+
+              <div className="tuner">
+                <span className="flabel">Strings, low to high</span>
+                <div className="strings">
+                  {midis.map((mv, i) => (
+                    <div className="stringrow" key={i}>
+                      <span className="sidx">{i + 1}</span>
+                      <select
+                        aria-label={`Note for string ${i + 1}`}
+                        value={mv % 12}
+                        onChange={(e) => setStringNote(i, Math.floor(mv / 12) * 12 + +e.target.value)}
+                      >
+                        {Array.from({ length: 12 }, (_, pc) => (
+                          <option key={pc} value={pc}>
+                            {nameOf(pc, effFlats)}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        aria-label={`Octave for string ${i + 1}`}
+                        value={Math.floor(mv / 12) - 1}
+                        onChange={(e) => setStringNote(i, (mv % 12) + (+e.target.value + 1) * 12)}
+                      >
+                        {[0, 1, 2, 3, 4, 5].map((o) => (
+                          <option key={o} value={o}>
+                            {o}
+                          </option>
+                        ))}
+                      </select>
+                      <button className="mini" aria-label={`Play string ${i + 1}`} onClick={() => playNote(mv)}>
+                        ▸
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="stringbtns">
+                  <button
+                    className="mini wide"
+                    onClick={() => setSettings((s) => ({ ...s, midis: [s.midis[0] - 5, ...s.midis], tuningId: "custom" }))}
+                    disabled={n >= 9}
+                  >
+                    Add low string
+                  </button>
+                  <button
+                    className="mini wide"
+                    onClick={() => setSettings((s) => ({ ...s, midis: s.midis.slice(1), tuningId: "custom" }))}
+                    disabled={n <= 3}
+                  >
+                    Remove low string
+                  </button>
+                </div>
+              </div>
+
+              <div className="capocalc">
+                <span className="flabel">Capo calculator</span>
+                <div className="row wrap">
+                  <Field label="Chords you play">
+                    <KeyPicker value={capoShape} onChange={setCapoShape} flats={effFlats} />
+                  </Field>
+                  <Field label="Key you want to hear">
+                    <KeyPicker value={capoTarget} onChange={setCapoTarget} flats={effFlats} />
+                  </Field>
+                </div>
+                {(() => {
+                  const fret = (((capoTarget - capoShape) % 12) + 12) % 12;
+                  return (
+                    <p className="note">
+                      {fret === 0
+                        ? `Play ${nameOf(capoShape, effFlats)} shapes with no capo to hear ${nameOf(capoTarget, effFlats)}.`
+                        : `Play ${nameOf(capoShape, effFlats)} shapes with a capo at fret ${fret} to hear ${nameOf(capoTarget, effFlats)}.`}
+                    </p>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+
+          {mode === "settings" && (
+            <div className="pane">
+              <div className="grid">
+                <Field label="Frets" tip="How many frets the neck shows">
+                  <input
+                    type="range"
+                    min="7"
+                    max="27"
+                    value={settings.fretCount}
+                    aria-label="Frets shown"
+                    onChange={(e) => setSettings((s) => ({ ...s, fretCount: +e.target.value }))}
+                  />
+                  <output>{settings.fretCount}</output>
+                </Field>
+              </div>
+
+              <div className="toggles">
+                <Field label="Note names" tip="Auto spells notes from the current key, so C minor reads Eb rather than D sharp">
+                  <Seg
+                    small
+                    options={[
+                      { v: "auto", l: "Auto" },
+                      { v: "sharps", l: "Sharps" },
+                      { v: "flats", l: "Flats" },
+                    ]}
+                    value={settings.noteNames}
+                    onChange={(v) => setSettings((s) => ({ ...s, noteNames: v }))}
+                  />
+                </Field>
+                <Field label="Dot labels" tip="What the dots on the neck display by default">
+                  <Seg
+                    small
+                    options={[
+                      { v: "name", l: "Names" },
+                      { v: "degree", l: "Degrees" },
+                      { v: "none", l: "Blank" },
+                    ]}
+                    value={settings.labelMode}
+                    onChange={(v) => setSettings((s) => ({ ...s, labelMode: v }))}
+                  />
+                </Field>
+                <Field label="Colour" tip="Colour dots by their interval from the root, by root only, or keep them plain">
+                  <Seg
+                    small
+                    options={[
+                      { v: "root", l: "Root" },
+                      { v: "interval", l: "By interval" },
+                      { v: "mono", l: "Mono" },
+                    ]}
+                    value={settings.colourMode}
+                    onChange={(v) => setSettings((s) => ({ ...s, colourMode: v }))}
+                  />
+                </Field>
+                <Field label="String order" tip="High on top reads like tab; low on top matches looking down at a guitar">
+                  <Seg
+                    small
+                    options={[
+                      { v: true, l: "High on top" },
+                      { v: false, l: "Low on top" },
+                    ]}
+                    value={settings.highOnTop}
+                    onChange={(v) => setSettings((s) => ({ ...s, highOnTop: v }))}
+                  />
+                </Field>
+                <Field label="Handed" tip="Flips the neck for left-handed players">
+                  <Seg
+                    small
+                    options={[
+                      { v: false, l: "Right" },
+                      { v: true, l: "Left" },
+                    ]}
+                    value={settings.leftHanded}
+                    onChange={(v) => setSettings((s) => ({ ...s, leftHanded: v }))}
+                  />
+                </Field>
+                <Field label="Chord stretch" tip="The widest fret span a suggested chord shape may use">
+                  <Seg
+                    small
+                    options={[
+                      { v: 3, l: "3 frets" },
+                      { v: 4, l: "4" },
+                      { v: 5, l: "5" },
+                    ]}
+                    value={settings.span}
+                    onChange={(v) => setSettings((s2) => ({ ...s2, span: v }))}
+                  />
+                </Field>
+                <Field label="Inversions" tip="Allow shapes whose lowest note is not the root">
+                  <Seg
+                    small
+                    options={[
+                      { v: false, l: "Root bass" },
+                      { v: true, l: "Allow" },
+                    ]}
+                    value={settings.inversions}
+                    onChange={(v) => setSettings((s2) => ({ ...s2, inversions: v }))}
+                  />
+                </Field>
+                <Field label="Barres" tip="Allow shapes that lay one finger across several strings">
+                  <Seg
+                    small
+                    options={[
+                      { v: true, l: "Allow" },
+                      { v: false, l: "Avoid" },
+                    ]}
+                    value={settings.barres}
+                    onChange={(v) => setSettings((s2) => ({ ...s2, barres: v }))}
+                  />
+                </Field>
+                <Field label="Theme" tip="Light or dark appearance">
+                  <Seg
+                    small
+                    options={[
+                      { v: false, l: "Light" },
+                      { v: true, l: "Dark" },
+                    ]}
+                    value={settings.dark}
+                    onChange={(v) => {
+                      track("theme_set", { dark: v });
+                      setSettings((s2) => ({ ...s2, dark: v }));
+                    }}
+                  />
+                </Field>
+                <Field label="Options shown" tip="Simple keeps only the scales, chords and controls a beginner needs">
+                  <Seg
+                    small
+                    options={[
+                      { v: true, l: "Simple" },
+                      { v: false, l: "Everything" },
+                    ]}
+                    value={settings.simple}
+                    onChange={(v) => {
+                      track("simple_toggle", { on: v });
+                      setSettings((s2) => ({ ...s2, simple: v }));
+                      setGamify((g) => (g.counters.triedSimple ? g : { ...g, counters: { ...g.counters, triedSimple: 1 } }));
+                    }}
+                  />
+                </Field>
+                <Field label="Sound" tip="Note and click playback throughout the app">
+                  <Seg
+                    small
+                    options={[
+                      { v: true, l: "On" },
+                      { v: false, l: "Off" },
+                    ]}
+                    value={settings.sound}
+                    onChange={(v) => setSettings((s) => ({ ...s, sound: v }))}
+                  />
+                </Field>
+              </div>
+
+              <h3 className="sheetsec">Accessibility</h3>
+              <div className="toggles">
+                <Field label="High contrast" tip="Stronger borders and darker labels for readability">
+                  <Seg
+                    small
+                    options={[
+                      { v: false, l: "Off" },
+                      { v: true, l: "On" },
+                    ]}
+                    value={settings.highContrast}
+                    onChange={(v) => {
+                      track("a11y_contrast", { on: v });
+                      setSettings((s) => ({ ...s, highContrast: v }));
+                    }}
+                  />
+                </Field>
+                <Field label="Animation" tip="Reduced switches off movement effects; the system preference is always respected">
+                  <Seg
+                    small
+                    options={[
+                      { v: false, l: "Full" },
+                      { v: true, l: "Reduced" },
+                    ]}
+                    value={settings.lowMotion}
+                    onChange={(v) => {
+                      track("a11y_motion", { reduced: v });
+                      setSettings((s) => ({ ...s, lowMotion: v }));
+                    }}
+                  />
+                </Field>
+                <Field label="Zoom" tip="Scales the whole fretboard up for larger targets">
+                  <input
+                    type="range"
+                    min="0.7"
+                    max="2.2"
+                    step="0.1"
+                    value={settings.zoom}
+                    aria-label="Fretboard zoom"
+                    onChange={(e) => setSettings((s) => ({ ...s, zoom: +e.target.value }))}
+                  />
+                  <output>{settings.zoom.toFixed(1)}×</output>
+                </Field>
+              </div>
+              <p className="note">The system reduced-motion preference is always respected. These controls apply on top of it.</p>
+            </div>
+          )}
+
+          {mode === "account" && (
+            <div className="pane about">
+              {!authUser ? (
+                <section className="aboutblock">
+                  <h2 className="abouthead">{authMode === "create" ? "Create an account" : "Sign in"}</h2>
+                  <p className="note">
+                    An account syncs your Bank (saved chords and progressions) and your chord-change records across devices. Everything also
+                    works without one, saved on this device only.
+                  </p>
+                  <Seg
+                    small
+                    ariaLabel="Sign in or create account"
+                    options={[
+                      { v: "signin", l: "Sign in" },
+                      { v: "create", l: "Create account" },
+                    ]}
+                    value={authMode}
+                    onChange={(v) => {
+                      setAuthMode(v);
+                      setAuthErr("");
+                    }}
+                  />
+                  {authMode === "create" && (
+                    <div className="warnbox" role="note">
+                      <b>No email is required, so no recovery is possible.</b> If you lose your password, this account cannot be recovered.
+                      You can link an email later to enable recovery.
+                    </div>
+                  )}
+                  <form className="authform" onSubmit={doAuth}>
+                    <Field id="auth-name" label={authMode === "create" ? "Choose a username" : "Username (or linked email)"}>
+                      <input
+                        id="auth-name"
+                        type="text"
+                        value={authName}
+                        autoComplete="username"
+                        maxLength={80}
+                        onChange={(e) => setAuthName(e.target.value)}
+                      />
+                    </Field>
+                    <Field id="auth-pass" label="Password">
+                      <input
+                        id="auth-pass"
+                        type="password"
+                        value={authPass}
+                        autoComplete={authMode === "create" ? "new-password" : "current-password"}
+                        maxLength={100}
+                        onChange={(e) => setAuthPass(e.target.value)}
+                      />
+                    </Field>
+                    <div className="row">
+                      <button className="btn primary" type="submit" disabled={authBusy || !authName.trim() || !authPass}>
+                        {authBusy ? "Working" : authMode === "create" ? "Create account" : "Sign in"}
+                      </button>
+                      {authMode === "signin" && (
+                        <button className="btn ghost" type="button" onClick={doForgot} disabled={authBusy}>
+                          Forgot password
+                        </button>
+                      )}
+                    </div>
+                    <p className="empty" role="status" aria-live="polite">
+                      {authErr}
+                    </p>
+                  </form>
+                </section>
+              ) : (
+                <>
+                  {recoveryMode && (
+                    <section className="aboutblock">
+                      <h2 className="abouthead">Set a new password</h2>
+                      <form className="authform" onSubmit={doSetNewPassword}>
+                        <Field id="new-pass" label="New password">
                           <input
-                            id="link-email"
-                            type="email"
-                            value={linkEmail}
-                            autoComplete="email"
-                            maxLength={120}
-                            onChange={(e) => setLinkEmail(e.target.value)}
+                            id="new-pass"
+                            type="password"
+                            value={newPass}
+                            autoComplete="new-password"
+                            maxLength={100}
+                            onChange={(e) => setNewPass(e.target.value)}
                           />
                         </Field>
                         <div className="row">
-                          <button className="btn" type="submit" disabled={linkState === "busy" || !linkEmail.trim()}>
-                            {linkState === "busy" ? "Sending" : "Link email"}
+                          <button className="btn primary" type="submit" disabled={authBusy || !newPass}>
+                            {authBusy ? "Working" : "Save new password"}
                           </button>
-                          <p className={linkState === "err" ? "empty" : "note"} role="status" aria-live="polite">
-                            {linkState === "sent"
-                              ? "Confirmation requested. If the email arrives, click its link to complete the change."
-                              : linkState === "err"
-                              ? linkErrMsg
-                              : ""}
+                          <p className="empty" role="status" aria-live="polite">
+                            {authErr}
                           </p>
                         </div>
                       </form>
-                    </>
+                    </section>
                   )}
-                </section>
-              </>
-            )}
-          </div>
-        )}
-      </main>
+                  <section className="aboutblock">
+                    <h2 className="abouthead">Account</h2>
+                    <p className="note">
+                      Signed in as <b className="unamechip">{uname}</b>. Your Bank and chord-change records sync to this account
+                      automatically.
+                    </p>
+                    <div className="row">
+                      <button className="btn ghost danger" onClick={doSignOut}>
+                        Sign out
+                      </button>
+                    </div>
+                  </section>
+                  <section className="aboutblock">
+                    <h2 className="abouthead">Account recovery</h2>
+                    {linkedEmail ? (
+                      <p className="note">
+                        Recovery email linked: <b>{linkedEmail}</b>. Sign in with this address. If you lose your password, use Forgot
+                        password on the sign-in screen to reset it by email.
+                      </p>
+                    ) : authUser.new_email ? (
+                      <p className="note">
+                        Email change pending for <b>{authUser.new_email}</b>. Click the link in that email to complete it. Until then, keep
+                        signing in with your username.
+                      </p>
+                    ) : (
+                      <>
+                        <p className="note">
+                          No email is linked, so this account cannot be recovered if the password is lost. Linking is optional. Once
+                          confirmed, you sign in with the address instead of your username, and password reset by email becomes available.
+                        </p>
+                        <form className="authform" onSubmit={doLinkEmail}>
+                          <Field id="link-email" label="Email address">
+                            <input
+                              id="link-email"
+                              type="email"
+                              value={linkEmail}
+                              autoComplete="email"
+                              maxLength={120}
+                              onChange={(e) => setLinkEmail(e.target.value)}
+                            />
+                          </Field>
+                          <div className="row">
+                            <button className="btn" type="submit" disabled={linkState === "busy" || !linkEmail.trim()}>
+                              {linkState === "busy" ? "Sending" : "Link email"}
+                            </button>
+                            <p className={linkState === "err" ? "empty" : "note"} role="status" aria-live="polite">
+                              {linkState === "sent"
+                                ? "Confirmation requested. If the email arrives, click its link to complete the change."
+                                : linkState === "err"
+                                  ? linkErrMsg
+                                  : ""}
+                            </p>
+                          </div>
+                        </form>
+                      </>
+                    )}
+                  </section>
+                </>
+              )}
+            </div>
+          )}
+        </main>
       </div>
 
-      {tour >= 0 && (() => {
-        const step = tourSteps[tour];
-        const pad = 6;
-        const spot = tourRect
-          ? { left: tourRect.x - pad, top: tourRect.y - pad, width: tourRect.w + pad * 2, height: tourRect.h + pad * 2 }
-          : null;
-        const vw = typeof window !== "undefined" ? window.innerWidth : 1000;
-        const vh = typeof window !== "undefined" ? window.innerHeight : 800;
-        const CARD_H = 214;
-        const CARD_W = 320;
-        let cardStyle;
-        if (!spot || spot.height > vh * 0.7) {
-          /* full-height or missing target: centre the card, drawer stays highlighted behind */
-          cardStyle = { top: "50%", left: "50%", transform: "translate(-50%,-50%)" };
-        } else {
-          const placeBelow = vh - (spot.top + spot.height) > CARD_H + 24;
-          const top = placeBelow ? spot.top + spot.height + 12 : Math.max(12, spot.top - CARD_H - 12);
-          const left = Math.max(12, Math.min(spot.left, vw - CARD_W - 12));
-          cardStyle = { top, left };
-        }
-        return (
-          <div className="tour" role="dialog" aria-modal="true" aria-label="Guided tour">
-            <div
-              className="tourscrim"
-              onClick={(e) => {
-                /* clicking the highlighted control should not dismiss the tour */
-                if (spot && e.clientX >= spot.left && e.clientX <= spot.left + spot.width && e.clientY >= spot.top && e.clientY <= spot.top + spot.height) return;
-                endTour();
-              }}
-            />
-            {spot && <div className="tourspot" style={spot} />}
-            <div className="tourcard" style={cardStyle} ref={tourCardRef} tabIndex={-1}>
-              <p className="tourstep">Step {tour + 1} of {tourSteps.length}</p>
-              <h3 className="tourtitle">{step.title}</h3>
-              <p className="tourbody">{step.body}</p>
-              <div className="tourbtns">
-                <button className="btn ghost" onClick={endTour}>Skip</button>
-                <span className="actspacer" />
-                {tour > 0 && <button className="btn ghost" onClick={() => setTour((t) => t - 1)}>Back</button>}
-                {tour < tourSteps.length - 1 ? (
-                  <button className="btn primary" onClick={() => setTour((t) => t + 1)}>Next</button>
-                ) : (
-                  <button className="btn primary" onClick={endTour}>Done</button>
-                )}
+      {tour >= 0 &&
+        (() => {
+          const step = tourSteps[tour];
+          const pad = 6;
+          const spot = tourRect
+            ? { left: tourRect.x - pad, top: tourRect.y - pad, width: tourRect.w + pad * 2, height: tourRect.h + pad * 2 }
+            : null;
+          const vw = typeof window !== "undefined" ? window.innerWidth : 1000;
+          const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+          const CARD_H = 214;
+          const CARD_W = 320;
+          let cardStyle;
+          if (!spot || spot.height > vh * 0.7) {
+            /* full-height or missing target: centre the card, drawer stays highlighted behind */
+            cardStyle = { top: "50%", left: "50%", transform: "translate(-50%,-50%)" };
+          } else {
+            const placeBelow = vh - (spot.top + spot.height) > CARD_H + 24;
+            const top = placeBelow ? spot.top + spot.height + 12 : Math.max(12, spot.top - CARD_H - 12);
+            const left = Math.max(12, Math.min(spot.left, vw - CARD_W - 12));
+            cardStyle = { top, left };
+          }
+          return (
+            <div className="tour" role="dialog" aria-modal="true" aria-label="Guided tour">
+              <div
+                className="tourscrim"
+                onClick={(e) => {
+                  /* clicking the highlighted control should not dismiss the tour */
+                  if (
+                    spot &&
+                    e.clientX >= spot.left &&
+                    e.clientX <= spot.left + spot.width &&
+                    e.clientY >= spot.top &&
+                    e.clientY <= spot.top + spot.height
+                  )
+                    return;
+                  endTour();
+                }}
+              />
+              {spot && <div className="tourspot" style={spot} />}
+              <div className="tourcard" style={cardStyle} ref={tourCardRef} tabIndex={-1}>
+                <p className="tourstep">
+                  Step {tour + 1} of {tourSteps.length}
+                </p>
+                <h3 className="tourtitle">{step.title}</h3>
+                <p className="tourbody">{step.body}</p>
+                <div className="tourbtns">
+                  <button className="btn ghost" onClick={endTour}>
+                    Skip
+                  </button>
+                  <span className="actspacer" />
+                  {tour > 0 && (
+                    <button className="btn ghost" onClick={() => setTour((t) => t - 1)}>
+                      Back
+                    </button>
+                  )}
+                  {tour < tourSteps.length - 1 ? (
+                    <button className="btn primary" onClick={() => setTour((t) => t + 1)}>
+                      Next
+                    </button>
+                  ) : (
+                    <button className="btn primary" onClick={endTour}>
+                      Done
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        );
-      })()}
+          );
+        })()}
 
-      {toast && <div className="toast" role="status">{toast}</div>}
+      {toast && (
+        <div className="toast" role="status">
+          {toast}
+        </div>
+      )}
 
       {celebrate && (
         <div className="celebrate" role="status" onClick={() => setCelebrate(null)}>
           <div className="celebratecard">
-            <svg className="celebratemedal" viewBox="0 0 24 24" width="52" height="52" aria-hidden="true"><path d="M12 2.5l2.7 5.9 6.3.6-4.8 4.3 1.4 6.2L12 16.9 6.2 19.5l1.4-6.2L2.8 9l6.3-.6z" /></svg>
+            <svg className="celebratemedal" viewBox="0 0 24 24" width="52" height="52" aria-hidden="true">
+              <path d="M12 2.5l2.7 5.9 6.3.6-4.8 4.3 1.4 6.2L12 16.9 6.2 19.5l1.4-6.2L2.8 9l6.3-.6z" />
+            </svg>
             {celebrate.type === "level" ? (
-              <><b>Level {celebrate.level}</b><span>Nicely done, keep going</span></>
+              <>
+                <b>Level {celebrate.level}</b>
+                <span>Nicely done, keep going</span>
+              </>
             ) : celebrate.type === "badge" ? (
-              <><b>Badge earned</b><span>{celebrate.name}{celebrate.tiers > 1 ? ` · level ${celebrate.tier}` : ""}</span></>
+              <>
+                <b>Badge earned</b>
+                <span>
+                  {celebrate.name}
+                  {celebrate.tiers > 1 ? ` · level ${celebrate.tier}` : ""}
+                </span>
+              </>
             ) : (
-              <><b>{celebrate.count} badges earned</b><span>What a run</span></>
+              <>
+                <b>{celebrate.count} badges earned</b>
+                <span>What a run</span>
+              </>
             )}
           </div>
         </div>
       )}
 
-      {routine && routine.phase === "running" && (() => {
-        const seg = routine.segments[routine.idx];
-        const mm = Math.floor(routine.remaining / 60);
-        const ss = String(routine.remaining % 60).padStart(2, "0");
-        return (
-          <div className="routinehud" role="region" aria-label="Practice routine in progress">
-            <div className="rhud-main">
-              <b>{seg && seg.item.label}</b>
-              <span>{seg && seg.stretch ? "Stretch · something new" : `Step ${routine.idx + 1} of ${routine.segments.length}`}</span>
+      {routine &&
+        routine.phase === "running" &&
+        (() => {
+          const seg = routine.segments[routine.idx];
+          const mm = Math.floor(routine.remaining / 60);
+          const ss = String(routine.remaining % 60).padStart(2, "0");
+          return (
+            <div className="routinehud" role="region" aria-label="Practice routine in progress">
+              <div className="rhud-main">
+                <b>{seg && seg.item.label}</b>
+                <span>{seg && seg.stretch ? "Stretch · something new" : `Step ${routine.idx + 1} of ${routine.segments.length}`}</span>
+              </div>
+              <div className="rhud-time" aria-label={`${mm} minutes ${routine.remaining % 60} seconds left`}>
+                {mm}:{ss}
+              </div>
+              <button className="btn ghost" onClick={routineNext}>
+                {routine.idx + 1 >= routine.segments.length ? "Finish" : "Next"}
+              </button>
+              <button
+                className="btn ghost danger"
+                onClick={() => {
+                  setRoutine(null);
+                }}
+              >
+                Stop
+              </button>
             </div>
-            <div className="rhud-time" aria-label={`${mm} minutes ${routine.remaining % 60} seconds left`}>{mm}:{ss}</div>
-            <button className="btn ghost" onClick={routineNext}>{routine.idx + 1 >= routine.segments.length ? "Finish" : "Next"}</button>
-            <button className="btn ghost danger" onClick={() => { setRoutine(null); }}>Stop</button>
-          </div>
-        );
-      })()}
+          );
+        })()}
 
       {routine && routine.phase === "rate" && (
         <div className="celebrate" role="dialog" aria-label="Rate your practice">
@@ -5687,8 +7472,17 @@ export default function App() {
             <b>How did that feel?</b>
             <span>Your rating shapes the next routine</span>
             <div className="ratestars">
-              {[{ s: 1, l: "Shaky" }, { s: 2, l: "Getting there" }, { s: 3, l: "Solid" }].map((o) => (
-                <button key={o.s} className="ratestar" onClick={() => rateRoutine(o.s)} aria-label={`${o.l}, ${o.s} star${o.s > 1 ? "s" : ""}`}>
+              {[
+                { s: 1, l: "Shaky" },
+                { s: 2, l: "Getting there" },
+                { s: 3, l: "Solid" },
+              ].map((o) => (
+                <button
+                  key={o.s}
+                  className="ratestar"
+                  onClick={() => rateRoutine(o.s)}
+                  aria-label={`${o.l}, ${o.s} star${o.s > 1 ? "s" : ""}`}
+                >
                   <span aria-hidden="true">{"★".repeat(o.s)}</span>
                   <em>{o.l}</em>
                 </button>
