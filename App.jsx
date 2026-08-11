@@ -50,6 +50,7 @@ import { groupItems, nearestStringTarget, isNetErr } from "./lib/utils.js";
 import { usernameProblem } from "./lib/username.js";
 import { store } from "./lib/store.js";
 import { supabase, SUPA_URL, SUPA_KEY, FAKE_MAIL, authRedirect } from "./lib/supabase.js";
+import { ToastProvider, useToast } from "./state/ToastContext.jsx";
 import { CHORD_GROUPS, SCALE_GROUPS } from "./data/groups.js";
 import { Seg } from "./components/Seg.jsx";
 import { Field } from "./components/Field.jsx";
@@ -109,7 +110,7 @@ const DEFAULT_SETTINGS = {
   barres: true,
 };
 
-export default function App() {
+function App() {
   /* start brand-new visitors in Simple mode (no settings saved yet). Read
      synchronously so a mount-time persist cannot mask first run. */
   const [settings, setSettings] = useState(() => {
@@ -150,7 +151,7 @@ export default function App() {
   const burgerRef = useRef(null);
   const [scalePos, setScalePos] = useState(null);
   const [chordArea, setChordArea] = useState(null);
-  const [toast, setToast] = useState("");
+  const { toast, setToast } = useToast();
 
   const [scaleRoot, setScaleRoot] = useState(0);
   const [scaleId, setScaleId] = useState("major");
@@ -2566,12 +2567,6 @@ export default function App() {
     }
     routedRef.current = true;
   }, [mode]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(""), 1800);
-    return () => clearTimeout(t);
-  }, [toast]);
 
   useEffect(() => stopPlayback, [stopPlayback]);
   useEffect(() => {
@@ -6193,6 +6188,12 @@ export default function App() {
   );
 }
 
-/* ============================================================
-   STYLES
-   ============================================================ */
+/* Providers wrap the shell in the blueprint nesting order; each context lands
+   here as it is extracted (see docs/REFACTOR-BLUEPRINT.md). */
+export default function FretworkApp() {
+  return (
+    <ToastProvider>
+      <App />
+    </ToastProvider>
+  );
+}
