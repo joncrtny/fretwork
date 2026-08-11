@@ -47,6 +47,7 @@ import { supabase, FAKE_MAIL, authRedirect } from "./lib/supabase.js";
 import { ToastProvider, useToast } from "./state/ToastContext.jsx";
 import { SettingsProvider, useSettings } from "./state/SettingsContext.jsx";
 import { AuthSyncProvider, useAuthSync } from "./state/AuthSyncContext.jsx";
+import { LibraryProvider, useLibrary } from "./state/LibraryContext.jsx";
 import { CHORD_GROUPS, SCALE_GROUPS } from "./data/groups.js";
 import { Seg } from "./components/Seg.jsx";
 import { Field } from "./components/Field.jsx";
@@ -85,7 +86,30 @@ function App() {
   /* the remaining storage slices hydrated by the effect below; combined with
      the provider's flag so every existing `loaded` reader keeps its meaning */
   const [restLoaded, setRestLoaded] = useState(false);
-  const loaded = restLoaded && settingsHydrated;
+  const {
+    bank,
+    setBank,
+    known,
+    setKnown,
+    routineRatings,
+    setRoutineRatings,
+    customProgs,
+    setCustomProgs,
+    melodies,
+    setMelodies,
+    chgRecords,
+    setChgRecords,
+    saveBank,
+    saveKnown,
+    toggleKnown,
+    saveToBank,
+    saveCustomProgs,
+    saveMelodies,
+    saveChgRecords,
+    saveRoutineRatings,
+    libraryHydrated,
+  } = useLibrary();
+  const loaded = restLoaded && settingsHydrated && libraryHydrated;
   const {
     authUser,
     uname,
@@ -161,7 +185,6 @@ function App() {
   const [progId, setProgId] = useState("p1564");
   const [progIdx, setProgIdx] = useState(0);
   const [progPlaying, setProgPlaying] = useState(false);
-  const [customProgs, setCustomProgs] = useState([]);
   const [builder, setBuilder] = useState({ bars: [], name: "", sections: {} });
   const [builderKeyQual, setBuilderKeyQual] = useState("major"); // major/minor, for the "add by chord name" picker
 
@@ -169,7 +192,6 @@ function App() {
   const [melName, setMelName] = useState("");
   const [melImport, setMelImport] = useState(false);
   const [melImportText, setMelImportText] = useState("");
-  const [melodies, setMelodies] = useState([]);
   const [melPlayIdx, setMelPlayIdx] = useState(null);
   const [melRate, setMelRate] = useState(2); // slots per beat on playback (2 = eighths)
   const [melBars, setMelBars] = useState(2); // timeline length in bars
@@ -193,11 +215,8 @@ function App() {
   });
   const [finderSel, setFinderSel] = useState(new Set()); // "s:f" positions tapped in the chord finder
 
-  const [bank, setBank] = useState([]);
   /* "things you know": items the player has marked with the lightbulb, plus the
      last star rating a practice routine gave each, which weights future routines */
-  const [known, setKnown] = useState([]); // [{ sig, kind, root, id, label }]
-  const [routineRatings, setRoutineRatings] = useState({}); // sig -> 1..3
   const [routineDur, setRoutineDur] = useState(10); // minutes
   const [routine, setRoutine] = useState(null); // null | { phase:'running'|'rate', segments:[{item,seconds,stretch}], idx, remaining, duration }
   const [metroOn, setMetroOn] = useState(false);
@@ -228,7 +247,6 @@ function App() {
     phase: "idle", // idle | running | done
     remaining: 60,
   });
-  const [chgRecords, setChgRecords] = useState({}); // key -> { best, last, tries }
   const [chgEntry, setChgEntry] = useState("");
 
   /* ---- account (form state; the session itself lives in AuthSyncContext) ---- */
@@ -758,33 +776,6 @@ function App() {
     let cancelled = false;
     (async () => {
       try {
-        const r = await store.get("fretboard:bank");
-        if (!cancelled && r && r.value) {
-          const v = JSON.parse(r.value);
-          if (Array.isArray(v)) setBank(v);
-        }
-      } catch (e) {
-        /* nothing saved yet */
-      }
-      try {
-        const r = await store.get("fretboard:known");
-        if (!cancelled && r && r.value) {
-          const v = JSON.parse(r.value);
-          if (Array.isArray(v)) setKnown(v);
-        }
-      } catch (e) {
-        /* none yet */
-      }
-      try {
-        const r = await store.get("fretboard:routineratings");
-        if (!cancelled && r && r.value) {
-          const v = JSON.parse(r.value);
-          if (v && typeof v === "object") setRoutineRatings(v);
-        }
-      } catch (e) {
-        /* none yet */
-      }
-      try {
         const r = await store.get("fretboard:stats");
         if (!cancelled && r && r.value) {
           const v = JSON.parse(r.value);
@@ -792,24 +783,6 @@ function App() {
         }
       } catch (e) {
         /* no stats yet */
-      }
-      try {
-        const r = await store.get("fretboard:customprogs");
-        if (!cancelled && r && r.value) {
-          const v = JSON.parse(r.value);
-          if (Array.isArray(v)) setCustomProgs(v);
-        }
-      } catch (e) {
-        /* none yet */
-      }
-      try {
-        const r = await store.get("fretboard:melodies");
-        if (!cancelled && r && r.value) {
-          const v = JSON.parse(r.value);
-          if (Array.isArray(v)) setMelodies(v);
-        }
-      } catch (e) {
-        /* none yet */
       }
       try {
         const r = await store.get("fretboard:practicelog");
@@ -839,15 +812,6 @@ function App() {
       } catch (e) {
         /* no progress yet */
       }
-      try {
-        const r = await store.get("fretboard:changes");
-        if (!cancelled && r && r.value) {
-          const v = JSON.parse(r.value);
-          if (v && typeof v === "object") setChgRecords(v);
-        }
-      } catch (e) {
-        /* no change-trainer scores yet */
-      }
       if (!cancelled) setRestLoaded(true);
     })();
     return () => {
@@ -858,42 +822,6 @@ function App() {
   const saveStats = useCallback((q) => {
     store.set("fretboard:stats", JSON.stringify({ correct: q.correct, wrong: q.wrong, best: q.best, rounds: q.rounds })).catch(() => {});
   }, []);
-
-  const saveBank = useCallback(
-    (next) => {
-      setBank(next);
-      store.set("fretboard:bank", JSON.stringify(next)).catch(() => {});
-      syncField("bank", next);
-    },
-    [syncField],
-  );
-
-  const saveKnown = useCallback((next) => {
-    setKnown(next);
-    store.set("fretboard:known", JSON.stringify(next)).catch(() => {});
-  }, []);
-  const toggleKnown = useCallback(
-    (item) => {
-      const exists = known.some((k) => k.sig === item.sig);
-      const next = exists ? known.filter((k) => k.sig !== item.sig) : [item, ...known];
-      saveKnown(next);
-      setToast(exists ? "Removed from what you know" : "Marked as known");
-    },
-    [known, saveKnown, setToast],
-  );
-
-  const saveToBank = useCallback(
-    (item) => {
-      if (bank.some((b) => b.sig === item.sig)) {
-        setToast("Already in your Bank");
-        return;
-      }
-      saveBank([item, ...bank]);
-      track("bank_save", { kind: item.kind });
-      setToast("Saved to Bank");
-    },
-    [bank, saveBank, setToast],
-  );
 
   const shareBankItem = useCallback(
     async (item) => {
@@ -1079,24 +1007,6 @@ function App() {
     }
     return PROGRESSIONS[0];
   }, [progId, customProgs, builder]);
-
-  const saveCustomProgs = useCallback(
-    (next) => {
-      setCustomProgs(next);
-      store.set("fretboard:customprogs", JSON.stringify(next)).catch(() => {});
-      syncField("custom_progs", next);
-    },
-    [syncField],
-  );
-
-  const saveMelodies = useCallback(
-    (next) => {
-      setMelodies(next);
-      store.set("fretboard:melodies", JSON.stringify(next)).catch(() => {});
-      syncField("melodies", next);
-    },
-    [syncField],
-  );
 
   const savePracticeLog = useRef(null);
   useEffect(() => {
@@ -2202,9 +2112,7 @@ function App() {
     const cur = chgRecords[key] || { best: 0, last: 0, tries: 0 };
     const beat = count > cur.best;
     const next = { ...chgRecords, [key]: { best: Math.max(cur.best, count), last: count, tries: cur.tries + 1 } };
-    setChgRecords(next);
-    store.set("fretboard:changes", JSON.stringify(next)).catch(() => {});
-    syncField("changes", next);
+    saveChgRecords(next);
     const perMin = chg.duration > 0 ? Math.round((count * 60) / chg.duration) : count;
     setGamify((g) => ({
       ...g,
@@ -2218,7 +2126,7 @@ function App() {
     setToast(beat && count > 0 ? `New best · ${count} changes` : `Saved · ${count} changes`);
     setChg((c) => ({ ...c, phase: "idle", remaining: c.duration }));
     setChgEntry("");
-  }, [chgEntry, chg.chords, chg.duration, chgRecords, syncField, setToast]);
+  }, [chgEntry, chg.chords, chg.duration, chgRecords, saveChgRecords, setToast]);
 
   const setChgChord = (i, patch) => setChg((c) => ({ ...c, chords: c.chords.map((x, j) => (j === i ? { ...x, ...patch } : x)) }));
   const addChgChord = () => setChg((c) => (c.chords.length >= 8 ? c : { ...c, chords: [...c.chords, { root: 7, id: "maj" }] }));
@@ -2600,8 +2508,7 @@ function App() {
       routine.segments.forEach((seg) => {
         if (!seg.stretch) next[seg.item.sig] = stars;
       });
-    setRoutineRatings(next);
-    store.set("fretboard:routineratings", JSON.stringify(next)).catch(() => {});
+    saveRoutineRatings(next);
     track("routine_done", { minutes: routine ? routine.duration : 0, stars });
     setRoutine(null);
     setToast(stars >= 3 ? "Great session!" : stars === 2 ? "Good work, keep at it" : "Noted, those will come round again");
@@ -6041,7 +5948,9 @@ export default function FretworkApp() {
     <ToastProvider>
       <SettingsProvider>
         <AuthSyncProvider>
-          <App />
+          <LibraryProvider>
+            <App />
+          </LibraryProvider>
         </AuthSyncProvider>
       </SettingsProvider>
     </ToastProvider>
