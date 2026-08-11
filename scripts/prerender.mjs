@@ -9,6 +9,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { FAQ_SECTIONS, FAQS } from "../data/faq.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const DIST = join(ROOT, "dist");
@@ -170,24 +171,44 @@ function setHead(html, { title, desc, url }) {
   }
   return out;
 }
-function withStub(html, { h1, intro }) {
+function withStub(html, { h1, intro, extra = "" }) {
   const stub =
     `<div id="root"><main style="max-width:680px;margin:0 auto;padding:56px 20px;font-family:system-ui,-apple-system,sans-serif;line-height:1.55">` +
     `<h1>${esc(h1)}</h1><p>${esc(intro)}</p>` +
+    extra +
     `<p>Fretwork is a free, interactive guitar fretboard. <a href="/">Open Fretwork</a>.</p></main></div>`;
   return html.replace(/<div id="root">\s*<\/div>/, stub);
 }
+
+/* The FAQ page gets its real content, not just a stub: every section and Q&A
+   from data/faq.js as plain HTML (React replaces it on mount), plus the
+   FAQPage JSON-LD. The script carries the same id the app's effect manages, so
+   after hydration client-side navigation still adds/removes it correctly and
+   the crawled page always matches its markup. */
+const faqBodyHtml = FAQ_SECTIONS.map(
+  (s) =>
+    `<section><h2>${esc(s.title)}</h2>` +
+    s.items.map((f) => `<details><summary>${esc(f.q)}</summary><p>${esc(f.a)}</p></details>`).join("") +
+    `</section>`,
+).join("");
+const faqJsonLd = `<script type="application/ld+json" id="faq-jsonld">${JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: FAQS.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+}).replace(/</g, "\\u003c")}</script>`;
 
 const template = readFileSync(join(DIST, "index.html"), "utf8");
 
 /* Home: keep the SEO homepage head, add the content stub. */
 writeFileSync(join(DIST, "index.html"), withStub(template, HOME_STUB));
 
-/* Each other public route: its own head plus a stub. */
+/* Each other public route: its own head plus a stub. The FAQ additionally
+   carries its full Q&A content and the FAQPage schema. */
 for (const r of ROUTES) {
   const url = BASE + r.path;
   let html = setHead(template, { title: r.title, desc: r.desc, url });
-  html = withStub(html, { h1: r.h1, intro: r.intro });
+  html = withStub(html, { h1: r.h1, intro: r.intro, extra: r.path === "/faq" ? faqBodyHtml : "" });
+  if (r.path === "/faq") html = html.replace("</head>", `${faqJsonLd}</head>`);
   const out = join(DIST, r.file);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, html);
