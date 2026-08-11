@@ -43,9 +43,10 @@ import { shareLinkFromParams } from "./lib/share.js";
 import { groupItems, nearestStringTarget, isNetErr } from "./lib/utils.js";
 import { usernameProblem } from "./lib/username.js";
 import { store } from "./lib/store.js";
-import { supabase, SUPA_URL, SUPA_KEY, FAKE_MAIL, authRedirect } from "./lib/supabase.js";
+import { supabase, FAKE_MAIL, authRedirect } from "./lib/supabase.js";
 import { ToastProvider, useToast } from "./state/ToastContext.jsx";
 import { SettingsProvider, useSettings } from "./state/SettingsContext.jsx";
+import { AuthSyncProvider, useAuthSync } from "./state/AuthSyncContext.jsx";
 import { CHORD_GROUPS, SCALE_GROUPS } from "./data/groups.js";
 import { Seg } from "./components/Seg.jsx";
 import { Field } from "./components/Field.jsx";
@@ -85,10 +86,18 @@ function App() {
      the provider's flag so every existing `loaded` reader keeps its meaning */
   const [restLoaded, setRestLoaded] = useState(false);
   const loaded = restLoaded && settingsHydrated;
-  /* true once there is nothing left to reconcile: signed out, or the sign-in
-     merge has finished. The badge baseline waits for this so a returning player
-     on a fresh device is not spammed with toasts for already-earned progress. */
-  const [progressSynced, setProgressSynced] = useState(false);
+  const {
+    authUser,
+    uname,
+    linkedEmail,
+    progressSynced,
+    setProgressSynced,
+    recoveryMode,
+    setRecoveryMode,
+    syncField,
+    flushSync,
+    keepaliveGamify,
+  } = useAuthSync();
   const [mode, setMode] = useState(() => {
     if (typeof window === "undefined") return "chord";
     /* a share link (#s=...) resolves its own view after hydration */
@@ -222,8 +231,7 @@ function App() {
   const [chgRecords, setChgRecords] = useState({}); // key -> { best, last, tries }
   const [chgEntry, setChgEntry] = useState("");
 
-  /* ---- account ---- */
-  const [authUser, setAuthUser] = useState(null);
+  /* ---- account (form state; the session itself lives in AuthSyncContext) ---- */
   const [authMode, setAuthMode] = useState("create"); // signin | create
   const [authName, setAuthName] = useState("");
   const [authPass, setAuthPass] = useState("");
@@ -231,10 +239,7 @@ function App() {
   const [authBusy, setAuthBusy] = useState(false);
   const [linkEmail, setLinkEmail] = useState("");
   const [linkState, setLinkState] = useState("idle"); // idle | busy | sent | err
-  const [recoveryMode, setRecoveryMode] = useState(false);
   const [newPass, setNewPass] = useState("");
-  const syncTimers = useRef({});
-  const authTokenRef = useRef(null);
 
   /* mic tuner: nothing here touches the microphone until the user starts it */
   const [tuner, setTuner] = useState({ on: false, note: null, cents: 0, freq: 0, error: null });
@@ -361,96 +366,41 @@ function App() {
       mode === "chord" ? "Fretwork: Guitar Fretboard Trainer for Scales and Chords" : m ? `${m.title} · Fretwork` : "Fretwork";
   }, [mode]);
 
+  /* password recovery: the provider raises the flag, the shell navigates
+     (sanctioned split #2 in docs/REFACTOR-BLUEPRINT.md) */
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      authTokenRef.current = data.session ? data.session.access_token : null;
-      setAuthUser(data.session ? data.session.user : null);
-      if (!data.session) setProgressSynced(true);
-    });
-    const { data } = supabase.auth.onAuthStateChange((evt, session) => {
-      authTokenRef.current = session ? session.access_token : null;
-      setAuthUser(session ? session.user : null);
-      if (!session) setProgressSynced(true);
-      if (evt === "PASSWORD_RECOVERY") {
-        setRecoveryMode(true);
-        setMode("account");
-      }
-    });
-    return () => data.subscription.unsubscribe();
-  }, []);
+    if (recoveryMode) setMode("account");
+  }, [recoveryMode]);
 
-  const uname = authUser ? authUser.user_metadata?.username || (authUser.email || "").split("@")[0] : null;
-  const linkedEmail = authUser && authUser.email && !authUser.email.endsWith(FAKE_MAIL) ? authUser.email : null;
-
-  /* push a field to the synced row, debounced; local storage stays the source
-     of truth when signed out */
-  const syncField = useCallback(
-    (field, value) => {
-      if (!authUser) return;
-      const prev = syncTimers.current[field];
-      if (prev) clearTimeout(prev.timer);
-      const entry = { value, uid: authUser.id };
-      entry.timer = setTimeout(() => {
-        delete syncTimers.current[field];
-        supabase
-          .from("user_data")
-          .upsert({ user_id: entry.uid, [field]: value, updated_at: new Date().toISOString() })
-          .then(({ error }) => {
-            if (error && authTokenRef.current) setToast("Sync failed, saved locally");
-          });
-      }, 700);
-      syncTimers.current[field] = entry;
-    },
-    [authUser, setToast],
-  );
-
-  /* run any pending debounced syncs immediately (sign-out, page hide) */
-  const flushSync = useCallback(async () => {
-    const entries = Object.entries(syncTimers.current);
-    syncTimers.current = {};
-    await Promise.all(
-      entries.map(([field, entry]) => {
-        clearTimeout(entry.timer);
-        return supabase.from("user_data").upsert({ user_id: entry.uid, [field]: entry.value, updated_at: new Date().toISOString() });
-      }),
-    );
-  }, []);
-
-  /* sync gamification progress to the account. Kept separate from the main
-     sync and self-disabling, so if the `gamify` column has not been added yet
-     it fails once quietly rather than nagging or breaking the other syncs. */
-  const gamifySyncOffRef = useRef(false);
   /* only push gamify after the account's copy has been folded in, so an empty
      local default cannot overwrite real server progress before the merge lands */
   const [gamifyMerged, setGamifyMerged] = useState(false);
   useEffect(() => {
     setGamifyMerged(false);
   }, [authUser && authUser.id]);
-  /* current values for the pagehide keepalive (effect closes over mount-time values) */
-  const gamifyRef = useRef(gamify);
-  const uidRef = useRef(null);
-  const gamifyMergedRef = useRef(false);
+  /* mirror current values into the provider's keepalive registry (the pagehide
+     effect closes over mount-time values, so it reads this ref) */
   useEffect(() => {
-    gamifyRef.current = gamify;
-  }, [gamify]);
+    keepaliveGamify.current.gamify = gamify;
+  }, [gamify, keepaliveGamify]);
   useEffect(() => {
-    uidRef.current = authUser ? authUser.id : null;
-  }, [authUser]);
+    keepaliveGamify.current.merged = gamifyMerged;
+  }, [gamifyMerged, keepaliveGamify]);
+  /* sync gamification progress to the account. Kept separate from the main
+     sync and self-disabling, so if the `gamify` column has not been added yet
+     it fails once quietly rather than nagging or breaking the other syncs. */
   useEffect(() => {
-    gamifyMergedRef.current = gamifyMerged;
-  }, [gamifyMerged]);
-  useEffect(() => {
-    if (!loaded || !authUser || gamifySyncOffRef.current || !gamifyMerged) return;
+    if (!loaded || !authUser || keepaliveGamify.current.off || !gamifyMerged) return;
     const t = setTimeout(() => {
       supabase
         .from("user_data")
         .upsert({ user_id: authUser.id, gamify, updated_at: new Date().toISOString() })
         .then(({ error }) => {
-          if (error && /column|gamify|schema/i.test(error.message || "")) gamifySyncOffRef.current = true;
+          if (error && /column|gamify|schema/i.test(error.message || "")) keepaliveGamify.current.off = true;
         });
     }, 900);
     return () => clearTimeout(t);
-  }, [gamify, loaded, authUser, gamifyMerged]);
+  }, [gamify, loaded, authUser, gamifyMerged, keepaliveGamify]);
 
   /* on sign-in, fold the account's saved progress into the local copy (higher
      counters, union of tunings, highest badge tiers). Guarded so a missing
@@ -472,46 +422,6 @@ function App() {
       cancelled = true;
     };
   }, [authUser && authUser.id]);
-
-  /* on page hide, push pending syncs with keepalive requests that outlive the tab */
-  useEffect(() => {
-    const onHide = () => {
-      const token = authTokenRef.current;
-      const entries = Object.entries(syncTimers.current);
-      syncTimers.current = {};
-      if (!token) return;
-      for (const [field, entry] of entries) {
-        clearTimeout(entry.timer);
-        fetch(`${SUPA_URL}/rest/v1/user_data?on_conflict=user_id`, {
-          method: "POST",
-          keepalive: true,
-          headers: {
-            apikey: SUPA_KEY,
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            Prefer: "resolution=merge-duplicates",
-          },
-          body: JSON.stringify({ user_id: entry.uid, [field]: entry.value, updated_at: new Date().toISOString() }),
-        }).catch(() => {});
-      }
-      /* flush the latest gamify too (its sync is a bare debounce, not in syncTimers) */
-      if (uidRef.current && gamifyMergedRef.current && !gamifySyncOffRef.current) {
-        fetch(`${SUPA_URL}/rest/v1/user_data?on_conflict=user_id`, {
-          method: "POST",
-          keepalive: true,
-          headers: {
-            apikey: SUPA_KEY,
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            Prefer: "resolution=merge-duplicates",
-          },
-          body: JSON.stringify({ user_id: uidRef.current, gamify: gamifyRef.current, updated_at: new Date().toISOString() }),
-        }).catch(() => {});
-      }
-    };
-    window.addEventListener("pagehide", onHide);
-    return () => window.removeEventListener("pagehide", onHide);
-  }, []);
 
   /* on sign-in, the account's data wins; a brand-new account adopts what is
      already on this device so nothing is lost by signing up */
@@ -644,7 +554,7 @@ function App() {
     setCustomProgs([]);
     setMelodies([]);
     gamifyReadyRef.current = false;
-    gamifySyncOffRef.current = false;
+    keepaliveGamify.current.off = false;
     store.set("fretboard:gamify", JSON.stringify({ counters: {}, acked: {} })).catch(() => {});
     store.set("fretboard:practicelog", "{}").catch(() => {});
     store.set("fretboard:bank", "[]").catch(() => {});
@@ -1049,7 +959,7 @@ function App() {
         setMode("prog");
       }
     },
-    [customProgs],
+    [customProgs, setCapo],
   );
 
   const rowToString = useCallback((r) => (settings.highOnTop ? n - 1 - r : r), [n, settings.highOnTop]);
@@ -6130,7 +6040,9 @@ export default function FretworkApp() {
   return (
     <ToastProvider>
       <SettingsProvider>
-        <App />
+        <AuthSyncProvider>
+          <App />
+        </AuthSyncProvider>
       </SettingsProvider>
     </ToastProvider>
   );
