@@ -79,6 +79,13 @@ test("FAQ renders questions and injects FAQPage schema", async ({ page }) => {
   await expect(page.locator("#faq-jsonld")).toHaveCount(1);
 });
 
+test("Field lends its label to a Seg child (cross-module cloneElement)", async ({ page }) => {
+  // Scales' "Neck shows" Seg has no explicit ariaLabel; Field must clone it in.
+  // Guards the children.type === Seg identity check across the module split.
+  await page.goto("/scales", { waitUntil: "domcontentloaded" });
+  await expect(page.locator('.seg[role="group"][aria-label="Neck shows"]')).toBeVisible();
+});
+
 test("tuner shows its plain-language intro", async ({ page }) => {
   await page.goto("/tuner", { waitUntil: "domcontentloaded" });
   await expect(page.locator(".tunerbox")).toContainText("Play a string and Fretwork shows");
