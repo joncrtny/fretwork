@@ -50,6 +50,7 @@ import { AuthSyncProvider, useAuthSync } from "./state/AuthSyncContext.jsx";
 import { LibraryProvider, useLibrary } from "./state/LibraryContext.jsx";
 import { ProgressProvider, useProgress } from "./state/ProgressContext.jsx";
 import { SelectionProvider, useSelection } from "./state/SelectionContext.jsx";
+import { PlaybackProvider, usePlayback } from "./state/PlaybackContext.jsx";
 import { CHORD_GROUPS, SCALE_GROUPS } from "./data/groups.js";
 import { Seg } from "./components/Seg.jsx";
 import { Field } from "./components/Field.jsx";
@@ -177,9 +178,30 @@ function App() {
     posNonce,
     setPosNonce,
   } = useSelection();
+  const {
+    playing,
+    setPlaying,
+    progPlaying,
+    setProgPlaying,
+    melPlayIdx,
+    setMelPlayIdx,
+    strumOn,
+    setStrumOn,
+    strumStep,
+    setStrumStep,
+    metroOn,
+    setMetroOn,
+    beat,
+    playTimers,
+    strumLoopRef,
+    scheduleStrumRef,
+    melLoopRef,
+    playMelodyRef,
+    playNote,
+    stopPlayback,
+  } = usePlayback();
 
   const [scaleLabel, setScaleLabel] = useState("name");
-  const [playing, setPlaying] = useState(null);
 
   const [arpRoot, setArpRoot] = useState(0);
   const [arpId, setArpId] = useState("maj");
@@ -193,7 +215,6 @@ function App() {
   const [progRoot, setProgRoot] = useState(0);
   const [progId, setProgId] = useState("p1564");
   const [progIdx, setProgIdx] = useState(0);
-  const [progPlaying, setProgPlaying] = useState(false);
   const [builder, setBuilder] = useState({ bars: [], name: "", sections: {} });
   const [builderKeyQual, setBuilderKeyQual] = useState("major"); // major/minor, for the "add by chord name" picker
 
@@ -201,14 +222,11 @@ function App() {
   const [melName, setMelName] = useState("");
   const [melImport, setMelImport] = useState(false);
   const [melImportText, setMelImportText] = useState("");
-  const [melPlayIdx, setMelPlayIdx] = useState(null);
   const [melRate, setMelRate] = useState(2); // slots per beat on playback (2 = eighths)
   const [melBars, setMelBars] = useState(2); // timeline length in bars
   const [melCursor, setMelCursor] = useState(0); // slot the next tapped note lands on
   const [melLoop, setMelLoop] = useState(false); // repeat the melody until Stop
   const [strumPatId, setStrumPatId] = useState("oldfaithful");
-  const [strumStep, setStrumStep] = useState(null); // current eighth slot during playback
-  const [strumOn, setStrumOn] = useState(false);
   const [strumClick, setStrumClick] = useState(false); // play the metronome click along with the strum
 
   const [ear, setEar] = useState({
@@ -228,8 +246,6 @@ function App() {
      last star rating a practice routine gave each, which weights future routines */
   const [routineDur, setRoutineDur] = useState(10); // minutes
   const [routine, setRoutine] = useState(null); // null | { phase:'running'|'rate', segments:[{item,seconds,stretch}], idx, remaining, duration }
-  const [metroOn, setMetroOn] = useState(false);
-  const [beat, setBeat] = useState(-1);
 
   const [quiz, setQuiz] = useState({
     source: "scale",
@@ -1104,14 +1120,6 @@ function App() {
 
   const activeProgVoicing = progVoicings[Math.min(progIdx, progVoicings.length - 1)] || null;
 
-  const playNote = useCallback(
-    (midi, when = 0, gain = 0.5) => {
-      lastActiveRef.current = Date.now(); // playing a note counts as active practice
-      if (settings.sound) pluck(midi, when, gain);
-    },
-    [settings.sound, lastActiveRef],
-  );
-
   /* ---- which positions light up ---- */
   const positionsFor = useCallback(
     (rootPc, ivSet, from = 0, to = fretCount) => {
@@ -1423,23 +1431,6 @@ function App() {
     }
   }, [activeVoicing, midis, n, playNote]);
 
-  const playTimers = useRef([]);
-  const strumLoopRef = useRef(false);
-  const scheduleStrumRef = useRef(() => {});
-  const melLoopRef = useRef(false);
-  const playMelodyRef = useRef(() => {});
-  const stopPlayback = useCallback(() => {
-    strumLoopRef.current = false;
-    melLoopRef.current = false;
-    playTimers.current.forEach(clearTimeout);
-    playTimers.current = [];
-    setPlaying(null);
-    setProgPlaying(false);
-    setMelPlayIdx(null);
-    setStrumOn(false);
-    setStrumStep(null);
-  }, []);
-
   /* one strum of the current chord: down runs low string to high, up reverses */
   const strumChord = useCallback(
     (dir, accent = false, at = 0) => {
@@ -1491,10 +1482,21 @@ function App() {
         BARS * 8 * slotSec * 1000,
       ),
     );
-  }, [strumPatId, settings.bpm, settings.clickSound, settings.sound, strumClick, strumChord]);
+  }, [
+    strumPatId,
+    settings.bpm,
+    settings.clickSound,
+    settings.sound,
+    strumClick,
+    strumChord,
+    playTimers,
+    scheduleStrumRef,
+    setStrumStep,
+    strumLoopRef,
+  ]);
   useEffect(() => {
     scheduleStrumRef.current = scheduleStrumCycle;
-  }, [scheduleStrumCycle]);
+  }, [scheduleStrumCycle, scheduleStrumRef]);
 
   const playStrum = useCallback(() => {
     if (!activeVoicing) return;
@@ -1502,7 +1504,7 @@ function App() {
     setStrumOn(true);
     strumLoopRef.current = true;
     scheduleStrumCycle();
-  }, [activeVoicing, stopPlayback, scheduleStrumCycle]);
+  }, [activeVoicing, stopPlayback, scheduleStrumCycle, setStrumOn, strumLoopRef]);
 
   const doImportTab = useCallback(
     (text) => {
@@ -1566,7 +1568,7 @@ function App() {
       playTimers.current.push(setTimeout(() => setPlaying(nt.semis), i * STEP * 1000));
     });
     playTimers.current.push(setTimeout(() => setPlaying(null), seq.length * STEP * 1000));
-  }, [scaleDef, scaleRoot, midis, playNote, stopPlayback, scalePos, positions, positionsFor]);
+  }, [scaleDef, scaleRoot, midis, playNote, stopPlayback, scalePos, positions, positionsFor, playTimers, setPlaying]);
 
   const playProgression = useCallback(() => {
     stopPlayback();
@@ -1587,7 +1589,7 @@ function App() {
       }
       playTimers.current.push(setTimeout(() => setProgIdx(i), i * barSec * 1000));
     });
-  }, [stopPlayback, settings.bpm, settings.beats, progChords, progVoicings, midis, n, playNote]);
+  }, [stopPlayback, settings.bpm, settings.beats, progChords, progVoicings, midis, n, playNote, playTimers, setProgPlaying]);
 
   const scheduleMelody = useCallback(() => {
     if (!melSteps.some((st) => st && !st.rest)) return;
@@ -1621,17 +1623,17 @@ function App() {
         total * stepSec * 1000,
       ),
     );
-  }, [melSteps, melBars, settings.bpm, settings.midis, melRate, playNote]);
+  }, [melSteps, melBars, settings.bpm, settings.midis, melRate, playNote, melLoopRef, playMelodyRef, playTimers, setMelPlayIdx]);
   useEffect(() => {
     playMelodyRef.current = scheduleMelody;
-  }, [scheduleMelody]);
+  }, [scheduleMelody, playMelodyRef]);
 
   const playMelody = useCallback(() => {
     stopPlayback();
     if (!melSteps.some((st) => st && !st.rest)) return;
     melLoopRef.current = melLoop;
     scheduleMelody();
-  }, [stopPlayback, scheduleMelody, melLoop, melSteps]);
+  }, [stopPlayback, scheduleMelody, melLoop, melSteps, melLoopRef]);
 
   const playArpeggio = useCallback(() => {
     stopPlayback();
@@ -1677,7 +1679,7 @@ function App() {
       );
     });
     playTimers.current.push(setTimeout(() => setPlaying(null), seq.length * STEP * 1000));
-  }, [stopPlayback, midis, arpRoot, arpDef, arpDir, settings.bpm, playNote, arpPos, arpPositions, positionsFor]);
+  }, [stopPlayback, midis, arpRoot, arpDef, arpDir, settings.bpm, playNote, arpPos, arpPositions, positionsFor, playTimers, setPlaying]);
 
   /* ---- ear training ---- */
   const earPool = useMemo(
@@ -1754,61 +1756,6 @@ function App() {
   useEffect(() => {
     if (mode !== "ear") setEar((e) => (e.started || e.current ? { ...e, started: false, current: null, picked: null } : e));
   }, [mode]);
-
-  /* metronome: schedule ahead of the audio clock rather than trusting setInterval */
-  const nextClick = useRef(0);
-  const beatCount = useRef(0);
-  useEffect(() => {
-    if (!metroOn) {
-      setBeat(-1);
-      return;
-    }
-    const ac = ctx();
-    if (!ac) return;
-    nextClick.current = ac.currentTime + 0.08;
-    beatCount.current = 0;
-    /* all clicks for this run route through one gain bus, so stopping or
-       retuning the metronome silences anything already scheduled ahead */
-    const bus = ac.createGain();
-    bus.connect(ac.destination);
-    /* quieter clicks inside each beat; swing pushes the off-beat to the back
-       of the beat. Simple mode plays plain quarters: its panel hides the
-       subdivision control, so the setting must not act invisibly. */
-    const SUBS = { 2: [0.5], swing: [2 / 3], 3: [1 / 3, 2 / 3], 4: [0.25, 0.5, 0.75] };
-    const subs = settings.simple ? [] : SUBS[settings.subdiv] || [];
-    const beatTimers = [];
-    const id = setInterval(() => {
-      const now = ctx();
-      if (!now) return;
-      while (nextClick.current < now.currentTime + 0.15) {
-        lastActiveRef.current = Date.now();
-        const b = beatCount.current;
-        const isAccent = settings.accent === "down" ? b === 0 : settings.accent === "back" ? b % 2 === 1 : false;
-        playClick(settings.clickSound, nextClick.current, isAccent, 0.7, bus);
-        const beatSec = 60 / settings.bpm;
-        for (const f of subs) playClick(settings.clickSound, nextClick.current + f * beatSec, false, 0.32, bus);
-        const lead = Math.max(0, (nextClick.current - now.currentTime) * 1000);
-        beatTimers.push(setTimeout(() => setBeat(b), lead));
-        nextClick.current += beatSec;
-        beatCount.current = (b + 1) % settings.beats;
-      }
-    }, 25);
-    return () => {
-      clearInterval(id);
-      beatTimers.forEach(clearTimeout);
-      bus.disconnect();
-    };
-  }, [metroOn, settings.bpm, settings.beats, settings.clickSound, settings.accent, settings.subdiv, settings.simple, lastActiveRef]);
-
-  /* count metronome time towards the "In time" badge while it is running and visible */
-  useEffect(() => {
-    if (!metroOn) return;
-    const id = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
-      setGamify((g) => ({ ...g, counters: { ...g.counters, metronomeSeconds: (g.counters.metronomeSeconds || 0) + 10 } }));
-    }, 10000);
-    return () => clearInterval(id);
-  }, [metroOn, setGamify]);
 
   /* ---- one-minute chord change trainer ---- */
   const chgKey = (chords) =>
@@ -2088,7 +2035,6 @@ function App() {
     routedRef.current = true;
   }, [mode]);
 
-  useEffect(() => stopPlayback, [stopPlayback]);
   useEffect(() => {
     stopPlayback();
   }, [mode, scaleId, scaleRoot, chordId, chordRoot, capo, progId, progRoot, arpRoot, arpId, arpDir, melSteps, stopPlayback]);
@@ -5720,7 +5666,9 @@ export default function FretworkApp() {
           <LibraryProvider>
             <ProgressProvider>
               <SelectionProvider>
-                <App />
+                <PlaybackProvider>
+                  <App />
+                </PlaybackProvider>
               </SelectionProvider>
             </ProgressProvider>
           </LibraryProvider>
