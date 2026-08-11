@@ -59,6 +59,19 @@ test("home renders the fretboard", async ({ page }) => {
   await expect(page.locator(".neckwrap")).toBeVisible();
 });
 
+test("stylesheet is applied (index.css actually loads)", async ({ page }) => {
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  const style = await page.evaluate(() => {
+    const app = document.querySelector(".app");
+    if (!app) return null;
+    const cs = getComputedStyle(app);
+    return { paper: cs.getPropertyValue("--paper").trim(), font: cs.fontFamily };
+  });
+  expect(style, "no .app element").not.toBeNull();
+  expect(style.paper, "--paper token missing -> stylesheet not applied").toBeTruthy();
+  expect(style.font).toContain("IBM Plex");
+});
+
 test("FAQ renders questions and injects FAQPage schema", async ({ page }) => {
   await page.goto("/faq", { waitUntil: "domcontentloaded" });
   await expect(page.locator(".faq-pane details.faqitem").first()).toBeVisible();

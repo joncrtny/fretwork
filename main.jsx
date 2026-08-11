@@ -4,6 +4,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import * as amplitude from "@amplitude/analytics-browser";
 import App from "./App.jsx";
+import "./index.css";
 
 /* Amplitude ingestion key: public by design, same pattern as the Supabase
    publishable key. An env var overrides it in other environments. Gated to
