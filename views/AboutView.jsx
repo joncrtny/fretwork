@@ -8,7 +8,7 @@ import { FeedbackForm } from "../components/FeedbackForm.jsx";
    notes, recommended learning resources, the feedback form and the donate
    section. `onNavigate(mode)` is the only way out; `startTour` kicks off the
    shell-owned guided tour after navigating to the chord view. */
-export function AboutView({ onNavigate, startTour }) {
+export function AboutView({ onNavigate, onStartTour }) {
   return (
     <div className="pane about">
       <section className="aboutblock">
@@ -77,13 +77,7 @@ export function AboutView({ onNavigate, startTour }) {
       <section className="aboutblock">
         <h2 className="abouthead">New here?</h2>
         <p className="note">Take a quick guided tour of the neck and the practice tools.</p>
-        <button
-          className="btn"
-          onClick={() => {
-            onNavigate("chord");
-            startTour();
-          }}
-        >
+        <button className="btn" onClick={onStartTour}>
           Take the tour
         </button>
       </section>
