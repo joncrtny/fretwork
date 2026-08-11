@@ -44,6 +44,11 @@ import { useGeometry, Fretboard, ChordDiagram } from "./fretboard.jsx";
 import { FAQ_SECTIONS, FAQS } from "./data/faq.js";
 import { CHANGELOG } from "./data/changelog.js";
 import { RESOURCES } from "./data/resources.js";
+import { VIEW_META, pathForMode, modeForPath } from "./lib/routing.js";
+import { track } from "./lib/analytics.js";
+import { shareLinkFromParams } from "./lib/share.js";
+import { groupItems, nearestStringTarget, isNetErr } from "./lib/utils.js";
+import { usernameProblem } from "./lib/username.js";
 import { BADGES, badgeTier, pointsFor, levelProgress, mergeGamify } from "./gamify.js";
 
 /* small persistence shim: Claude artifacts expose window.storage,
@@ -62,90 +67,6 @@ const store = {
     window.localStorage.setItem(key, value);
   },
 };
-
-/* A friendly synthetic path and title for each in-app view. The app is a
-   single page, so GA and Amplitude never see navigation on their own: we send
-   a page_view per view change instead, keyed off these. Keep every `mode`
-   value covered, or its path falls back to a raw, opaque "/mode". */
-const VIEW_META = {
-  chord: { path: "/chords", title: "Chords" },
-  scale: { path: "/scales", title: "Scales" },
-  arp: { path: "/arpeggios", title: "Arpeggios" },
-  interval: { path: "/intervals", title: "Intervals" },
-  prog: { path: "/progressions", title: "Progressions" },
-  changes: { path: "/chord-changes", title: "Chord changes" },
-  routine: { path: "/practice-routine", title: "Practice routine" },
-  strum: { path: "/strumming", title: "Strumming" },
-  melody: { path: "/melodies", title: "Melodies" },
-  quiz: { path: "/quiz", title: "Fretboard Quiz" },
-  ear: { path: "/ear-training", title: "Ear training" },
-  finder: { path: "/chord-finder", title: "Chord finder" },
-  tuner: { path: "/tuner", title: "Tuner" },
-  bank: { path: "/bank", title: "Bank" },
-  about: { path: "/about", title: "About" },
-  faq: { path: "/faq", title: "FAQ" },
-  account: { path: "/account", title: "Account" },
-  settings: { path: "/settings", title: "Settings" },
-  plog: { path: "/practice-log", title: "Practice log" },
-};
-
-/* Real URL routing. Every view has its own path, so views can be linked,
-   bookmarked, shared and crawled as distinct pages. The default view (chord) is
-   the site root "/", keeping a single canonical home rather than a "/chords"
-   duplicate of it. */
-function pathForMode(m) {
-  return m === "chord" ? "/" : (VIEW_META[m] && VIEW_META[m].path) || "/";
-}
-function modeForPath(p) {
-  if (!p || p === "/") return "chord";
-  for (const m in VIEW_META) if (m !== "chord" && VIEW_META[m].path === p) return m;
-  return null;
-}
-
-/* Event helper: forwards to Google Analytics and Amplitude. Each sink has its
-   own try/catch so one failing never skips the other, and analytics never
-   breaks the app. Amplitude is only present in production (set in main.jsx). */
-/* GA4 treats these event-parameter names as manual campaign fields. Sending one
-   (e.g. source: "interval") rewrites the session's traffic source and forces a
-   new session mid-visit, which splits sessions and destroys attribution. Never
-   let an app parameter reach gtag under one of these names. */
-const GA_RESERVED = new Set([
-  "source",
-  "medium",
-  "campaign",
-  "term",
-  "content",
-  "campaign_id",
-  "source_platform",
-  "creative_format",
-  "marketing_tactic",
-  "gclid",
-]);
-function gaSafeParams(params) {
-  if (!params || typeof params !== "object") return params || {};
-  let out = params;
-  for (const k of Object.keys(params)) {
-    if (GA_RESERVED.has(k)) {
-      if (out === params) out = { ...params };
-      out["app_" + k] = out[k];
-      delete out[k];
-    }
-  }
-  return out;
-}
-function track(name, params) {
-  try {
-    /* GA4 gets campaign-safe params; Amplitude keeps the original names */
-    if (typeof window !== "undefined" && typeof window.gtag === "function") window.gtag("event", name, gaSafeParams(params));
-  } catch (e) {
-    /* analytics must never break the app */
-  }
-  try {
-    if (typeof window !== "undefined" && window.amplitude) window.amplitude.track(name, params || {});
-  } catch (e) {
-    /* analytics must never break the app */
-  }
-}
 
 /* ============================================================
    SMALL UI PIECES
@@ -433,20 +354,6 @@ const SCALE_GROUPS = [
   { label: "Jazz and exotic", ids: ["phrydom", "lydb7", "altered", "wholetone", "dimhw", "dimwh", "chromatic"] },
 ];
 
-/* materialize groups from defs, respecting Simple mode like simpleList does */
-function groupItems(groups, defs, allow, simpleOn, keepId) {
-  return groups
-    .map((g) => ({
-      label: g.label,
-      items: g.ids
-        .map((id) => defs.find((d) => d.id === id))
-        .filter(Boolean)
-        .filter((d) => !simpleOn || allow.has(d.id) || d.id === keepId)
-        .map((d) => ({ id: d.id, name: d.name })),
-    }))
-    .filter((g) => g.items.length > 0);
-}
-
 /* One track, two draggers. Thumbs are buttons: draggable by pointer,
    steppable by arrow keys, and announced as sliders. */
 function DualRange({ min, max, lo, hi, onChange }) {
@@ -546,14 +453,6 @@ function DualRange({ min, max, lo, hi, onChange }) {
    BANK: star-save and sharing helpers
    ============================================================ */
 
-function shareLinkFromParams(p) {
-  const enc = btoa(encodeURIComponent(JSON.stringify(p)))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-  return `${window.location.origin}/#s=${enc}`;
-}
-
 /* round star button: fills when the current thing is already in the Bank */
 function StarSave({ saved, onClick, label }) {
   return (
@@ -649,7 +548,6 @@ const supabase = createClient(SUPA_URL, SUPA_KEY);
 /* Supabase Auth requires an email field, so usernames get a synthesized
    address at a domain we control. No mail is ever sent to it. */
 const FAKE_MAIL = "@u.fretwork-practice.app";
-const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
 /* Where Supabase auth emails (email linking, password reset) should land the
    user. Always the canonical production domain from any deployment, so a
@@ -662,78 +560,6 @@ const authRedirect = () => {
   const h = window.location.hostname;
   return h === "localhost" || h === "127.0.0.1" ? window.location.origin : CANONICAL_URL;
 };
-
-/* Obscene or hateful usernames are blocked. Normalisation catches leetspeak
-   and separators; the stems intentionally over-block edge cases. */
-const BLOCKED_STEMS = [
-  "fuck",
-  "shit",
-  "cunt",
-  "bitch",
-  "wank",
-  "twat",
-  "prick",
-  "bollock",
-  "cock",
-  "dick",
-  "penis",
-  "vagina",
-  "boob",
-  "tits",
-  "jizz",
-  "dildo",
-  "whore",
-  "slut",
-  "porn",
-  "rape",
-  "nonce",
-  "pedo",
-  "paedo",
-  "nigg",
-  "fagg",
-  "spic",
-  "kike",
-  "chink",
-  "paki",
-  "tranny",
-  "retard",
-  "nazi",
-  "hitler",
-];
-const LEET = { 4: "a", "@": "a", 8: "b", 3: "e", 6: "g", 9: "g", 1: "i", "!": "i", 0: "o", 5: "s", $: "s", 7: "t", "+": "t", 2: "z" };
-function usernameProblem(u) {
-  if (!USERNAME_RE.test(u)) return "Usernames are 3 to 20 letters, numbers or underscores.";
-  const lower = u.toLowerCase();
-  const leeted = lower
-    .split("")
-    .map((c) => LEET[c] || c)
-    .join("")
-    .replace(/[^a-z]/g, "");
-  const candidates = [
-    leeted,
-    leeted.replace(/(.)\1+/g, "$1"), // collapse doubled letters: fuuck
-    lower.replace(/[^a-z]/g, ""), // digits stripped entirely: f0o0ul words hiding behind separators
-  ];
-  if (BLOCKED_STEMS.some((stem) => candidates.some((c) => c.includes(stem)))) return "That username is not available.";
-  return null;
-}
-
-/* which open string a detected pitch is closest to, and which way to tune */
-function nearestStringTarget(midi, midis) {
-  let best = null;
-  for (let i = 0; i < midis.length; i++) {
-    const diff = midi - midis[i];
-    if (!best || Math.abs(diff) < Math.abs(best.diff)) best = { i, diff, target: midis[i] };
-  }
-  if (!best) return null;
-  const roundedDiff = Math.round(best.diff);
-  return { label: `string ${midis.length - best.i}`, diff: Math.abs(roundedDiff) <= 0 ? 0 : roundedDiff };
-}
-
-/* auth calls fail very differently offline; say so instead of blaming the password */
-function isNetErr(er) {
-  return !!er && (er.status === 0 || er.name === "AuthRetryableFetchError" || /fetch|network/i.test(er.message || ""));
-}
 
 /* PayPal hosted donate button, injected only when About is open. If the SDK
    cannot load or render (offline, blocked scripts), fall back to a plain link. */
