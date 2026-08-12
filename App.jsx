@@ -53,6 +53,7 @@ import { PracticeLogView } from "./views/PracticeLogView.jsx";
 import { AboutView } from "./views/AboutView.jsx";
 import { AccountView } from "./views/AccountView.jsx";
 import { TunerView } from "./views/TunerView.jsx";
+import { FretboardProvider, useFretboardConfig } from "./state/FretboardContext.jsx";
 import { CHORD_GROUPS, SCALE_GROUPS } from "./data/groups.js";
 import { Seg } from "./components/Seg.jsx";
 import { Field } from "./components/Field.jsx";
@@ -255,6 +256,9 @@ function App() {
     done: false,
   });
   const [flash, setFlash] = useState(null);
+  /* the active view can publish the neck's per-mode config; null = use the
+     shell fallbacks below (still in place until every fretboard view is moved) */
+  const fbConfig = useFretboardConfig();
 
   /* one-minute chord change trainer */
   const [chg, setChg] = useState({
@@ -2469,29 +2473,35 @@ function App() {
                 midis={midis}
                 rowToString={rowToString}
                 geo={geo}
-                marks={marks}
                 capo={capo}
                 onCapo={setCapo}
-                onCell={onCell}
-                flats={effFlats}
-                labelMode={
-                  mode === "chord" || mode === "prog"
-                    ? chordLabel
-                    : mode === "scale"
-                      ? scaleLabel
-                      : mode === "arp"
-                        ? arpLabel
-                        : settings.labelMode
-                }
-                colourMode={mode === "interval" ? "interval" : settings.colourMode}
-                barre={(() => {
-                  const v = mode === "chord" ? activeVoicing : mode === "prog" ? activeProgVoicing : null;
-                  return v && v.barreFret != null ? { fret: v.barreFret, from: v.barreFrom, to: v.barreTo } : null;
-                })()}
-                ghosts={ghosts}
                 flash={flash}
-                quizRange={quiz.range}
-                quizActive={mode === "quiz"}
+                marks={fbConfig ? fbConfig.marks : marks}
+                onCell={fbConfig ? fbConfig.onCell : onCell}
+                flats={fbConfig ? fbConfig.flats : effFlats}
+                labelMode={
+                  fbConfig
+                    ? fbConfig.labelMode
+                    : mode === "chord" || mode === "prog"
+                      ? chordLabel
+                      : mode === "scale"
+                        ? scaleLabel
+                        : mode === "arp"
+                          ? arpLabel
+                          : settings.labelMode
+                }
+                colourMode={fbConfig ? fbConfig.colourMode : mode === "interval" ? "interval" : settings.colourMode}
+                barre={
+                  fbConfig
+                    ? fbConfig.barre
+                    : (() => {
+                        const v = mode === "chord" ? activeVoicing : mode === "prog" ? activeProgVoicing : null;
+                        return v && v.barreFret != null ? { fret: v.barreFret, from: v.barreFrom, to: v.barreTo } : null;
+                      })()
+                }
+                ghosts={fbConfig ? fbConfig.ghosts : ghosts}
+                quizRange={fbConfig ? fbConfig.quizRange : quiz.range}
+                quizActive={fbConfig ? fbConfig.quizActive : mode === "quiz"}
               />
             </div>
             <div className="neckfoot">
@@ -4547,7 +4557,9 @@ export default function FretworkApp() {
             <ProgressProvider>
               <SelectionProvider>
                 <PlaybackProvider>
-                  <App />
+                  <FretboardProvider>
+                    <App />
+                  </FretboardProvider>
                 </PlaybackProvider>
               </SelectionProvider>
             </ProgressProvider>
