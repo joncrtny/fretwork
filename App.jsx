@@ -51,6 +51,8 @@ import { BankView } from "./views/BankView.jsx";
 import { RoutineView } from "./views/RoutineView.jsx";
 import { ProgView } from "./views/ProgView.jsx";
 import { MelodyView } from "./views/MelodyView.jsx";
+import { TourOverlay } from "./components/TourOverlay.jsx";
+import { useTour } from "./hooks/useTour.js";
 import { Seg } from "./components/Seg.jsx";
 import { Field } from "./components/Field.jsx";
 import { HeadIcon } from "./components/HeadIcon.jsx";
@@ -186,14 +188,15 @@ function App() {
   /* one-minute chord change trainer */
 
   const modeRef = useRef("chord");
-  const [tour, setTour] = useState(-1);
-  const [tourRect, setTourRect] = useState(null);
-  const tourRef = useRef(-1);
-  useEffect(() => {
-    tourRef.current = tour;
-  }, [tour]);
-  const tourCardRef = useRef(null);
   const hadShareHashRef = useRef(typeof window !== "undefined" && /^#s=/.test(window.location.hash || ""));
+  const { tour, setTour, tourRect, tourRef, tourCardRef, tourSteps, startTour, endTour } = useTour({
+    setDrawer,
+    setMode,
+    setOpenPanel,
+    setGamify,
+    loaded,
+    hadShareHash: hadShareHashRef.current,
+  });
 
   /* SPA page views: send a real page_view (and Amplitude screen_view) per view
      change, since GA/Amplitude cannot see our state-only navigation. GA4 counts
@@ -809,164 +812,6 @@ function App() {
   /* app-like nav: on a phone, choosing anything closes the drawer. On desktop the
      drawer is a persistent sidebar, so it stays put. Focus moves to the burger
      before the drawer goes inert, so it is never stranded on a hidden control. */
-  /* live-app guided tour: each step sets up the real view, then spotlights it */
-  const tourSteps = [
-    {
-      title: "Welcome to Fretwork",
-      body: "A quick tour of the neck and the practice tools. About a minute, and you can skip any time.",
-      target: null,
-      before: () => setDrawer(false),
-    },
-    {
-      title: "The menu",
-      body: "Everything lives here, grouped into Learn, Practice, Tools and your Profile. Simple mode at the top keeps things focused while you find your feet; flip it off any time to unlock everything.",
-      target: ".drawer",
-      before: () => setDrawer(true),
-    },
-    {
-      title: "The fretboard",
-      body: "Every view shares this neck. Tap any note to hear it, or drag the capo along the top. It is fully keyboard operable too.",
-      target: ".neckwrap",
-      before: () => {
-        setDrawer(false);
-        setMode("chord");
-        setOpenPanel(null);
-      },
-    },
-    {
-      title: "Pick anything",
-      body: "Choose a root and a chord, scale or arpeggio with the same compact pickers. Tap the star to keep anything in your Bank.",
-      target: ".pane .row.wrap",
-      before: () => {
-        setDrawer(false);
-        setMode("chord");
-      },
-    },
-    {
-      title: "Share it",
-      body: "The share button copies a link to exactly what you are looking at, so you can send a shape or a progression to anyone.",
-      target: ".sharebtn",
-      before: () => {
-        setDrawer(false);
-        setMode("chord");
-      },
-    },
-    {
-      title: "Practise",
-      body: "Quiz yourself, drill chord changes, train your ear, and write or paste in melodies from tab. Your practice time builds a streak.",
-      target: "[data-tour=practice]",
-      before: () => setDrawer(true),
-    },
-    {
-      title: "Tools",
-      body: "A metronome with subdivisions, a real microphone tuner that listens to your guitar, and a chord finder that names the shapes you tap on the neck.",
-      target: "[data-tour=tools]",
-      before: () => setDrawer(true),
-    },
-    {
-      title: "That is the tour",
-      body: "Have a play. The About page has learning resources and a place to send feedback. Enjoy.",
-      target: null,
-      before: () => setDrawer(false),
-    },
-  ];
-
-  const startTour = useCallback(() => {
-    setTour(0);
-    track("tour_start");
-    setGamify((g) => (g.counters.tourTaken ? g : { ...g, counters: { ...g.counters, tourTaken: 1 } }));
-  }, [setGamify]);
-  const endTour = useCallback(() => {
-    setTour(-1);
-    setTourRect(null);
-    store.set("fretboard:tourdone", "1").catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (tour < 0) return;
-    const step = tourSteps[tour];
-    if (step.before) step.before();
-    let raf = 0;
-    const measure = () => {
-      if (!step.target) {
-        setTourRect(null);
-        return;
-      }
-      const el = document.querySelector(step.target);
-      if (el) {
-        const r = el.getBoundingClientRect();
-        setTourRect({ x: r.left, y: r.top, w: r.width, h: r.height });
-      } else setTourRect(null);
-    };
-    const t = setTimeout(() => {
-      measure();
-      raf = requestAnimationFrame(measure);
-    }, 320);
-    window.addEventListener("resize", measure);
-    window.addEventListener("scroll", measure, true);
-    return () => {
-      clearTimeout(t);
-      cancelAnimationFrame(raf);
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("scroll", measure, true);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tour]);
-
-  /* offer the tour once, after first load. Branch on the resolved value, not on
-     a rejection, so it works on every storage backend; skip it for share links. */
-  useEffect(() => {
-    if (!loaded) return;
-    let cancelled = false;
-    (async () => {
-      let seen = false;
-      try {
-        const r = await store.get("fretboard:tourdone");
-        seen = !!(r && r.value);
-      } catch (e) {
-        seen = false;
-      }
-      if (!cancelled && !seen && !hadShareHashRef.current) startTour();
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded]);
-
-  /* tour as an operable modal: focus in, trap Tab, Escape closes */
-  useEffect(() => {
-    if (tour < 0) return;
-    const t = setTimeout(() => {
-      if (tourCardRef.current) tourCardRef.current.focus();
-    }, 60);
-    const onKey = (e) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        endTour();
-        return;
-      }
-      if (e.key !== "Tab" || !tourCardRef.current) return;
-      const f = tourCardRef.current.querySelectorAll("button");
-      if (!f.length) return;
-      const first = f[0],
-        last = f[f.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      clearTimeout(t);
-      window.removeEventListener("keydown", onKey);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tour]);
-
   const closeNav = () => {
     if (typeof window === "undefined" || !window.matchMedia("(max-width: 700px)").matches) return;
     if (burgerRef.current) burgerRef.current.focus();
@@ -1374,75 +1219,7 @@ function App() {
         </main>
       </div>
 
-      {tour >= 0 &&
-        (() => {
-          const step = tourSteps[tour];
-          const pad = 6;
-          const spot = tourRect
-            ? { left: tourRect.x - pad, top: tourRect.y - pad, width: tourRect.w + pad * 2, height: tourRect.h + pad * 2 }
-            : null;
-          const vw = typeof window !== "undefined" ? window.innerWidth : 1000;
-          const vh = typeof window !== "undefined" ? window.innerHeight : 800;
-          const CARD_H = 214;
-          const CARD_W = 320;
-          let cardStyle;
-          if (!spot || spot.height > vh * 0.7) {
-            /* full-height or missing target: centre the card, drawer stays highlighted behind */
-            cardStyle = { top: "50%", left: "50%", transform: "translate(-50%,-50%)" };
-          } else {
-            const placeBelow = vh - (spot.top + spot.height) > CARD_H + 24;
-            const top = placeBelow ? spot.top + spot.height + 12 : Math.max(12, spot.top - CARD_H - 12);
-            const left = Math.max(12, Math.min(spot.left, vw - CARD_W - 12));
-            cardStyle = { top, left };
-          }
-          return (
-            <div className="tour" role="dialog" aria-modal="true" aria-label="Guided tour">
-              <div
-                className="tourscrim"
-                onClick={(e) => {
-                  /* clicking the highlighted control should not dismiss the tour */
-                  if (
-                    spot &&
-                    e.clientX >= spot.left &&
-                    e.clientX <= spot.left + spot.width &&
-                    e.clientY >= spot.top &&
-                    e.clientY <= spot.top + spot.height
-                  )
-                    return;
-                  endTour();
-                }}
-              />
-              {spot && <div className="tourspot" style={spot} />}
-              <div className="tourcard" style={cardStyle} ref={tourCardRef} tabIndex={-1}>
-                <p className="tourstep">
-                  Step {tour + 1} of {tourSteps.length}
-                </p>
-                <h3 className="tourtitle">{step.title}</h3>
-                <p className="tourbody">{step.body}</p>
-                <div className="tourbtns">
-                  <button className="btn ghost" onClick={endTour}>
-                    Skip
-                  </button>
-                  <span className="actspacer" />
-                  {tour > 0 && (
-                    <button className="btn ghost" onClick={() => setTour((t) => t - 1)}>
-                      Back
-                    </button>
-                  )}
-                  {tour < tourSteps.length - 1 ? (
-                    <button className="btn primary" onClick={() => setTour((t) => t + 1)}>
-                      Next
-                    </button>
-                  ) : (
-                    <button className="btn primary" onClick={endTour}>
-                      Done
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+      <TourOverlay tour={tour} setTour={setTour} tourRect={tourRect} tourCardRef={tourCardRef} tourSteps={tourSteps} endTour={endTour} />
 
       {toast && (
         <div className="toast" role="status">
