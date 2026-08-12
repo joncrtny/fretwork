@@ -149,12 +149,12 @@ function App() {
   const { routine, buildRoutine, routineNext, rateRoutine, stopRoutine } = useRoutineRunner({ setMode });
 
   const [flash, setFlash] = useState(null);
-  /* the active view can publish the neck's per-mode config; null = use the
-     shell fallbacks below (still in place until every fretboard view is moved) */
+  /* the active fretboard view publishes its neck config here; null for the two
+     views without a neck of their own (Bank, Routine), which fall back to the
+     empty-neck marks/onCell below */
   const fbConfig = useFretboardConfig();
-  /* the active view's readout line, if it publishes one; else the shell falls
-     back to the mode-branching memo below (still in place for the views whose
-     readout reads only shared Selection state) */
+  /* the active view publishes its readout line here; null for Bank and Routine,
+     whose readout the shell computes from bank/known counts below */
   const publishedReadout = useReadout();
 
   const modeRef = useRef("chord");
@@ -456,9 +456,9 @@ function App() {
     if (!/^#s=[A-Za-z0-9_-]+$/.test(window.location.hash || "")) return;
     /* This runs only on share loads, where the [mode] mount effect deliberately
        skips its landing emit. So this effect owns the share view's page_view,
-       set from pvMode and fired even if the link is malformed (falls back to
+       set from landingMode and fired even if the link is malformed (falls back to
        the current view) so a share load never records zero page_views. */
-    let pvMode = mode;
+    let landingMode = mode;
     try {
       const p = decodeShareHash(window.location.hash);
       if (!p) throw new Error("bad share hash");
@@ -467,17 +467,17 @@ function App() {
         setScaleRoot(p.r);
         setScaleId(p.id);
         setMode("scale");
-        pvMode = "scale";
+        landingMode = "scale";
       } else if (p.m === "arp" && pc(p.r) && CHORDS.some((x) => x.id === p.id)) {
         setArpRoot(p.r);
         setArpId(p.id);
         setMode("arp");
-        pvMode = "arp";
+        landingMode = "arp";
       } else if (p.m === "chord" && pc(p.r) && CHORDS.some((x) => x.id === p.id)) {
         setChordRoot(p.r);
         setChordId(p.id);
         setMode("chord");
-        pvMode = "chord";
+        landingMode = "chord";
       } else if (p.m === "prog" && pc(p.r)) {
         setProgRoot(p.r);
         if (
@@ -494,12 +494,12 @@ function App() {
           setProgId(p.id);
         }
         setMode("prog");
-        pvMode = "prog";
+        landingMode = "prog";
       } else if (p.m === "interval" && pc(p.r) && Array.isArray(p.iv)) {
         setIvRoot(p.r);
         setIvOn(new Set(p.iv.filter((i) => Number.isInteger(i) && i >= 0 && i < 12)));
         setMode("interval");
-        pvMode = "interval";
+        landingMode = "interval";
       } else if (p.m === "melody" && Array.isArray(p.steps)) {
         const steps = p.steps
           .filter(
@@ -520,7 +520,7 @@ function App() {
           setMelBars(Math.max(2, Math.min(MEL_MAX_BARS, Math.ceil(steps.length / MEL_SLOTS))));
           if (typeof p.nm === "string") setMelName(p.nm.slice(0, 60));
           setMode("melody");
-          pvMode = "melody";
+          landingMode = "melody";
         }
       }
       if (Number.isInteger(p.capo) && p.capo >= 0 && p.capo <= 12) setCapo(p.capo);
@@ -532,10 +532,11 @@ function App() {
     /* own the landing page_view for this share load; the [mode] effect stayed
        quiet waiting for this, and unblocks once shareHandledRef is set */
     shareHandledRef.current = true;
-    firePageView(pvMode);
+    firePageView(landingMode);
     /* apply once: land on the shared view's real path and drop the hash, so a
        reload reflects the current view rather than re-applying the link */
-    if (window.history && window.history.replaceState) window.history.replaceState(null, "", pathForMode(pvMode) + window.location.search);
+    if (window.history && window.history.replaceState)
+      window.history.replaceState(null, "", pathForMode(landingMode) + window.location.search);
     routedRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
