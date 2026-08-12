@@ -13,7 +13,7 @@ Single-page React 18 + Vite + TypeScript app, organised as a shell plus modules 
 
 The shared core (`theory.ts`, `lib/`, the contexts) was authored under strict and keeps its explicit types as documentation; `tsconfig` now runs `strict: false` so the leaf layer (views, `App.tsx`, `fretboard.tsx`) stays low-churn, and re-tightening to strict is a later isolated pass. `tsconfig` uses `allowJs` with `checkJs: false`, and `allowImportingTsExtensions` (Vite resolves `.ts`/`.tsx` at import), so a `.js` -> `.ts` rename means updating any importer that spelled the old extension. Explicit `any` is an ESLint warning, not an error, and the leaf layer carries a small, deliberate set of them.
 
-Put new code in the module that owns its concern (a view in `src/views/`, shared state in the right `src/state/` context, a pure helper in `src/lib/`), not in `App.tsx`. `docs/DESIGN.md` holds the design system and house style, `docs/ROADMAP.md` the plan, `docs/SETUP.md` the external services, `docs/SEO.md` the SEO and content strategy, `docs/REFACTOR.md` the refactor plan and progress, and `docs/REFACTOR-BLUEPRINT.md` the context/view design.
+Put new code in the module that owns its concern (a view in `src/views/`, shared state in the right `src/state/` context, a pure helper in `src/lib/`), not in `App.tsx`. `docs/DESIGN.md` holds the design system and house style, `docs/ROADMAP.md` the plan, `docs/SETUP.md` the external services, `docs/SEO.md` the SEO and content strategy, `docs/REFACTOR.md` the refactor plan and progress, `docs/REFACTOR-BLUEPRINT.md` the context/view design, and `docs/FLAGS.md` the feature-flag system (how to add a flag, run a rollout, or wire a backend).
 
 ## Hard rules
 
