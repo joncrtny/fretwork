@@ -20,6 +20,9 @@ export function SelectionProvider({ children }) {
   const [progRoot, setProgRoot] = useState(0);
   const [progId, setProgId] = useState("p1564");
   const [builder, setBuilder] = useState({ bars: [], name: "", sections: {} }); // the custom-progression editor payload
+  const [melSteps, setMelSteps] = useState([]); // the melody timeline: [{s, f} | {rest: true}]
+  const [melName, setMelName] = useState("");
+  const [melBars, setMelBars] = useState(2); // timeline length in bars
   const [ivRoot, setIvRoot] = useState(0);
   const [ivOn, setIvOn] = useState(() => new Set([0, 4, 7]));
   const toggleIv = useCallback((i) => {
@@ -58,6 +61,12 @@ export function SelectionProvider({ children }) {
       setProgId,
       builder,
       setBuilder,
+      melSteps,
+      setMelSteps,
+      melName,
+      setMelName,
+      melBars,
+      setMelBars,
       ivRoot,
       setIvRoot,
       ivOn,
@@ -80,6 +89,9 @@ export function SelectionProvider({ children }) {
       progRoot,
       progId,
       builder,
+      melSteps,
+      melName,
+      melBars,
       ivRoot,
       ivOn,
       toggleIv,
