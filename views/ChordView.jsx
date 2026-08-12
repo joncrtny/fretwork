@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { CHORDS, SIMPLE_CHORDS, nameOf, keyPrefersFlats } from "../theory.js";
+import { CHORDS, SIMPLE_CHORDS, nameOf, keyPrefersFlats } from "../theory.ts";
 import { CHORD_GROUPS } from "../data/groups.js";
 import { groupItems } from "../lib/utils.ts";
 import { track } from "../lib/analytics.ts";

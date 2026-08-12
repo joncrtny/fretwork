@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { nameOf } from "../theory.js";
+import { nameOf } from "../theory.ts";
 
 export function KeyPicker({ value, onChange, flats, tip }) {
   const [open, setOpen] = useState(false);

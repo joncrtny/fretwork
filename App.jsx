@@ -15,7 +15,7 @@ import {
   MEL_SLOTS,
   MEL_MAX_BARS,
   TIME_SIGS,
-} from "./theory.js";
+} from "./theory.ts";
 import { useGeometry, Fretboard } from "./fretboard.jsx";
 import { VIEW_META, pathForMode, modeForPath } from "./lib/routing.ts";
 import { track } from "./lib/analytics.ts";

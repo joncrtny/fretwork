@@ -5,7 +5,7 @@
    ========================================================== */
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { nameOf, DEG, FUNC_COLOUR, LOWERED, SINGLE_DOTS, DOUBLE_DOTS } from "./theory.js";
+import { nameOf, DEG, FUNC_COLOUR, LOWERED, SINGLE_DOTS, DOUBLE_DOTS } from "./theory.ts";
 
 const PAD_L = 74;
 const PAD_R = 24;

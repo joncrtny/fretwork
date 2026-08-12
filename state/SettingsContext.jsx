@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { TUNINGS, keyPrefersFlats } from "../theory.js";
+import { TUNINGS, keyPrefersFlats } from "../theory.ts";
 import { store } from "../lib/store.ts";
 
 /* Settings, appearance and instrument state: the user's preferences plus what

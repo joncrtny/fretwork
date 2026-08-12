@@ -3,7 +3,7 @@ import { store } from "../lib/store.ts";
 import { track } from "../lib/analytics.ts";
 import { supabase } from "../lib/supabase.ts";
 import { BADGES, badgeTier, pointsFor, levelProgress, mergeGamify } from "../gamify.js";
-import { localDay } from "../theory.js";
+import { localDay } from "../theory.ts";
 import { useAuthSync } from "./AuthSyncContext.jsx";
 
 /* Gamification and practice progress: the durable counters behind points,

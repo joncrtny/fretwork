@@ -1,4 +1,4 @@
-import { DEG, FUNC_COLOUR, LOWERED, nameOf } from "../theory.js";
+import { DEG, FUNC_COLOUR, LOWERED, nameOf } from "../theory.ts";
 
 export function IntervalGrid({ root, on, onToggle, flats }) {
   return (

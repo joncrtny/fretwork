@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { nameOf, keyPrefersFlats, parseTab, MEL_SLOTS, MEL_MAX_BARS } from "../theory.js";
+import { nameOf, keyPrefersFlats, parseTab, MEL_SLOTS, MEL_MAX_BARS } from "../theory.ts";
 import { track } from "../lib/analytics.ts";
 import { Field } from "../components/Field.jsx";
 import { Seg } from "../components/Seg.jsx";

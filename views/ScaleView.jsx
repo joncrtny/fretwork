@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { SCALES, SIMPLE_SCALES, DEG, FUNC_COLOUR, nameOf, keyPrefersFlats } from "../theory.js";
+import { SCALES, SIMPLE_SCALES, DEG, FUNC_COLOUR, nameOf, keyPrefersFlats } from "../theory.ts";
 import { SCALE_GROUPS } from "../data/groups.js";
 import { groupItems } from "../lib/utils.ts";
 import { track } from "../lib/analytics.ts";

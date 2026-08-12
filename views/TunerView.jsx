@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { nameOf, TUNINGS } from "../theory.js";
+import { nameOf, TUNINGS } from "../theory.ts";
 import { nearestStringTarget } from "../lib/utils.ts";
 import { track } from "../lib/analytics.ts";
 import { Field } from "../components/Field.jsx";

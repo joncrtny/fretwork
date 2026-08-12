@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import { CHORDS } from "../theory.js";
+import { CHORDS } from "../theory.ts";
 import { findVoicings } from "../voicings.js";
 import { useSettings } from "../state/SettingsContext.jsx";
 import { useSelection } from "../state/SelectionContext.jsx";

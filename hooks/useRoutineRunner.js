@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { SCALES, CHORDS, SCALE_ORDER, CHORD_ORDER, nameOf } from "../theory.js";
+import { SCALES, CHORDS, SCALE_ORDER, CHORD_ORDER, nameOf } from "../theory.ts";
 import { track } from "../lib/analytics.ts";
 import { useSelection } from "../state/SelectionContext.jsx";
 import { useLibrary } from "../state/LibraryContext.jsx";

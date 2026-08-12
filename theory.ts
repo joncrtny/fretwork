@@ -5,11 +5,64 @@
    Pure data and pure functions: no React, no shared state.
    ========================================================== */
 
+/* The domain model. Ids are the stable keys stored in the Bank, share links and
+   the practice log; `iv` is a set of semitone offsets from the root. */
+export interface Scale {
+  id: string;
+  name: string;
+  iv: number[];
+}
+export interface Chord {
+  id: string;
+  name: string;
+  suffix: string;
+  iv: number[];
+}
+export interface Tuning {
+  id: string;
+  name: string;
+  midi: number[]; // open-string MIDI notes, low to high
+}
+export interface Progression {
+  id: string;
+  name: string;
+  note: string;
+  tonality: "major" | "minor";
+  bars: string[]; // roman-numeral keys into ROMAN
+}
+export interface EarInterval {
+  v: number; // semitones
+  l: string;
+}
+export interface EarChord {
+  v: string; // chord id
+  l: string;
+}
+export interface StrumPattern {
+  id: string;
+  name: string;
+  simple?: boolean; // present on the beginner set; absent = advanced, hidden in Simple mode
+  slots: (string | null)[]; // one per eighth: d/u lowercase, D/U accented, null = no strum
+}
+export interface IntervalPreset {
+  id: string;
+  label: string;
+  iv: number[];
+}
+export interface LabelledValue<T> {
+  v: T;
+  l: string;
+}
+export interface MelodyNote {
+  s: number; // string index
+  f: number; // fret
+}
+
 export const SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 export const FLAT = ["C", "D♭", "D", "E♭", "E", "F", "G♭", "G", "A♭", "A", "B♭", "B"];
 export const DEG = ["R", "♭2", "2", "♭3", "3", "4", "♭5", "5", "♭6", "6", "♭7", "7"];
 
-export const nameOf = (pc, flats) => (flats ? FLAT : SHARP)[((pc % 12) + 12) % 12];
+export const nameOf = (pc: number, flats: boolean): string => (flats ? FLAT : SHARP)[((pc % 12) + 12) % 12];
 
 /* Key-aware accidental spelling. Proper diatonic spelling uses each letter
    once, so pick the accidental direction that covers more distinct letters
@@ -18,10 +71,10 @@ export const nameOf = (pc, flats) => (flats ? FLAT : SHARP)[((pc % 12) + 12) % 1
    minor-ish keys borrow their relative major, and the flat-side majors
    (F, Bb, Eb, Ab, Db) spell flat. So C minor reads Eb, not D#. */
 export const FLAT_MAJORS = new Set([5, 10, 3, 8, 1]);
-export function keyPrefersFlats(rootPc, intervals) {
+export function keyPrefersFlats(rootPc: number, intervals?: Iterable<number> | null): boolean {
   const iv = intervals ? [...intervals] : [];
   const pcs = iv.map((i) => (((rootPc + i) % 12) + 12) % 12);
-  const letters = (names) => new Set(pcs.map((pc) => names[pc][0])).size;
+  const letters = (names: string[]) => new Set(pcs.map((pc) => names[pc][0])).size;
   const sharpLetters = letters(SHARP);
   const flatLetters = letters(FLAT);
   if (flatLetters !== sharpLetters) return flatLetters > sharpLetters;
@@ -30,7 +83,7 @@ export function keyPrefersFlats(rootPc, intervals) {
   return FLAT_MAJORS.has(((majorPc % 12) + 12) % 12);
 }
 
-export const SCALES = [
+export const SCALES: Scale[] = [
   { id: "major", name: "Major (Ionian)", iv: [0, 2, 4, 5, 7, 9, 11] },
   { id: "minor", name: "Natural minor (Aeolian)", iv: [0, 2, 3, 5, 7, 8, 10] },
   { id: "majpent", name: "Major pentatonic", iv: [0, 2, 4, 7, 9] },
@@ -53,7 +106,7 @@ export const SCALES = [
   { id: "chromatic", name: "Chromatic", iv: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
 ];
 
-export const CHORDS = [
+export const CHORDS: Chord[] = [
   { id: "maj", name: "Major", suffix: "", iv: [0, 4, 7] },
   { id: "min", name: "Minor", suffix: "m", iv: [0, 3, 7] },
   { id: "5", name: "Power (5)", suffix: "5", iv: [0, 7] },
@@ -83,9 +136,9 @@ export const CHORDS = [
 ];
 
 // midi: C4 = 60, so E2 = 4 + (2+1)*12 = 40
-const m = (pc, oct) => pc + (oct + 1) * 12;
+const m = (pc: number, oct: number): number => pc + (oct + 1) * 12;
 
-export const TUNINGS = [
+export const TUNINGS: Tuning[] = [
   { id: "std", name: "Standard", midi: [m(4, 2), m(9, 2), m(2, 3), m(7, 3), m(11, 3), m(4, 4)] },
   { id: "dropd", name: "Drop D", midi: [m(2, 2), m(9, 2), m(2, 3), m(7, 3), m(11, 3), m(4, 4)] },
   { id: "halfdown", name: "E♭ standard", midi: [m(3, 2), m(8, 2), m(1, 3), m(6, 3), m(10, 3), m(3, 4)] },
@@ -105,7 +158,7 @@ export const TUNINGS = [
 
 /* roman numeral -> [semitones above the key root, chord id] */
 /* which views count as practice time, and how the log names them */
-export const PRACTICE_MODES = {
+export const PRACTICE_MODES: Record<string, string> = {
   scale: "Scales",
   chord: "Chords",
   arp: "Arpeggios",
@@ -117,11 +170,12 @@ export const PRACTICE_MODES = {
   melody: "Melodies",
   ear: "Ear training",
 };
-export const localDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+export const localDay = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 /* rough easy-to-hard order, used to pick the one "stretch" item in a practice
    routine: the first thing you have not marked as known yet */
-export const SCALE_ORDER = [
+export const SCALE_ORDER: string[] = [
   "major",
   "minor",
   "majpent",
@@ -143,7 +197,7 @@ export const SCALE_ORDER = [
   "dimwh",
   "chromatic",
 ];
-export const CHORD_ORDER = [
+export const CHORD_ORDER: string[] = [
   "maj",
   "min",
   "5",
@@ -175,8 +229,8 @@ export const CHORD_ORDER = [
 /* parse pasted ASCII guitar tab into melody steps [{s, f}]. Handles the common
    six-line format, top line high e, ordered left to right; a column with several
    notes is read low string to high. Returns [] if nothing usable is found. */
-export function parseTab(text, stringCount) {
-  const isTabLine = (l) => {
+export function parseTab(text: string, stringCount: number): MelodyNote[] {
+  const isTabLine = (l: string) => {
     const body = l.replace(/^\s*[eEbBgGdDaA][b#]?\s*\|?/, "");
     const dashes = (body.match(/-/g) || []).length;
     return dashes >= 4 && /^[-\d|hHpPbBxXsStTrR~/\\()\s.*]+$/.test(body) && /\d|-/.test(body);
@@ -226,7 +280,7 @@ export function parseTab(text, stringCount) {
 }
 
 /* ear training pools */
-export const EAR_INTERVALS = [
+export const EAR_INTERVALS: EarInterval[] = [
   { v: 1, l: "Minor 2nd" },
   { v: 2, l: "Major 2nd" },
   { v: 3, l: "Minor 3rd" },
@@ -241,7 +295,7 @@ export const EAR_INTERVALS = [
   { v: 12, l: "Octave" },
 ];
 export const EAR_INTERVALS_SIMPLE = new Set([2, 4, 5, 7, 12]);
-export const EAR_CHORDS = [
+export const EAR_CHORDS: EarChord[] = [
   { v: "maj", l: "Major" },
   { v: "min", l: "Minor" },
   { v: "dim", l: "Diminished" },
@@ -253,7 +307,7 @@ export const EAR_CHORDS = [
 export const EAR_CHORDS_SIMPLE = new Set(["maj", "min"]);
 
 export const MINOR_STARTS = new Set(["i", "iv", "v", "i7", "iv7", "v7", "ii\u00b0", "ii\u00f8"]);
-export const ROMAN = {
+export const ROMAN: Record<string, [number, string]> = {
   I: [0, "maj"],
   ii: [2, "min"],
   iii: [4, "min"],
@@ -285,7 +339,7 @@ export const ROMAN = {
   iiø: [2, "m7b5"],
 };
 
-export const PROGRESSIONS = [
+export const PROGRESSIONS: Progression[] = [
   { id: "p1564", name: "I – V – vi – IV", note: "The four chords", tonality: "major", bars: ["I", "V", "vi", "IV"] },
   { id: "p145", name: "I – IV – V", note: "Three chord trick", tonality: "major", bars: ["I", "IV", "V"] },
   { id: "p1645", name: "I – vi – IV – V", note: "Fifties doo-wop", tonality: "major", bars: ["I", "vi", "IV", "V"] },
@@ -323,7 +377,7 @@ export const SIMPLE_PROGS = new Set(["p1564", "p145", "p1645", "pblues", "pm1637
    chord changes, quiz, melodies, tuner, metronome) */
 export const SIMPLE_HIDDEN = new Set(["interval", "prog", "ear", "finder"]);
 /* which accordion each view lives under, so the active view's group can open */
-export const CAT_OF = {
+export const CAT_OF: Record<string, string> = {
   scale: "learn",
   arp: "learn",
   interval: "learn",
@@ -350,7 +404,7 @@ export const MEL_MAX_BARS = 8;
    d = downstroke, u = upstroke, null = no strum on that eighth. An uppercase
    D or U is the same stroke played with an accent (louder). Patterns without
    `simple: true` are the advanced set, hidden in Simple mode. */
-export const STRUM_PATTERNS = [
+export const STRUM_PATTERNS: StrumPattern[] = [
   { id: "downs", name: "Down beats", simple: true, slots: ["d", null, "d", null, "d", null, "d", null] },
   { id: "eighths", name: "All eighths", simple: true, slots: ["d", "u", "d", "u", "d", "u", "d", "u"] },
   { id: "oldfaithful", name: "D DU UDU", simple: true, slots: ["d", null, "d", "u", null, "u", "d", "u"] },
@@ -363,9 +417,10 @@ export const STRUM_PATTERNS = [
   { id: "reggae", name: "Reggae skank", slots: [null, "U", null, "U", null, "U", null, "U"] },
   { id: "anthem", name: "Anthem", slots: ["D", null, "d", "u", "D", "u", "d", "U"] },
 ];
-export const simpleList = (arr, allow, on, keepId) => (on ? arr.filter((x) => allow.has(x.id) || x.id === keepId) : arr);
+export const simpleList = <T extends { id: string }>(arr: T[], allow: Set<string>, on: boolean, keepId: string): T[] =>
+  on ? arr.filter((x) => allow.has(x.id) || x.id === keepId) : arr;
 
-export const INTERVAL_PRESETS = [
+export const INTERVAL_PRESETS: IntervalPreset[] = [
   { id: "root", label: "Root only", iv: [0] },
   { id: "maj", label: "Major triad", iv: [0, 4, 7] },
   { id: "min", label: "Minor triad", iv: [0, 3, 7] },
@@ -376,7 +431,7 @@ export const INTERVAL_PRESETS = [
   { id: "all", label: "All twelve", iv: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
 ];
 
-export const TIME_SIGS = [
+export const TIME_SIGS: LabelledValue<number>[] = [
   { v: 2, l: "2/4" },
   { v: 3, l: "3/4" },
   { v: 4, l: "4/4" },
@@ -386,7 +441,7 @@ export const TIME_SIGS = [
 ];
 
 /* interval colour by harmonic function, not by rainbow position */
-export const FUNC_COLOUR = {
+export const FUNC_COLOUR: Record<number, string> = {
   0: "#E9A824", // root, gold
   1: "#6E9236",
   2: "#6E9236", // 2nds, moss

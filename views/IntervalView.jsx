@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { DEG, FUNC_COLOUR, INTERVAL_PRESETS, nameOf, keyPrefersFlats } from "../theory.js";
+import { DEG, FUNC_COLOUR, INTERVAL_PRESETS, nameOf, keyPrefersFlats } from "../theory.ts";
 import { neckPositions } from "../fretboard.jsx";
 import { Field } from "../components/Field.jsx";
 import { KeyPicker } from "../components/KeyPicker.jsx";

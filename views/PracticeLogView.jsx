@@ -1,4 +1,4 @@
-import { PRACTICE_MODES } from "../theory.js";
+import { PRACTICE_MODES } from "../theory.ts";
 import { BADGES, badgeTier } from "../gamify.js";
 import { useProgress } from "../state/ProgressContext.jsx";
 import { useAuthSync } from "../state/AuthSyncContext.jsx";
