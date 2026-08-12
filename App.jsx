@@ -27,7 +27,6 @@ import {
 import { useGeometry, Fretboard, ChordDiagram } from "./fretboard.jsx";
 import { VIEW_META, pathForMode, modeForPath } from "./lib/routing.js";
 import { track } from "./lib/analytics.js";
-import { shareLinkFromParams } from "./lib/share.js";
 import { store } from "./lib/store.js";
 import { supabase } from "./lib/supabase.js";
 import { ToastProvider, useToast } from "./state/ToastContext.jsx";
@@ -54,6 +53,7 @@ import { QuizView } from "./views/QuizView.jsx";
 import { EarView } from "./views/EarView.jsx";
 import { ChangesView } from "./views/ChangesView.jsx";
 import { StrumView } from "./views/StrumView.jsx";
+import { BankView } from "./views/BankView.jsx";
 import { Seg } from "./components/Seg.jsx";
 import { Field } from "./components/Field.jsx";
 import { KeyPicker } from "./components/KeyPicker.jsx";
@@ -81,7 +81,7 @@ import { HeadIcon } from "./components/HeadIcon.jsx";
    ============================================================ */
 
 function App() {
-  const { settings, setSettings, capo, setCapo, midis, n, fretCount, flatsFor, settingsHydrated } = useSettings();
+  const { settings, setSettings, capo, setCapo, midis, n, fretCount, settingsHydrated } = useSettings();
   /* the remaining storage slices hydrated by the effect below; combined with
      the provider's flag so every existing `loaded` reader keeps its meaning */
   const [restLoaded, setRestLoaded] = useState(false);
@@ -96,7 +96,6 @@ function App() {
     setMelodies,
     chgRecords,
     setChgRecords,
-    saveBank,
     toggleKnown,
     saveToBank,
     saveCustomProgs,
@@ -356,31 +355,6 @@ function App() {
   useEffect(() => {
     setRestLoaded(true);
   }, []);
-
-  const shareBankItem = useCallback(
-    async (item) => {
-      const p = {};
-      if (item.kind === "chord") Object.assign(p, { m: "chord", r: item.root, id: item.chordId });
-      else if (item.kind === "scale") Object.assign(p, { m: "scale", r: item.root, id: item.scaleId });
-      else if (item.kind === "arp") Object.assign(p, { m: "arp", r: item.root, id: item.arpId });
-      else if (item.kind === "prog") {
-        Object.assign(p, { m: "prog", r: item.root, id: item.progId });
-        const isPreset = PROGRESSIONS.some((x) => x.id === item.progId);
-        if (!isPreset && item.bars) Object.assign(p, { bars: item.bars, nm: item.name || item.label, sec: item.sections });
-      }
-      if (item.capo) p.capo = item.capo;
-      if (item.tun && item.tun !== "std" && item.tun !== "custom") p.tun = item.tun;
-      const url = shareLinkFromParams(p);
-      try {
-        await navigator.clipboard.writeText(url);
-        setToast("Link copied");
-      } catch (e) {
-        window.prompt("Copy this link", url);
-      }
-      track("bank_share", { kind: item.kind });
-    },
-    [setToast],
-  );
 
   /* one-shot position restore for Bank opens: the reset effects below clear
      scale/arp position on any scale change, so a bank open stashes the wanted
@@ -1971,68 +1945,7 @@ function App() {
             </div>
           )}
 
-          {mode === "bank" && (
-            <div className="pane">
-              {bank.length === 0 ? (
-                <p className="note">
-                  Nothing saved yet. Tap the star on a chord, scale, arpeggio or progression to keep it here, grouped by type and ready to
-                  practise. You can share any saved item from here too.
-                </p>
-              ) : (
-                [
-                  { kind: "chord", label: "Chords" },
-                  { kind: "scale", label: "Scales" },
-                  { kind: "arp", label: "Arpeggios" },
-                  { kind: "prog", label: "Progressions" },
-                ].map((group) => {
-                  const items = bank.filter((b) => (b.kind || "chord") === group.kind);
-                  if (!items.length) return null;
-                  return (
-                    <section className="banksec" key={group.kind}>
-                      <h2 className="abouthead">{group.label}</h2>
-                      <div className="banklist">
-                        {items.map((item) => (
-                          <div className="bankitem" key={item.id}>
-                            {item.kind === "chord" && item.voicing ? (
-                              <ChordDiagram
-                                voicing={item.voicing}
-                                lefty={settings.leftHanded}
-                                midis={item.midis || midis}
-                                rootPc={item.root}
-                                capo={item.capo || 0}
-                                flats={flatsFor(item.root, (CHORDS.find((c) => c.id === item.chordId) || CHORDS[0]).iv)}
-                                showDegrees={false}
-                                selected={false}
-                                onSelect={() => openBankItem(item)}
-                              />
-                            ) : null}
-                            <div className="bankmeta">
-                              <b>{item.label}</b>
-                              <div className="row wrap">
-                                <button className="mini" onClick={() => openBankItem(item)}>
-                                  Open
-                                </button>
-                                <button className="mini" onClick={() => shareBankItem(item)} aria-label={`Share ${item.label}`}>
-                                  Share
-                                </button>
-                                <button
-                                  className="mini"
-                                  onClick={() => saveBank(bank.filter((b) => b.id !== item.id))}
-                                  aria-label={`Remove ${item.label}`}
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </section>
-                  );
-                })
-              )}
-            </div>
-          )}
+          {mode === "bank" && <BankView onOpen={openBankItem} />}
 
           {mode === "interval" && <IntervalView />}
 
