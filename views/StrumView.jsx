@@ -12,7 +12,7 @@ import { useSelection } from "../state/SelectionContext.tsx";
 import { usePlayback } from "../state/PlaybackContext.tsx";
 import { usePublishFretboard } from "../state/FretboardContext.tsx";
 import { usePublishReadout } from "../state/ReadoutContext.tsx";
-import { useChordVoicings } from "../hooks/useChordVoicings.js";
+import { useChordVoicings } from "../hooks/useChordVoicings.ts";
 
 const EMPTY = new Set();
 

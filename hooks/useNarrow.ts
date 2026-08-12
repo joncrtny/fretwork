@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 
-export function useNarrow(bp = 700) {
+export function useNarrow(bp = 700): boolean {
   const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.innerWidth <= bp);
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
     const mq = window.matchMedia(`(max-width:${bp}px)`);
-    const handle = (e) => setNarrow(e.matches);
+    const handle = (e: MediaQueryListEvent) => setNarrow(e.matches);
     setNarrow(mq.matches);
     if (mq.addEventListener) mq.addEventListener("change", handle);
     else mq.addListener(handle);

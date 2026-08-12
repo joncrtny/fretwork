@@ -1,4 +1,4 @@
-import { useNarrow } from "../hooks/useNarrow.js";
+import { useNarrow } from "../hooks/useNarrow.ts";
 
 export function Seg({ options, value, onChange, small, responsive = true, ariaLabel }) {
   const narrow = useNarrow();

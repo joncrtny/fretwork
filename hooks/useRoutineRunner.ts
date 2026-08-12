@@ -2,9 +2,24 @@ import { useCallback, useEffect, useState } from "react";
 import { SCALES, CHORDS, SCALE_ORDER, CHORD_ORDER, nameOf } from "../theory.ts";
 import { track } from "../lib/analytics.ts";
 import { useSelection } from "../state/SelectionContext.tsx";
-import { useLibrary } from "../state/LibraryContext.tsx";
+import { useLibrary, type KnownItem } from "../state/LibraryContext.tsx";
 import { usePlayback } from "../state/PlaybackContext.tsx";
 import { useToast } from "../state/ToastContext.tsx";
+
+/* a routine item is a known thing, plus a flag on the one "stretch" item */
+type RoutineItem = KnownItem & { isStretch?: boolean };
+interface Segment {
+  item: RoutineItem;
+  seconds: number;
+  stretch: boolean;
+}
+interface Routine {
+  phase: "running" | "rate";
+  segments: Segment[];
+  idx: number;
+  remaining: number;
+  duration: number;
+}
 
 /* The practice-routine runner: once RoutineView hands over a duration, this
    builds a weighted set of segments from what you know (the shaky ones get
@@ -13,16 +28,16 @@ import { useToast } from "../state/ToastContext.tsx";
    this is the cross-mode runner behind the floating HUD, so it needs the
    shell's setMode. Reads known/ratings from Library and writes the post-session
    rating back. */
-export function useRoutineRunner({ setMode }) {
+export function useRoutineRunner({ setMode }: { setMode: (m: string) => void }) {
   const { setScaleRoot, setScaleId, setChordRoot, setChordId, setArpRoot, setArpId } = useSelection();
   const { known, routineRatings, saveRoutineRatings } = useLibrary();
   const { stopPlayback } = usePlayback();
   const { setToast } = useToast();
 
-  const [routine, setRoutine] = useState(null); // null | { phase:'running'|'rate', segments:[{item,seconds,stretch}], idx, remaining, duration }
+  const [routine, setRoutine] = useState<Routine | null>(null);
 
   const gotoSegment = useCallback(
-    (item) => {
+    (item: RoutineItem | null | undefined) => {
       if (!item) return;
       if (item.kind === "scale") {
         setScaleRoot(item.root);
@@ -41,8 +56,8 @@ export function useRoutineRunner({ setMode }) {
     [setArpId, setArpRoot, setChordId, setChordRoot, setScaleId, setScaleRoot, setMode],
   );
 
-  const pickStretch = (knownList) => {
-    const counts = {};
+  const pickStretch = (knownList: KnownItem[]): RoutineItem | null => {
+    const counts: Record<string, number> = {};
     knownList.forEach((k) => {
       counts[k.kind] = (counts[k.kind] || 0) + 1;
     });
@@ -52,22 +67,22 @@ export function useRoutineRunner({ setMode }) {
     const nextId = order.find((id) => !knownIds.has(id));
     if (!nextId) return null;
     const root = knownList.find((k) => k.kind === kind)?.root ?? 0;
-    const def = kind === "scale" ? SCALES.find((s) => s.id === nextId) : CHORDS.find((c) => c.id === nextId);
+    const def: { name: string; suffix?: string } | undefined = kind === "scale" ? SCALES.find((s) => s.id === nextId) : CHORDS.find((c) => c.id === nextId);
     if (!def) return null;
     const label =
       kind === "scale" ? `${nameOf(root, false)} ${def.name}` : `${nameOf(root, false)}${def.suffix}${kind === "arp" ? " arpeggio" : ""}`;
     return { sig: `k-${kind}:${root}:${nextId}`, kind, root, id: nextId, label, isStretch: true };
   };
 
-  const buildRoutine = (dur) => {
+  const buildRoutine = (dur: number) => {
     if (!known.length) return;
     stopPlayback();
     const totalSec = dur * 60;
     const stretch = pickStretch(known);
     /* practise the shaky ones (low past rating) for longer, then one stretch */
-    const list = [...known];
+    const list: RoutineItem[] = [...known];
     if (stretch) list.push(stretch);
-    const weightOf = (it) => {
+    const weightOf = (it: RoutineItem) => {
       if (it.isStretch) return 1.3;
       const r = routineRatings[it.sig];
       return r === 1 ? 2 : r === 2 ? 1.4 : 1;
@@ -94,8 +109,8 @@ export function useRoutineRunner({ setMode }) {
 
   const stopRoutine = useCallback(() => setRoutine(null), []);
 
-  const rateRoutine = (stars) => {
-    const next = { ...routineRatings };
+  const rateRoutine = (stars: number) => {
+    const next: Record<string, number> = { ...routineRatings };
     if (routine)
       routine.segments.forEach((seg) => {
         if (!seg.stretch) next[seg.item.sig] = stars;

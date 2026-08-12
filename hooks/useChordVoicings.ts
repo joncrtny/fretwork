@@ -10,7 +10,7 @@ import { useSelection } from "../state/SelectionContext.tsx";
    shapes and the one currently selected. Only the mounted consumer passes
    active=true, so the work and the index/area resets happen once, for the view
    the user is actually looking at. */
-export function useChordVoicings(active) {
+export function useChordVoicings(active: boolean) {
   const { settings, midis, fretCount, capo } = useSettings();
   const { chordRoot, chordId, chordArea, setChordArea, voiceIdx, setVoiceIdx, restoreVoiceRef, posNonce } = useSelection();
 

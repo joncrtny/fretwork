@@ -18,7 +18,7 @@ import { useLibrary } from "../state/LibraryContext.tsx";
 import { useProgress } from "../state/ProgressContext.tsx";
 import { usePublishFretboard } from "../state/FretboardContext.tsx";
 import { usePublishReadout } from "../state/ReadoutContext.tsx";
-import { useChordVoicings } from "../hooks/useChordVoicings.js";
+import { useChordVoicings } from "../hooks/useChordVoicings.ts";
 
 /* Chords: playable shapes for any chord in any key, with a diagram per shape,
    a neck area filter, and the ghost-tone overlay. Owns its label/ghost toggles

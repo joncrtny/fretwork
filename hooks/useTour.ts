@@ -1,6 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { store } from "../lib/store.ts";
 import { track } from "../lib/analytics.ts";
+import type { Gamify } from "../state/ProgressContext.tsx";
+
+interface UseTourArgs {
+  setDrawer: (v: boolean) => void;
+  setMode: (m: string) => void;
+  setOpenPanel: (p: null) => void;
+  setGamify: Dispatch<SetStateAction<Gamify>>;
+  loaded: boolean;
+  hadShareHash: boolean;
+}
+interface TourRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 /* The guided tour: a spotlight-and-card walkthrough of the neck and the nav.
    It drives the shell (opening the drawer, switching view, clearing panels) as
@@ -8,11 +24,11 @@ import { track } from "../lib/analytics.ts";
    spotlight rect and the focus-trap; App renders the overlay from what this
    returns. `loaded` gates the once-only offer, skipped when arriving on a share
    link (hadShareHash). */
-export function useTour({ setDrawer, setMode, setOpenPanel, setGamify, loaded, hadShareHash }) {
+export function useTour({ setDrawer, setMode, setOpenPanel, setGamify, loaded, hadShareHash }: UseTourArgs) {
   const [tour, setTour] = useState(-1);
-  const [tourRect, setTourRect] = useState(null);
+  const [tourRect, setTourRect] = useState<TourRect | null>(null);
   const tourRef = useRef(-1);
-  const tourCardRef = useRef(null);
+  const tourCardRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     tourRef.current = tour;
   }, [tour]);
@@ -149,7 +165,7 @@ export function useTour({ setDrawer, setMode, setOpenPanel, setGamify, loaded, h
     const t = setTimeout(() => {
       if (tourCardRef.current) tourCardRef.current.focus();
     }, 60);
-    const onKey = (e) => {
+    const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
         endTour();
