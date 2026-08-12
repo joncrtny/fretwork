@@ -3,7 +3,7 @@ import { CHORDS, SIMPLE_CHORDS, nameOf, keyPrefersFlats } from "../theory.ts";
 import { CHORD_GROUPS } from "../data/groups.js";
 import { groupItems } from "../lib/utils.ts";
 import { track } from "../lib/analytics.ts";
-import { pluck } from "../audio.js";
+import { pluck } from "../audio.ts";
 import { neckPositions, ChordDiagram } from "../fretboard.jsx";
 import { Field } from "../components/Field.jsx";
 import { Seg } from "../components/Seg.jsx";

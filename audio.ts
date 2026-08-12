@@ -4,10 +4,10 @@
    only starts after a user gesture.
    ============================================================ */
 
-let audioCtx = null;
-export function ctx() {
+let audioCtx: AudioContext | null = null;
+export function ctx(): AudioContext | null {
   if (!audioCtx) {
-    const AC = window.AudioContext || window.webkitAudioContext;
+    const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AC) return null;
     audioCtx = new AC();
   }
@@ -15,7 +15,7 @@ export function ctx() {
   return audioCtx;
 }
 
-export function pluck(midi, when = 0, gain = 0.5) {
+export function pluck(midi: number, when = 0, gain = 0.5): void {
   if (!Number.isFinite(midi)) return;
   const ac = ctx();
   if (!ac) return;
@@ -43,8 +43,8 @@ export function pluck(midi, when = 0, gain = 0.5) {
   src.stop(t + 2.2);
 }
 
-let noiseBuf = null;
-function noise() {
+let noiseBuf: AudioBuffer | null = null;
+function noise(): AudioBuffer | null {
   const ac = ctx();
   if (!ac) return null;
   if (!noiseBuf || noiseBuf.sampleRate !== ac.sampleRate) {
@@ -55,7 +55,7 @@ function noise() {
   return noiseBuf;
 }
 
-export function playClick(kind, at, accent, level = 0.7, dest = null) {
+export function playClick(kind: string, at: number, accent: boolean, level = 0.7, dest: AudioNode | null = null): void {
   const ac = ctx();
   if (!ac) return;
   const t = Math.max(at, ac.currentTime);
@@ -100,7 +100,7 @@ export function playClick(kind, at, accent, level = 0.7, dest = null) {
   src.stop(t + 0.12);
 }
 
-export function blip(ok) {
+export function blip(ok: boolean): void {
   const ac = ctx();
   if (!ac) return;
   const o = ac.createOscillator();

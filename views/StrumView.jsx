@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CHORDS, SIMPLE_CHORDS, STRUM_PATTERNS, nameOf, keyPrefersFlats } from "../theory.ts";
 import { CHORD_GROUPS } from "../data/groups.js";
 import { groupItems } from "../lib/utils.ts";
-import { ctx, playClick } from "../audio.js";
+import { ctx, playClick } from "../audio.ts";
 import { ChordDiagram } from "../fretboard.jsx";
 import { Field } from "../components/Field.jsx";
 import { KeyPicker } from "../components/KeyPicker.jsx";

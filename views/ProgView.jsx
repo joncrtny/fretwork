@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { CHORDS, PROGRESSIONS, SIMPLE_PROGS, ROMAN, MINOR_STARTS, nameOf, keyPrefersFlats, simpleList } from "../theory.ts";
 import { track } from "../lib/analytics.ts";
-import { pluck } from "../audio.js";
+import { pluck } from "../audio.ts";
 import { findVoicings } from "../voicings.js";
 import { ChordDiagram } from "../fretboard.jsx";
 import { Field } from "../components/Field.jsx";

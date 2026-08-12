@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ctx, pluck, playClick } from "../audio.js";
+import { ctx, pluck, playClick } from "../audio.ts";
 import { useSettings } from "./SettingsContext.jsx";
 import { useProgress } from "./ProgressContext.jsx";
 

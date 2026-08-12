@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CHORDS, EAR_INTERVALS, EAR_INTERVALS_SIMPLE, EAR_CHORDS, EAR_CHORDS_SIMPLE } from "../theory.ts";
-import { pluck, blip } from "../audio.js";
+import { pluck, blip } from "../audio.ts";
 import { track } from "../lib/analytics.ts";
 import { Field } from "../components/Field.jsx";
 import { Seg } from "../components/Seg.jsx";

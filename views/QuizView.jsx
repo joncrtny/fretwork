@@ -4,7 +4,7 @@ import { CHORD_GROUPS, SCALE_GROUPS } from "../data/groups.js";
 import { groupItems } from "../lib/utils.ts";
 import { track } from "../lib/analytics.ts";
 import { store } from "../lib/store.ts";
-import { blip } from "../audio.js";
+import { blip } from "../audio.ts";
 import { Seg } from "../components/Seg.jsx";
 import { Field } from "../components/Field.jsx";
 import { IntervalGrid } from "../components/IntervalGrid.jsx";
