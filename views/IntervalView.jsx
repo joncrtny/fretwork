@@ -5,7 +5,7 @@ import { Field } from "../components/Field.jsx";
 import { KeyPicker } from "../components/KeyPicker.jsx";
 import { IntervalGrid } from "../components/IntervalGrid.jsx";
 import { useSettings } from "../state/SettingsContext.jsx";
-import { useSelection } from "../state/SelectionContext.jsx";
+import { useSelection } from "../state/SelectionContext.tsx";
 import { usePlayback } from "../state/PlaybackContext.jsx";
 import { usePublishFretboard } from "../state/FretboardContext.tsx";
 

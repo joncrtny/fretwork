@@ -11,7 +11,7 @@ import { CatPicker } from "../components/CatPicker.jsx";
 import { StarSave } from "../components/SaveButtons.jsx";
 import { KnownButton } from "../components/SaveButtons.jsx";
 import { useSettings } from "../state/SettingsContext.jsx";
-import { useSelection } from "../state/SelectionContext.jsx";
+import { useSelection } from "../state/SelectionContext.tsx";
 import { usePlayback } from "../state/PlaybackContext.jsx";
 import { useLibrary } from "../state/LibraryContext.jsx";
 import { usePublishFretboard } from "../state/FretboardContext.tsx";

@@ -9,7 +9,7 @@ import { Seg } from "../components/Seg.jsx";
 import { KeyPicker } from "../components/KeyPicker.jsx";
 import { CatPicker } from "../components/CatPicker.jsx";
 import { useSettings } from "../state/SettingsContext.jsx";
-import { useSelection } from "../state/SelectionContext.jsx";
+import { useSelection } from "../state/SelectionContext.tsx";
 import { usePlayback } from "../state/PlaybackContext.jsx";
 import { useLibrary } from "../state/LibraryContext.jsx";
 import { useToast } from "../state/ToastContext.tsx";

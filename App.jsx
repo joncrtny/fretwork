@@ -27,7 +27,7 @@ import { SettingsProvider, useSettings } from "./state/SettingsContext.jsx";
 import { AuthSyncProvider, useAuthSync } from "./state/AuthSyncContext.jsx";
 import { LibraryProvider, useLibrary } from "./state/LibraryContext.jsx";
 import { ProgressProvider, useProgress } from "./state/ProgressContext.jsx";
-import { SelectionProvider, useSelection } from "./state/SelectionContext.jsx";
+import { SelectionProvider, useSelection } from "./state/SelectionContext.tsx";
 import { PlaybackProvider, usePlayback } from "./state/PlaybackContext.jsx";
 import { FaqView } from "./views/FaqView.jsx";
 import { SettingsView } from "./views/SettingsView.jsx";

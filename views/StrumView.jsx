@@ -8,7 +8,7 @@ import { Field } from "../components/Field.jsx";
 import { KeyPicker } from "../components/KeyPicker.jsx";
 import { CatPicker } from "../components/CatPicker.jsx";
 import { useSettings } from "../state/SettingsContext.jsx";
-import { useSelection } from "../state/SelectionContext.jsx";
+import { useSelection } from "../state/SelectionContext.tsx";
 import { usePlayback } from "../state/PlaybackContext.jsx";
 import { usePublishFretboard } from "../state/FretboardContext.tsx";
 import { usePublishReadout } from "../state/ReadoutContext.tsx";
