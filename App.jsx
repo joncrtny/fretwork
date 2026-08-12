@@ -18,7 +18,6 @@ import {
   MINOR_STARTS,
   ROMAN,
   PROGRESSIONS,
-  SIMPLE_SCALES,
   SIMPLE_CHORDS,
   SIMPLE_PROGS,
   SIMPLE_HIDDEN,
@@ -59,13 +58,12 @@ import { ScaleView } from "./views/ScaleView.jsx";
 import { ArpView } from "./views/ArpView.jsx";
 import { ChordView } from "./views/ChordView.jsx";
 import { FinderView } from "./views/FinderView.jsx";
-import { CHORD_GROUPS, SCALE_GROUPS } from "./data/groups.js";
+import { QuizView } from "./views/QuizView.jsx";
+import { CHORD_GROUPS } from "./data/groups.js";
 import { Seg } from "./components/Seg.jsx";
 import { Field } from "./components/Field.jsx";
-import { IntervalGrid } from "./components/IntervalGrid.jsx";
 import { KeyPicker } from "./components/KeyPicker.jsx";
 import { CatPicker } from "./components/CatPicker.jsx";
-import { DualRange } from "./components/DualRange.jsx";
 import { HeadIcon } from "./components/HeadIcon.jsx";
 
 /* ============================================================
@@ -171,7 +169,6 @@ function App() {
     setIvRoot,
     ivOn,
     setIvOn,
-    toggleIv,
     restorePosRef,
     restoreVoiceRef,
     setPosNonce,
@@ -235,19 +232,6 @@ function App() {
   const [routineDur, setRoutineDur] = useState(10); // minutes
   const [routine, setRoutine] = useState(null); // null | { phase:'running'|'rate', segments:[{item,seconds,stretch}], idx, remaining, duration }
 
-  const [quiz, setQuiz] = useState({
-    source: "scale",
-    difficulty: 0.35,
-    range: [0, 12],
-    hidden: null,
-    found: new Set(),
-    correct: 0,
-    wrong: 0,
-    streak: 0,
-    best: 0,
-    rounds: 0,
-    done: false,
-  });
   const [flash, setFlash] = useState(null);
   /* the active view can publish the neck's per-mode config; null = use the
      shell fallbacks below (still in place until every fretboard view is moved) */
@@ -406,28 +390,9 @@ function App() {
     };
   }, []);
 
-  /* persisted state */
+  /* quiz stats now hydrate inside QuizView, so nothing else blocks first paint */
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await store.get("fretboard:stats");
-        if (!cancelled && r && r.value) {
-          const v = JSON.parse(r.value);
-          setQuiz((q) => ({ ...q, correct: v.correct || 0, wrong: v.wrong || 0, best: v.best || 0, rounds: v.rounds || 0 }));
-        }
-      } catch (e) {
-        /* no stats yet */
-      }
-      if (!cancelled) setRestLoaded(true);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const saveStats = useCallback((q) => {
-    store.set("fretboard:stats", JSON.stringify({ correct: q.correct, wrong: q.wrong, best: q.best, rounds: q.rounds })).catch(() => {});
+    setRestLoaded(true);
   }, []);
 
   const shareBankItem = useCallback(
@@ -658,12 +623,6 @@ function App() {
       const d0 = c0 ? CHORDS.find((x) => x.id === c0.id) : null;
       return c0 ? keyPrefersFlats(c0.root, d0 ? d0.iv : [4]) : false;
     }
-    if (mode === "quiz")
-      return quiz.source === "scale"
-        ? keyPrefersFlats(scaleRoot, scaleDef.iv)
-        : quiz.source === "chord"
-          ? keyPrefersFlats(chordRoot, chordDef.iv)
-          : keyPrefersFlats(ivRoot, ivOn);
     return false;
   }, [
     settings.noteNames,
@@ -677,30 +636,12 @@ function App() {
     ivRoot,
     ivOn,
     chg.chords,
-    quiz.source,
     melKeyHint,
     arpRoot,
     arpDef,
   ]);
 
   const activeProgVoicing = progVoicings[Math.min(progIdx, progVoicings.length - 1)] || null;
-
-  /* ---- which positions light up ---- */
-  const positionsFor = useCallback(
-    (rootPc, ivSet, from = 0, to = fretCount) => {
-      const out = [];
-      const hi = Math.min(to, fretCount);
-      for (let s = 0; s < n; s++) {
-        for (let f = Math.max(from, capo); f <= hi; f++) {
-          const pc = (midis[s] + f) % 12;
-          const semis = (pc - rootPc + 24) % 12;
-          if (ivSet.has(semis)) out.push({ s, f, pc, semis });
-        }
-      }
-      return out;
-    },
-    [midis, n, fretCount, capo],
-  );
 
   const marks = useMemo(() => {
     const map = new Map();
@@ -714,15 +655,6 @@ function App() {
         if (f === null) continue;
         const pc = (midis[s2] + f) % 12;
         add(s2, f, pc, (pc - activeProg.rootPc + 24) % 12, "chord", null, activeProgVoicing.fingering[s2]);
-      }
-    }
-
-    if (mode === "quiz" && quiz.hidden) {
-      const target = quiz.target;
-      for (const p of target) {
-        const k = `${p.s}:${p.f}`;
-        if (!quiz.hidden.has(k)) add(p.s, p.f, p.pc, p.semis, "quiz");
-        else if (quiz.found.has(k)) add(p.s, p.f, p.pc, p.semis, "quiz", "found");
       }
     }
 
@@ -763,8 +695,6 @@ function App() {
     chordRoot,
     midis,
     n,
-    quiz,
-    positionsFor,
     playing,
     activeProg,
     activeProgVoicing,
@@ -775,57 +705,6 @@ function App() {
   ]);
 
   /* ---- quiz ---- */
-  const quizTargetSet = useCallback(() => {
-    if (quiz.source === "scale") {
-      const set = new Set(scaleDef.iv.map((i) => i % 12));
-      return positionsFor(scaleRoot, set, quiz.range[0], quiz.range[1]);
-    }
-    if (quiz.source === "interval") {
-      return positionsFor(ivRoot, ivOn, quiz.range[0], quiz.range[1]);
-    }
-    const set = new Set(chordDef.iv.map((i) => i % 12));
-    return positionsFor(chordRoot, set, quiz.range[0], quiz.range[1]);
-  }, [quiz.source, quiz.range, scaleDef, scaleRoot, chordDef, chordRoot, ivRoot, ivOn, positionsFor]);
-
-  const newRound = useCallback(() => {
-    const target = quizTargetSet();
-    if (!target.length) {
-      setQuiz((q) => ({ ...q, target: [], hidden: new Set(), found: new Set(), done: false }));
-      return;
-    }
-    const total = target.length;
-    const count = Math.max(1, Math.round(1 + (total - 1) * quiz.difficulty));
-    const pool = target.slice();
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      const t = pool[i];
-      pool[i] = pool[j];
-      pool[j] = t;
-    }
-    const hidden = new Set(pool.slice(0, count).map((p) => `${p.s}:${p.f}`));
-    setQuiz((q) => ({ ...q, target, hidden, found: new Set(), done: false }));
-  }, [quizTargetSet, quiz.difficulty]);
-
-  useEffect(() => {
-    if (mode === "quiz") newRound();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    mode,
-    quiz.source,
-    quiz.difficulty,
-    quiz.range[0],
-    quiz.range[1],
-    scaleRoot,
-    scaleId,
-    chordRoot,
-    chordId,
-    ivRoot,
-    ivOn,
-    capo,
-    settings.tuningId,
-    settings.fretCount,
-  ]);
-
   const onCell = useCallback(
     (s, f, midi) => {
       if (capo > 0 && f > 0 && f < capo) return;
@@ -843,57 +722,12 @@ function App() {
         setMelCursor(Math.min(i + 1, (melBars < MEL_MAX_BARS ? melBars + 1 : melBars) * MEL_SLOTS - 1));
         return;
       }
-      if (mode !== "quiz" || !quiz.hidden) {
-        playNote(midi);
-        return;
-      }
-      /* nothing to find (empty selection or round complete): sound the note, do not score */
-      if (quiz.done || quiz.hidden.size === 0) {
-        playNote(midi);
-        return;
-      }
-      const k = `${s}:${f}`;
-      if (quiz.found.has(k)) return;
-      if (quiz.hidden.has(k)) {
-        playNote(midi);
-        setFlash({ key: k, ok: true, t: Date.now() });
-        setQuiz((q) => {
-          const found = new Set(q.found);
-          found.add(k);
-          const done = found.size >= q.hidden.size;
-          const streak = q.streak + 1;
-          const next = {
-            ...q,
-            found,
-            done,
-            correct: q.correct + 1,
-            streak,
-            best: Math.max(q.best, streak),
-            rounds: done ? q.rounds + 1 : q.rounds,
-          };
-          saveStats(next);
-          return next;
-        });
-      } else {
-        if (settings.sound) blip(false);
-        setFlash({ key: k, ok: false, t: Date.now() });
-        setQuiz((q) => {
-          const next = { ...q, wrong: q.wrong + 1, streak: 0 };
-          saveStats(next);
-          return next;
-        });
-      }
+      /* every other fretboard view either publishes its own onCell or just wants
+         the note sounded; the quiz scoring handler now lives in QuizView */
+      playNote(midi);
     },
-    [mode, quiz.hidden, quiz.found, quiz.done, capo, playNote, saveStats, settings.sound, melCursor, melBars],
+    [mode, capo, playNote, melCursor, melBars],
   );
-
-  useEffect(() => {
-    setQuiz((q) =>
-      q.range[1] <= fretCount && q.range[0] < fretCount
-        ? q
-        : { ...q, range: [Math.min(q.range[0], fretCount - 1), Math.min(q.range[1], fretCount)] },
-    );
-  }, [fretCount]);
 
   useEffect(() => {
     if (!flash) return;
@@ -1465,16 +1299,9 @@ function App() {
       return `Tuner \u00b7 ${t ? t.name : "Custom"}`;
     }
     if (mode === "account") return authUser ? `Account · ${uname}` : "Create an account";
-    const src =
-      quiz.source === "scale"
-        ? `${nameOf(scaleRoot, effFlats)} ${scaleDef.name}`
-        : quiz.source === "interval"
-          ? `${nameOf(ivRoot, effFlats)} · ${[...ivOn]
-              .sort((a, b) => a - b)
-              .map((i) => DEG[i])
-              .join(" ")}`
-          : `${nameOf(chordRoot, effFlats)}${chordDef.suffix || ""}`;
-    return `Fretboard Quiz · ${src} · ${quiz.hidden ? quiz.hidden.size - quiz.found.size : 0} to find`;
+    /* Quiz and the other view-local readouts publish their own line through the
+       readout slot; the shell only reaches here for modes without a branch */
+    return "";
   }, [
     mode,
     scaleRoot,
@@ -1484,7 +1311,6 @@ function App() {
     ivRoot,
     ivOn,
     effFlats,
-    quiz,
     progRoot,
     progDef,
     bank.length,
@@ -1500,9 +1326,6 @@ function App() {
     practiceStats.streak,
     known.length,
   ]);
-
-  const total = quiz.correct + quiz.wrong;
-  const accuracy = total ? Math.round((quiz.correct / total) * 100) : 0;
 
   const setTuning = (id) => {
     const t = TUNINGS.find((x) => x.id === id);
@@ -2180,8 +2003,8 @@ function App() {
                       })()
                 }
                 ghosts={fbConfig ? fbConfig.ghosts : null}
-                quizRange={fbConfig ? fbConfig.quizRange : quiz.range}
-                quizActive={fbConfig ? fbConfig.quizActive : mode === "quiz"}
+                quizRange={fbConfig ? fbConfig.quizRange : undefined}
+                quizActive={fbConfig ? fbConfig.quizActive : false}
               />
             </div>
             <div className="neckfoot">
@@ -2554,147 +2377,7 @@ function App() {
 
           {mode === "interval" && <IntervalView />}
 
-          {mode === "quiz" && (
-            <div className="pane">
-              <p className="panelead">Quiz yourself on scales, chords and intervals by naming the notes Fretwork lights up on the neck.</p>
-              <div className="scoreboard">
-                <div className="score">
-                  <b>{quiz.correct}</b>
-                  <span>correct</span>
-                </div>
-                <div className="score">
-                  <b className="bad">{quiz.wrong}</b>
-                  <span>wrong</span>
-                </div>
-                <div className="score">
-                  <b>{accuracy}%</b>
-                  <span>accuracy</span>
-                </div>
-                <div className="score">
-                  <b>{quiz.streak}</b>
-                  <span>streak</span>
-                </div>
-                <div className="score">
-                  <b>{quiz.best}</b>
-                  <span>best run</span>
-                </div>
-                <div className="score">
-                  <b>{quiz.rounds}</b>
-                  <span>rounds</span>
-                </div>
-              </div>
-
-              <div className="row wrap">
-                <Field label="Test me on">
-                  <Seg
-                    small
-                    options={[
-                      { v: "scale", l: "A scale" },
-                      { v: "chord", l: "A chord" },
-                      { v: "interval", l: "Intervals" },
-                    ]}
-                    value={quiz.source}
-                    onChange={(v) => setQuiz((q) => ({ ...q, source: v }))}
-                  />
-                </Field>
-                {quiz.source === "scale" && (
-                  <Field label="Scale">
-                    <CatPicker
-                      value={scaleId}
-                      onChange={setScaleId}
-                      label="Scale"
-                      groups={groupItems(SCALE_GROUPS, SCALES, SIMPLE_SCALES, settings.simple, scaleId)}
-                    />
-                  </Field>
-                )}
-                {quiz.source === "chord" && (
-                  <Field label="Chord">
-                    <CatPicker
-                      value={chordId}
-                      onChange={setChordId}
-                      label="Chord type"
-                      groups={groupItems(CHORD_GROUPS, CHORDS, SIMPLE_CHORDS, settings.simple, chordId)}
-                    />
-                  </Field>
-                )}
-              </div>
-
-              <Field label={quiz.source === "scale" ? "Key" : "Root"}>
-                <KeyPicker
-                  value={quiz.source === "scale" ? scaleRoot : quiz.source === "interval" ? ivRoot : chordRoot}
-                  onChange={quiz.source === "scale" ? setScaleRoot : quiz.source === "interval" ? setIvRoot : setChordRoot}
-                  flats={effFlats}
-                />
-              </Field>
-
-              {quiz.source === "interval" && (
-                <Field label="Intervals to find">
-                  <IntervalGrid root={ivRoot} on={ivOn} onToggle={toggleIv} flats={effFlats} />
-                </Field>
-              )}
-
-              <div className="row">
-                <Field label={`Difficulty · ${quiz.hidden ? quiz.hidden.size : 0} of ${quiz.target ? quiz.target.length : 0} hidden`}>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    value={quiz.difficulty}
-                    aria-label="Quiz difficulty"
-                    onChange={(e) => setQuiz((q) => ({ ...q, difficulty: +e.target.value }))}
-                  />
-                  <output>
-                    {quiz.difficulty < 0.2 ? "Easy" : quiz.difficulty < 0.5 ? "Steady" : quiz.difficulty < 0.85 ? "Hard" : "Blank neck"}
-                  </output>
-                </Field>
-              </div>
-
-              <Field label={`Frets ${quiz.range[0]} to ${quiz.range[1]}`}>
-                <DualRange
-                  min={0}
-                  max={fretCount}
-                  lo={quiz.range[0]}
-                  hi={quiz.range[1]}
-                  onChange={(r) => setQuiz((q) => ({ ...q, range: r }))}
-                />
-              </Field>
-
-              <p
-                role="status"
-                aria-live="polite"
-                className={quiz.source === "interval" && ivOn.size === 0 ? "empty" : quiz.done ? "done" : "note"}
-              >
-                {quiz.source === "interval" && ivOn.size === 0
-                  ? "Pick at least one interval to be tested on."
-                  : quiz.done
-                    ? `Round complete. ${quiz.hidden ? quiz.hidden.size : 0} found, streak of ${quiz.streak}.`
-                    : "Tap every hidden position on the neck. Wrong taps count against you."}
-              </p>
-
-              <div className="row actionbar">
-                <button
-                  className="btn primary"
-                  onClick={() => {
-                    track("quiz_new_round", { app_mode: quiz.source });
-                    newRound();
-                  }}
-                >
-                  New round
-                </button>
-                <button
-                  className="btn ghost danger"
-                  onClick={() => {
-                    const cleared = { ...quiz, correct: 0, wrong: 0, streak: 0, best: 0, rounds: 0 };
-                    setQuiz(cleared);
-                    saveStats(cleared);
-                  }}
-                >
-                  Reset score
-                </button>
-              </div>
-            </div>
-          )}
+          {mode === "quiz" && <QuizView setFlash={setFlash} />}
 
           {mode === "changes" && (
             <div className="pane">

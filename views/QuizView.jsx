@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { SCALES, CHORDS, SIMPLE_SCALES, SIMPLE_CHORDS, keyPrefersFlats } from "../theory.js";
+import { SCALES, CHORDS, SIMPLE_SCALES, SIMPLE_CHORDS, DEG, nameOf, keyPrefersFlats } from "../theory.js";
 import { CHORD_GROUPS, SCALE_GROUPS } from "../data/groups.js";
 import { groupItems } from "../lib/utils.js";
 import { track } from "../lib/analytics.js";
 import { store } from "../lib/store.js";
+import { blip } from "../audio.js";
 import { Seg } from "../components/Seg.jsx";
 import { Field } from "../components/Field.jsx";
 import { IntervalGrid } from "../components/IntervalGrid.jsx";
@@ -12,17 +13,22 @@ import { CatPicker } from "../components/CatPicker.jsx";
 import { DualRange } from "../components/DualRange.jsx";
 import { useSettings } from "../state/SettingsContext.jsx";
 import { useSelection } from "../state/SelectionContext.jsx";
+import { usePlayback } from "../state/PlaybackContext.jsx";
+import { usePublishFretboard } from "../state/FretboardContext.jsx";
+import { usePublishReadout } from "../state/ReadoutContext.jsx";
 
-/* The Fretboard Quiz pane: pick a scale, chord or interval set, and Fretwork
-   hides a slice of its positions on the neck for you to find. Owns the quiz
-   state cluster (round, difficulty, fret range, scores), round generation and
-   the lifetime-stats persistence. The neck itself still lives in the App
-   shell, so the scoring tap handler (the quiz slice of onCell) and the quiz
-   overlay props on the Fretboard remain there for now. */
-export function QuizView() {
+/* The Fretboard Quiz: pick a scale, chord or interval set, and Fretwork hides a
+   slice of its positions on the neck for you to find. Owns the quiz state
+   cluster (round, difficulty, fret range, scores), round generation and the
+   lifetime-stats persistence, and publishes the neck itself: the target with
+   its hidden slice, the scoring tap handler, and the fret-range bracket. The
+   shared right/wrong flash overlay stays in the shell (Strum uses it too), so
+   the shell lends its `setFlash` down. */
+export function QuizView({ setFlash }) {
   const { settings, capo, midis, n, fretCount } = useSettings();
   const { scaleRoot, setScaleRoot, scaleId, setScaleId, chordRoot, setChordRoot, chordId, setChordId, ivRoot, setIvRoot, ivOn, toggleIv } =
     useSelection();
+  const { playNote } = usePlayback();
 
   const scaleDef = SCALES.find((s) => s.id === scaleId) || SCALES[0];
   const chordDef = CHORDS.find((c) => c.id === chordId) || CHORDS[0];
@@ -155,6 +161,90 @@ export function QuizView() {
         : { ...q, range: [Math.min(q.range[0], fretCount - 1), Math.min(q.range[1], fretCount)] },
     );
   }, [fretCount]);
+
+  /* the target notes on the neck: plain when to-find, marked once found */
+  const marks = useMemo(() => {
+    const map = new Map();
+    if (quiz.hidden && quiz.target) {
+      for (const p of quiz.target) {
+        const k = `${p.s}:${p.f}`;
+        if (!quiz.hidden.has(k)) map.set(k, { pc: p.pc, semis: p.semis, tone: "quiz", state: "on", finger: null });
+        else if (quiz.found.has(k)) map.set(k, { pc: p.pc, semis: p.semis, tone: "quiz", state: "found", finger: null });
+      }
+    }
+    return map;
+  }, [quiz.hidden, quiz.found, quiz.target]);
+
+  const onCell = useCallback(
+    (s, f, midi) => {
+      if (capo > 0 && f > 0 && f < capo) return;
+      /* no round yet or round over: sound the note, do not score */
+      if (!quiz.hidden || quiz.done || quiz.hidden.size === 0) {
+        playNote(midi);
+        return;
+      }
+      const k = `${s}:${f}`;
+      if (quiz.found.has(k)) return;
+      if (quiz.hidden.has(k)) {
+        playNote(midi);
+        setFlash({ key: k, ok: true, t: Date.now() });
+        setQuiz((q) => {
+          const found = new Set(q.found);
+          found.add(k);
+          const done = found.size >= q.hidden.size;
+          const streak = q.streak + 1;
+          const next = {
+            ...q,
+            found,
+            done,
+            correct: q.correct + 1,
+            streak,
+            best: Math.max(q.best, streak),
+            rounds: done ? q.rounds + 1 : q.rounds,
+          };
+          saveStats(next);
+          return next;
+        });
+      } else {
+        if (settings.sound) blip(false);
+        setFlash({ key: k, ok: false, t: Date.now() });
+        setQuiz((q) => {
+          const next = { ...q, wrong: q.wrong + 1, streak: 0 };
+          saveStats(next);
+          return next;
+        });
+      }
+    },
+    [capo, quiz.hidden, quiz.found, quiz.done, playNote, setFlash, saveStats, settings.sound],
+  );
+
+  usePublishFretboard(
+    useMemo(
+      () => ({
+        marks,
+        onCell,
+        flats: effFlats,
+        labelMode: settings.labelMode,
+        colourMode: settings.colourMode,
+        barre: null,
+        ghosts: null,
+        quizActive: true,
+        quizRange: quiz.range,
+      }),
+      [marks, onCell, effFlats, settings.labelMode, settings.colourMode, quiz.range],
+    ),
+  );
+
+  const src =
+    quiz.source === "scale"
+      ? `${nameOf(scaleRoot, effFlats)} ${scaleDef.name}`
+      : quiz.source === "interval"
+        ? `${nameOf(ivRoot, effFlats)} · ${[...ivOn]
+            .sort((a, b) => a - b)
+            .map((i) => DEG[i])
+            .join(" ")}`
+        : `${nameOf(chordRoot, effFlats)}${chordDef.suffix || ""}`;
+  usePublishReadout(`Fretboard Quiz · ${src} · ${quiz.hidden ? quiz.hidden.size - quiz.found.size : 0} to find`);
 
   const total = quiz.correct + quiz.wrong;
   const accuracy = total ? Math.round((quiz.correct / total) * 100) : 0;
