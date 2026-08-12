@@ -28,7 +28,6 @@ import {
   STRUM_PATTERNS,
   simpleList,
   TIME_SIGS,
-  FUNC_COLOUR,
   SCALE_ORDER,
   CHORD_ORDER,
 } from "./theory.js";
@@ -54,6 +53,7 @@ import { AccountView } from "./views/AccountView.jsx";
 import { TunerView } from "./views/TunerView.jsx";
 import { FretboardProvider, useFretboardConfig } from "./state/FretboardContext.jsx";
 import { ReadoutProvider, useReadout } from "./state/ReadoutContext.jsx";
+import { useChordVoicings } from "./hooks/useChordVoicings.js";
 import { IntervalView } from "./views/IntervalView.jsx";
 import { ScaleView } from "./views/ScaleView.jsx";
 import { ArpView } from "./views/ArpView.jsx";
@@ -176,7 +176,6 @@ function App() {
     toggleIv,
     restorePosRef,
     restoreVoiceRef,
-    posNonce,
     setPosNonce,
   } = useSelection();
   const {
@@ -515,42 +514,8 @@ function App() {
     }
   }, [settings.simple, strumPatId]);
 
-  const vopt = useMemo(
-    () => ({ span: settings.span, inversions: settings.inversions, barres: settings.barres }),
-    [settings.span, settings.inversions, settings.barres],
-  );
-
-  const voicings = useMemo(() => {
-    if (mode !== "chord" && mode !== "strum") return [];
-    return findVoicings(chordRoot, chordDef.iv, midis, fretCount, capo, vopt);
-  }, [mode, chordRoot, chordDef, midis, fretCount, capo, vopt]);
-
-  /* the frets a shape can start on, so you can jump to shapes near your hand */
-  const chordAreas = useMemo(() => [...new Set(voicings.map((v) => v.lowest))].sort((a, b) => a - b), [voicings]);
-
-  const shownVoicings = useMemo(
-    () => (chordArea == null ? voicings : voicings.filter((v) => v.lowest === chordArea)),
-    [voicings, chordArea],
-  );
-
-  useEffect(() => {
-    /* a Bank open of a specific shape stashes its key; reselect it, else reset to the first */
-    const key = restoreVoiceRef.current;
-    if (key) {
-      restoreVoiceRef.current = null;
-      const idx = shownVoicings.findIndex((v) => v.key === key);
-      setVoiceIdx(idx >= 0 ? idx : 0);
-    } else {
-      setVoiceIdx(0);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chordRoot, chordId, vopt, capo, settings.tuningId, settings.fretCount, chordArea, posNonce]);
-
-  useEffect(() => {
-    if (chordArea != null && !chordAreas.includes(chordArea)) setChordArea(null);
-  }, [chordAreas, chordArea, setChordArea]);
-
-  const activeVoicing = shownVoicings[Math.min(voiceIdx, Math.max(0, shownVoicings.length - 1))] || null;
+  /* chord/strum share one voicing engine; only the mode on screen computes */
+  const { vopt, chordAreas, shownVoicings, activeVoicing } = useChordVoicings(mode === "chord" || mode === "strum");
 
   const progDef = useMemo(() => {
     const preset = PROGRESSIONS.find((p) => p.id === progId);
