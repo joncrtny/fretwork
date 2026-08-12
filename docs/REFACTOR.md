@@ -68,8 +68,16 @@ module; state lives in eight focused contexts, not one god object.
   churn while the domain model stays self-documenting. `allowJs` +
   `checkJs: false` let the one remaining `.js` (`data/faq.js`, imported by the
   node prerender script) stay JS. typecheck, build, lint and 113 tests green.
-- [ ] **8. Feature flags**: provider-agnostic (Vercel Flags SDK), so a Statsig
-  backend stays an option. Only after 0-7.
+- [x] **8. Feature flags**: a provider-agnostic, client-side system shaped like
+  the Vercel Flags SDK (`flag({ key, decide })`), so adopting that SDK or a
+  Statsig / Edge Config backend later is an adapter, not a rewrite. No new
+  runtime deps; offline-first so the PWA never blocks on flags. Resolution is
+  override > remote (adapter) > `decide()`; overrides come from localStorage and
+  `?ff_<key>=on/off`. The first real flag, `simple-default`, gates whether a new
+  visitor starts in Simple mode (defaults to today's behaviour, dialable or
+  rollout-able without touching call sites). A dev flags panel lives in Settings
+  behind `?flags`. `src/lib/flags.ts` (core), `src/state/FlagsContext.tsx`,
+  `src/flags.ts` (registry), `src/components/FlagsPanel.tsx`; 6 tests.
 
 ## Achieved layout
 
