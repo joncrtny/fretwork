@@ -11,7 +11,7 @@ import { IntervalGrid } from "../components/IntervalGrid.jsx";
 import { KeyPicker } from "../components/KeyPicker.jsx";
 import { CatPicker } from "../components/CatPicker.jsx";
 import { DualRange } from "../components/DualRange.jsx";
-import { useSettings } from "../state/SettingsContext.jsx";
+import { useSettings } from "../state/SettingsContext.tsx";
 import { useSelection } from "../state/SelectionContext.tsx";
 import { usePlayback } from "../state/PlaybackContext.jsx";
 import { usePublishFretboard } from "../state/FretboardContext.tsx";

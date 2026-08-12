@@ -3,7 +3,7 @@ import { CHORDS, PROGRESSIONS } from "../theory.ts";
 import { track } from "../lib/analytics.ts";
 import { shareLinkFromParams } from "../lib/share.ts";
 import { ChordDiagram } from "../fretboard.jsx";
-import { useSettings } from "../state/SettingsContext.jsx";
+import { useSettings } from "../state/SettingsContext.tsx";
 import { useLibrary } from "../state/LibraryContext.jsx";
 import { useToast } from "../state/ToastContext.tsx";
 

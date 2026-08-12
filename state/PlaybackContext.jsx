@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ctx, pluck, playClick } from "../audio.ts";
-import { useSettings } from "./SettingsContext.jsx";
+import { useSettings } from "./SettingsContext.tsx";
 import { useProgress } from "./ProgressContext.jsx";
 
 /* The audio scheduler and every piece of "is something sounding" state, owned

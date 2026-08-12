@@ -4,7 +4,7 @@ import { nearestStringTarget } from "../lib/utils.ts";
 import { track } from "../lib/analytics.ts";
 import { Field } from "../components/Field.jsx";
 import { KeyPicker } from "../components/KeyPicker.jsx";
-import { useSettings } from "../state/SettingsContext.jsx";
+import { useSettings } from "../state/SettingsContext.tsx";
 import { useProgress } from "../state/ProgressContext.jsx";
 import { usePlayback } from "../state/PlaybackContext.jsx";
 

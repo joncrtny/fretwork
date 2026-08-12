@@ -1,4 +1,14 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+  type ReactNode,
+} from "react";
 import { TUNINGS, keyPrefersFlats } from "../theory.ts";
 import { store } from "../lib/store.ts";
 
@@ -6,7 +16,33 @@ import { store } from "../lib/store.ts";
    the neck physically is (tuning/midis, fret count, capo). Owns its own
    hydration and debounced persistence for "fretboard:settings". */
 
-const DEFAULT_SETTINGS = {
+export interface Settings {
+  fretCount: number;
+  tuningId: string;
+  midis: number[]; // open-string MIDI notes, low to high
+  flats: boolean; // legacy toggle, migrated to noteNames
+  noteNames: "auto" | "flats" | "sharps";
+  leftHanded: boolean;
+  highOnTop: boolean;
+  labelMode: string;
+  colourMode: string;
+  sound: boolean;
+  zoom: number;
+  bpm: number;
+  beats: number;
+  clickSound: string;
+  accent: string;
+  subdiv: string;
+  dark: boolean;
+  simple: boolean;
+  highContrast: boolean;
+  lowMotion: boolean;
+  span: number;
+  inversions: boolean;
+  barres: boolean;
+}
+
+const DEFAULT_SETTINGS: Settings = {
   fretCount: 22,
   tuningId: "std",
   midis: TUNINGS[0].midi,
@@ -32,12 +68,24 @@ const DEFAULT_SETTINGS = {
   barres: true,
 };
 
-const SettingsContext = createContext(null);
+export interface SettingsValue {
+  settings: Settings;
+  setSettings: Dispatch<SetStateAction<Settings>>;
+  capo: number;
+  setCapo: Dispatch<SetStateAction<number>>;
+  midis: number[];
+  n: number;
+  fretCount: number;
+  flatsFor: (rootPc: number, iv?: Iterable<number>) => boolean;
+  settingsHydrated: boolean;
+}
 
-export function SettingsProvider({ children }) {
+const SettingsContext = createContext<SettingsValue | null>(null);
+
+export function SettingsProvider({ children }: { children: ReactNode }) {
   /* start brand-new visitors in Simple mode (no settings saved yet). Read
      synchronously so a mount-time persist cannot mask first run. */
-  const [settings, setSettings] = useState(() => {
+  const [settings, setSettings] = useState<Settings>(() => {
     const firstRun = typeof window !== "undefined" && !window.localStorage.getItem("fretboard:settings");
     return firstRun ? { ...DEFAULT_SETTINGS, simple: true } : DEFAULT_SETTINGS;
   });
@@ -51,7 +99,7 @@ export function SettingsProvider({ children }) {
       try {
         const r = await store.get("fretboard:settings");
         if (!cancelled && r && r.value) {
-          const v = JSON.parse(r.value);
+          const v = JSON.parse(r.value) as Partial<Settings>;
           /* migrate the old sharps/flats toggle: an explicit Flats choice is kept,
              everyone else moves to key-aware Auto */
           if (!v.noteNames && v.flats === true) v.noteNames = "flats";
@@ -88,18 +136,18 @@ export function SettingsProvider({ children }) {
 
   /* per-item spelling for saved things rendered outside their own key context */
   const flatsFor = useCallback(
-    (rootPc, iv) => (settings.noteNames === "auto" ? keyPrefersFlats(rootPc, iv) : settings.noteNames === "flats"),
+    (rootPc: number, iv?: Iterable<number>) => (settings.noteNames === "auto" ? keyPrefersFlats(rootPc, iv) : settings.noteNames === "flats"),
     [settings.noteNames],
   );
 
-  const value = useMemo(
+  const value = useMemo<SettingsValue>(
     () => ({ settings, setSettings, capo, setCapo, midis, n, fretCount, flatsFor, settingsHydrated }),
     [settings, capo, midis, n, fretCount, flatsFor, settingsHydrated],
   );
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }
 
-export function useSettings() {
+export function useSettings(): SettingsValue {
   const v = useContext(SettingsContext);
   if (!v) throw new Error("useSettings must be used inside <SettingsProvider>");
   return v;

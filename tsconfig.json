@@ -11,6 +11,9 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
+    /* the codebase imports with explicit extensions; migrated modules import
+       .ts/.tsx. Safe because Vite (not tsc) emits, and noEmit is set. */
+    "allowImportingTsExtensions": true,
 
     /* incremental migration: .jsx/.js and .ts/.tsx coexist. Only files renamed
        to .ts/.tsx are type-checked; the remaining .jsx keeps shipping untouched

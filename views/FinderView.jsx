@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { CHORDS, nameOf, keyPrefersFlats } from "../theory.ts";
 import { track } from "../lib/analytics.ts";
 import { Field } from "../components/Field.jsx";
-import { useSettings } from "../state/SettingsContext.jsx";
+import { useSettings } from "../state/SettingsContext.tsx";
 import { useSelection } from "../state/SelectionContext.tsx";
 import { usePlayback } from "../state/PlaybackContext.jsx";
 import { usePublishFretboard } from "../state/FretboardContext.tsx";

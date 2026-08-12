@@ -4,7 +4,7 @@ import { pluck, blip } from "../audio.ts";
 import { track } from "../lib/analytics.ts";
 import { Field } from "../components/Field.jsx";
 import { Seg } from "../components/Seg.jsx";
-import { useSettings } from "../state/SettingsContext.jsx";
+import { useSettings } from "../state/SettingsContext.tsx";
 import { useProgress } from "../state/ProgressContext.jsx";
 import { usePublishReadout } from "../state/ReadoutContext.tsx";
 

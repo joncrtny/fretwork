@@ -10,7 +10,7 @@ import { Field } from "../components/Field.jsx";
 import { Seg } from "../components/Seg.jsx";
 import { KeyPicker } from "../components/KeyPicker.jsx";
 import { CatPicker } from "../components/CatPicker.jsx";
-import { useSettings } from "../state/SettingsContext.jsx";
+import { useSettings } from "../state/SettingsContext.tsx";
 import { useLibrary } from "../state/LibraryContext.jsx";
 import { useProgress } from "../state/ProgressContext.jsx";
 import { useToast } from "../state/ToastContext.tsx";

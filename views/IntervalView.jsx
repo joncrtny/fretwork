@@ -4,7 +4,7 @@ import { neckPositions } from "../fretboard.jsx";
 import { Field } from "../components/Field.jsx";
 import { KeyPicker } from "../components/KeyPicker.jsx";
 import { IntervalGrid } from "../components/IntervalGrid.jsx";
-import { useSettings } from "../state/SettingsContext.jsx";
+import { useSettings } from "../state/SettingsContext.tsx";
 import { useSelection } from "../state/SelectionContext.tsx";
 import { usePlayback } from "../state/PlaybackContext.jsx";
 import { usePublishFretboard } from "../state/FretboardContext.tsx";

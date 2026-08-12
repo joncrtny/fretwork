@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { CHORDS } from "../theory.ts";
 import { findVoicings } from "../voicings.js";
-import { useSettings } from "../state/SettingsContext.jsx";
+import { useSettings } from "../state/SettingsContext.tsx";
 import { useSelection } from "../state/SelectionContext.tsx";
 
 /* The chord-voicing engine, shared by whichever of Chord/Strum is on screen.
