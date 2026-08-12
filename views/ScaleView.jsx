@@ -13,7 +13,7 @@ import { KnownButton } from "../components/SaveButtons.jsx";
 import { useSettings } from "../state/SettingsContext.tsx";
 import { useSelection } from "../state/SelectionContext.tsx";
 import { usePlayback } from "../state/PlaybackContext.jsx";
-import { useLibrary } from "../state/LibraryContext.jsx";
+import { useLibrary } from "../state/LibraryContext.tsx";
 import { usePublishFretboard } from "../state/FretboardContext.tsx";
 
 const EMPTY = new Set();

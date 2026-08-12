@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Field } from "../components/Field.jsx";
 import { Seg } from "../components/Seg.jsx";
-import { useLibrary } from "../state/LibraryContext.jsx";
+import { useLibrary } from "../state/LibraryContext.tsx";
 
 /* Build a practice routine from the things you have marked as known. This is
    the setup screen only; once you press Build the shell takes over, stepping

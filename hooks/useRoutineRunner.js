@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { SCALES, CHORDS, SCALE_ORDER, CHORD_ORDER, nameOf } from "../theory.ts";
 import { track } from "../lib/analytics.ts";
 import { useSelection } from "../state/SelectionContext.tsx";
-import { useLibrary } from "../state/LibraryContext.jsx";
+import { useLibrary } from "../state/LibraryContext.tsx";
 import { usePlayback } from "../state/PlaybackContext.jsx";
 import { useToast } from "../state/ToastContext.tsx";
 

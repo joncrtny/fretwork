@@ -11,7 +11,7 @@ import { Seg } from "../components/Seg.jsx";
 import { KeyPicker } from "../components/KeyPicker.jsx";
 import { CatPicker } from "../components/CatPicker.jsx";
 import { useSettings } from "../state/SettingsContext.tsx";
-import { useLibrary } from "../state/LibraryContext.jsx";
+import { useLibrary } from "../state/LibraryContext.tsx";
 import { useProgress } from "../state/ProgressContext.jsx";
 import { useToast } from "../state/ToastContext.tsx";
 import { usePublishReadout } from "../state/ReadoutContext.tsx";

@@ -14,7 +14,7 @@ import { KnownButton } from "../components/SaveButtons.jsx";
 import { useSettings } from "../state/SettingsContext.tsx";
 import { useSelection } from "../state/SelectionContext.tsx";
 import { usePlayback } from "../state/PlaybackContext.jsx";
-import { useLibrary } from "../state/LibraryContext.jsx";
+import { useLibrary } from "../state/LibraryContext.tsx";
 import { useProgress } from "../state/ProgressContext.jsx";
 import { usePublishFretboard } from "../state/FretboardContext.tsx";
 import { usePublishReadout } from "../state/ReadoutContext.tsx";
