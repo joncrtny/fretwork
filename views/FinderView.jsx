@@ -1,21 +1,22 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { CHORDS, nameOf, keyPrefersFlats } from "../theory.js";
 import { track } from "../lib/analytics.js";
 import { Field } from "../components/Field.jsx";
 import { useSettings } from "../state/SettingsContext.jsx";
 import { useSelection } from "../state/SelectionContext.jsx";
+import { usePlayback } from "../state/PlaybackContext.jsx";
+import { usePublishFretboard } from "../state/FretboardContext.jsx";
+import { usePublishReadout } from "../state/ReadoutContext.jsx";
 
 /* The chord finder: tap notes on the neck and Fretwork names any chords that
-   fit. Owns the tapped-position set and the matching logic; opening a found
-   chord writes the Selection chord and leaves via `onNavigate("chord")`.
-
-   Fretboard caveat (same as IntervalView): the neck itself is still rendered
-   by the App shell, so the finder slices of the shared `marks` memo and the
-   shared `onCell` tap handler stay in App.jsx for now. They read finderSel and
-   finderInfo, which live here, so integration must bridge them (see risks). */
+   fit. Owns the tapped-position set, the matching logic, and the neck itself,
+   publishing its lit notes and its tap handler through the fretboard slot and
+   its name through the readout slot. Opening a found chord writes the Selection
+   chord and leaves via `onNavigate("chord")`. */
 export function FinderView({ onNavigate }) {
-  const { settings, midis } = useSettings();
+  const { settings, midis, capo } = useSettings();
   const { setChordRoot, setChordId } = useSelection();
+  const { playNote } = usePlayback();
 
   const [finderSel, setFinderSel] = useState(new Set()); // "s:f" positions tapped in the chord finder
 
@@ -72,6 +73,58 @@ export function FinderView({ onNavigate }) {
     const r = best ? best.root : finderInfo.bassPc;
     return r == null ? false : keyPrefersFlats(r, bestDef ? bestDef.iv : [4]);
   }, [settings.noteNames, finderInfo]);
+
+  /* light the tapped notes, coloured by their function against the best match */
+  const marks = useMemo(() => {
+    const map = new Map();
+    const rootPc = finderInfo.exact[0] ? finderInfo.exact[0].root : finderInfo.bassPc;
+    for (const k of finderSel) {
+      const [fs, ff] = k.split(":").map(Number);
+      const pc = (midis[fs] + ff) % 12;
+      map.set(k, { pc, semis: rootPc == null ? pc : (pc - rootPc + 12) % 12, tone: "chord", state: "lit", finger: null });
+    }
+    return map;
+  }, [finderSel, finderInfo, midis]);
+
+  const onCell = useCallback(
+    (s, f, midi) => {
+      if (capo > 0 && f > 0 && f < capo) return;
+      playNote(midi);
+      const k = `${s}:${f}`;
+      setFinderSel((sel) => {
+        const next = new Set(sel);
+        if (next.has(k)) next.delete(k);
+        else next.add(k);
+        return next;
+      });
+    },
+    [capo, playNote],
+  );
+
+  usePublishFretboard(
+    useMemo(
+      () => ({
+        marks,
+        onCell,
+        flats: effFlats,
+        labelMode: settings.labelMode,
+        colourMode: settings.colourMode,
+        barre: null,
+        ghosts: null,
+        quizActive: false,
+        quizRange: undefined,
+      }),
+      [marks, onCell, effFlats, settings.labelMode, settings.colourMode],
+    ),
+  );
+
+  usePublishReadout(
+    finderInfo.exact.length
+      ? `Chord finder · ${finderInfo.exact[0].name}`
+      : finderSel.size
+        ? "Chord finder · no exact match"
+        : "Chord finder",
+  );
 
   return (
     <div className="pane">

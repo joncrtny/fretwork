@@ -58,6 +58,7 @@ import { IntervalView } from "./views/IntervalView.jsx";
 import { ScaleView } from "./views/ScaleView.jsx";
 import { ArpView } from "./views/ArpView.jsx";
 import { ChordView } from "./views/ChordView.jsx";
+import { FinderView } from "./views/FinderView.jsx";
 import { CHORD_GROUPS, SCALE_GROUPS } from "./data/groups.js";
 import { Seg } from "./components/Seg.jsx";
 import { Field } from "./components/Field.jsx";
@@ -228,7 +229,6 @@ function App() {
     wrong: 0,
     streak: 0,
   });
-  const [finderSel, setFinderSel] = useState(new Set()); // "s:f" positions tapped in the chord finder
 
   /* "things you know": items the player has marked with the lightbulb, plus the
      last star rating a practice routine gave each, which weights future routines */
@@ -644,50 +644,6 @@ function App() {
   }, [melSteps, settings.midis]);
 
   /* effective accidental spelling: Auto follows the key of whatever is on screen */
-  /* chord finder: turn the tapped positions into pitch classes and name any chords that fit */
-  const finderInfo = useMemo(() => {
-    const positionsList = [...finderSel];
-    const pcs = [
-      ...new Set(
-        positionsList.map((k) => {
-          const [s, f] = k.split(":").map(Number);
-          return (midis[s] + f) % 12;
-        }),
-      ),
-    ];
-    const pcSet = new Set(pcs);
-    const bassKey = positionsList
-      .map((k) => {
-        const [s, f] = k.split(":").map(Number);
-        return { pc: (midis[s] + f) % 12, midi: midis[s] + f };
-      })
-      .sort((a, b) => a.midi - b.midi)[0];
-    const exact = [];
-    const partial = [];
-    if (pcs.length >= 2) {
-      for (let root = 0; root < 12; root++) {
-        for (const c of CHORDS) {
-          const chordPcs = c.iv.map((i) => (root + i) % 12);
-          const chordSet = new Set(chordPcs);
-          const covers = pcs.every((pc) => chordSet.has(pc));
-          if (!covers) continue;
-          const entry = {
-            root,
-            id: c.id,
-            name: `${nameOf(root, keyPrefersFlats(root, c.iv))}${c.suffix}`,
-            size: chordPcs.length,
-            bass: bassKey && bassKey.pc === root,
-          };
-          if (chordSet.size === pcSet.size) exact.push(entry);
-          else partial.push(entry);
-        }
-      }
-    }
-    /* prefer chords whose root is the lowest note, then the smallest superset */
-    const rank = (a, b) => b.bass - a.bass || a.size - b.size;
-    return { pcs, exact: exact.sort(rank).slice(0, 6), partial: partial.sort(rank).slice(0, 6), bassPc: bassKey ? bassKey.pc : null };
-  }, [finderSel, midis]);
-
   const effFlats = useMemo(() => {
     if (settings.noteNames === "sharps") return false;
     if (settings.noteNames === "flats") return true;
@@ -708,12 +664,6 @@ function App() {
         : quiz.source === "chord"
           ? keyPrefersFlats(chordRoot, chordDef.iv)
           : keyPrefersFlats(ivRoot, ivOn);
-    if (mode === "finder") {
-      const best = finderInfo.exact[0] || finderInfo.partial[0];
-      const bestDef = best ? CHORDS.find((x) => x.id === best.id) : null;
-      const r = best ? best.root : finderInfo.bassPc;
-      return r == null ? false : keyPrefersFlats(r, bestDef ? bestDef.iv : [4]);
-    }
     return false;
   }, [
     settings.noteNames,
@@ -731,7 +681,6 @@ function App() {
     melKeyHint,
     arpRoot,
     arpDef,
-    finderInfo,
   ]);
 
   const activeProgVoicing = progVoicings[Math.min(progIdx, progVoicings.length - 1)] || null;
@@ -803,15 +752,6 @@ function App() {
       }
     }
 
-    if (mode === "finder") {
-      const rootPc = finderInfo.exact[0] ? finderInfo.exact[0].root : finderInfo.bassPc;
-      for (const k of finderSel) {
-        const [fs, ff] = k.split(":").map(Number);
-        const pc = (midis[fs] + ff) % 12;
-        add(fs, ff, pc, rootPc == null ? pc : (pc - rootPc + 12) % 12, "chord", "lit");
-      }
-    }
-
     return map;
   }, [
     mode,
@@ -832,8 +772,6 @@ function App() {
     melPlayIdx,
     melCursor,
     melKeyHint,
-    finderSel,
-    finderInfo,
   ]);
 
   /* ---- quiz ---- */
@@ -903,17 +841,6 @@ function App() {
         const total = melBars * MEL_SLOTS;
         if (i + 1 >= total && melBars < MEL_MAX_BARS) setMelBars(melBars + 1);
         setMelCursor(Math.min(i + 1, (melBars < MEL_MAX_BARS ? melBars + 1 : melBars) * MEL_SLOTS - 1));
-        return;
-      }
-      if (mode === "finder") {
-        playNote(midi);
-        const k = `${s}:${f}`;
-        setFinderSel((sel) => {
-          const next = new Set(sel);
-          if (next.has(k)) next.delete(k);
-          else next.add(k);
-          return next;
-        });
         return;
       }
       if (mode !== "quiz" || !quiz.hidden) {
@@ -1532,12 +1459,6 @@ function App() {
       return `Ear training \u00b7 ${ear.correct + ear.wrong ? Math.round((ear.correct / (ear.correct + ear.wrong)) * 100) + "%" : "ready"}`;
     if (mode === "plog") return `Practice log \u00b7 ${practiceStats.streak} day streak`;
     if (mode === "routine") return `Practice routine \u00b7 ${known.length} known`;
-    if (mode === "finder")
-      return finderInfo.exact.length
-        ? `Chord finder \u00b7 ${finderInfo.exact[0].name}`
-        : finderSel.size
-          ? "Chord finder \u00b7 no exact match"
-          : "Chord finder";
     if (mode === "settings") return "Settings";
     if (mode === "tuner") {
       const t = TUNINGS.find((x) => x.id === settings.tuningId);
@@ -1577,8 +1498,6 @@ function App() {
     arpRoot,
     arpDef,
     practiceStats.streak,
-    finderInfo,
-    finderSel.size,
     known.length,
   ]);
 
@@ -3546,78 +3465,7 @@ function App() {
 
           {mode === "plog" && <PracticeLogView />}
 
-          {mode === "finder" && (
-            <div className="pane">
-              <p className="note">
-                Tap the notes of a chord on the neck (or focus it and use the arrow keys and Enter) and Fretwork names it. Handy for the
-                unfamiliar shapes you meet in tab.
-              </p>
-              <div className="degrees">
-                {finderInfo.pcs.length === 0 ? (
-                  <span className="note">No notes selected yet.</span>
-                ) : (
-                  finderInfo.pcs.map((pc) => (
-                    <span key={pc} className="chip">
-                      <b>{nameOf(pc, effFlats)}</b>
-                    </span>
-                  ))
-                )}
-              </div>
-
-              {finderInfo.exact.length > 0 ? (
-                <Field label="This chord is">
-                  <div className="finderhits">
-                    {finderInfo.exact.map((m) => (
-                      <button
-                        key={`${m.root}${m.id}`}
-                        className="btn"
-                        onClick={() => {
-                          setChordRoot(m.root);
-                          setChordId(m.id);
-                          setMode("chord");
-                          track("finder_open", { chord: m.id });
-                        }}
-                      >
-                        {nameOf(m.root, effFlats)}
-                        {(CHORDS.find((c) => c.id === m.id) || {}).suffix}
-                      </button>
-                    ))}
-                  </div>
-                </Field>
-              ) : finderInfo.partial.length > 0 ? (
-                <Field label="Could be part of">
-                  <div className="finderhits">
-                    {finderInfo.partial.map((m) => (
-                      <button
-                        key={`${m.root}${m.id}`}
-                        className="btn ghost"
-                        onClick={() => {
-                          setChordRoot(m.root);
-                          setChordId(m.id);
-                          setMode("chord");
-                        }}
-                      >
-                        {nameOf(m.root, effFlats)}
-                        {(CHORDS.find((c) => c.id === m.id) || {}).suffix}
-                      </button>
-                    ))}
-                  </div>
-                </Field>
-              ) : finderInfo.pcs.length >= 2 ? (
-                <p className="empty" role="status">
-                  No standard chord matches those notes. Try adding or removing one.
-                </p>
-              ) : (
-                <p className="note">Add at least two notes to name a chord.</p>
-              )}
-
-              <div className="row">
-                <button className="btn ghost danger" onClick={() => setFinderSel(new Set())} disabled={finderSel.size === 0}>
-                  Clear
-                </button>
-              </div>
-            </div>
-          )}
+          {mode === "finder" && <FinderView onNavigate={setMode} />}
 
           {mode === "tuner" && <TunerView />}
 
