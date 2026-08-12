@@ -1,6 +1,16 @@
 # Fretwork
 
-Single-page React 18 + Vite app. `App.jsx` holds the main component, its state and all the view panes; styles are the `CSS` template literal at the bottom of that file. Shared, pure code is split into modules imported by `App.jsx`: `theory.js` (notes, scales, chords, tunings, progressions, ear/picker sets, the tab parser and music helpers), `voicings.js` (the chord-voicing engine), `audio.js` (the Web Audio layer: pluck, metronome clicks, blips) and `fretboard.jsx` (neck geometry, the `Fretboard` SVG and `ChordDiagram`). Keep new pure theory/data, audio or rendering code in those modules rather than growing `App.jsx`. `docs/DESIGN.md` holds the design system and house style, `docs/ROADMAP.md` the plan, `docs/SETUP.md` the external services, `docs/SEO.md` the SEO and content strategy, and `docs/REFACTOR.md` the in-progress plan to break `App.jsx` into `lib/`, `data/`, `components/`, `views/` and `hooks/` (follow its phase order and guardrails when working on the split).
+Single-page React 18 + Vite app, organised as a shell plus modules (the big-file refactor in `docs/REFACTOR.md` is complete through Phase 6; TypeScript and feature flags remain).
+
+- `App.jsx` is now the **shell**: providers, routing and page-view analytics, the nav and drawer, the metronome transport, share-link intake, Supabase sync, and the neck/readout slot fallbacks for the two views without their own neck (Bank, Routine). It no longer holds view panes or per-view state.
+- `views/*.jsx`: one module per view (19 of them: Chord, Scale, Arp, Interval, Prog, Strum, Quiz, Changes, Ear, Melody, Finder, Bank, Routine, Tuner, Settings, PracticeLog, About, FAQ, Account). A fretboard view publishes its neck config via `usePublishFretboard` and its header line via `usePublishReadout`; the shell renders whatever is published, falling back to its own memo only for Bank/Routine.
+- `state/*.jsx`: eight focused React contexts (Toast, Settings, AuthSync, Library, Progress, Selection, Playback) plus two publish slots (`FretboardContext`, `ReadoutContext`). No god object. Nesting order lives in `App.jsx`'s provider tree and `docs/REFACTOR-BLUEPRINT.md`.
+- `hooks/*.js`: `useChordVoicings` (shared voicing engine for Chord/Strum/Prog/Changes), `useTour`, `useRoutineRunner`, `useNarrow`.
+- `components/*.jsx`: shared presentational pieces (`Seg`, `Field`, `KeyPicker`, `CatPicker`, `DualRange`, `IntervalGrid`, `SaveButtons`, `HeadIcon`, `TourOverlay`, `RoutineHud`, ...).
+- `lib/*.js`: pure helpers (`routing`, `analytics`, `share`, `utils`, `store`, `supabase`); `data/*.js`: data constants (`faq`, `groups`, ...).
+- Shared music/render modules: `theory.js` (notes, scales, chords, tunings, progressions, ear/picker sets, tab parser, `neckPositions` is in `fretboard.jsx`), `voicings.js` (voicing search), `audio.js` (Web Audio: pluck, metronome clicks, blips), `fretboard.jsx` (neck geometry, the `Fretboard` SVG, `ChordDiagram`, `neckPositions`). Styles are `index.css`.
+
+Put new code in the module that owns its concern (a view in `views/`, shared state in the right `state/` context, a pure helper in `lib/`), not in `App.jsx`. `docs/DESIGN.md` holds the design system and house style, `docs/ROADMAP.md` the plan, `docs/SETUP.md` the external services, `docs/SEO.md` the SEO and content strategy, `docs/REFACTOR.md` the refactor plan and progress, and `docs/REFACTOR-BLUEPRINT.md` the context/view design.
 
 ## Hard rules
 

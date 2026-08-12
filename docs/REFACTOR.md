@@ -35,23 +35,34 @@ stays serial, done one module at a time with the suite green between each.
 
 ## Phases
 
-- [ ] **0. Safety net** — Playwright smoke suite (every view loads, renders, no
-  uncaught errors) + this doc + module map in `CLAUDE.md`.
-- [ ] **1. Mechanical extractions** — CSS string to `index.css`; data constants
+`App.jsx` went from 6,887 lines to ~1,150: a shell of providers, routing,
+nav, the metronome, share intake and Supabase sync. Every view is its own
+module; state lives in eight focused contexts, not one god object.
+
+- [x] **0. Safety net**: Playwright suite (every view loads, renders, no
+  uncaught errors, plus per-feature checks) + this doc + module map in
+  `CLAUDE.md`. The suite grew to 113 tests and gates every commit.
+- [x] **1. Mechanical extractions**: CSS string to `index.css`; data constants
   to `data/`; pure helpers to `lib/` (`routing`, `analytics`, `share`, `utils`).
-- [ ] **2. UI primitives** — shared presentational components to `components/`.
-- [ ] **3. State layer** — `AppContext` (Context + reducer, no new dep) for
-  cross-cutting state (settings, tuning, capo, effFlats, known, bank, gamify,
-  track).
-- [ ] **4. Views** — extract each `mode` view to `views/*.jsx`, one at a time,
-  isolated views first (Tuner, Quiz, Ear, Melody, Finder, About, FAQ, Settings,
-  Practice log, Bank), coupled last (Chord/Scale/Arp, Prog/Changes/Strum).
-- [ ] **5. Hooks** — cross-cutting effects to `hooks/` (useAuth, useSync,
-  useMetronome, useGamify, usePractice, useRouting). `App.jsx` becomes a shell.
-- [ ] **6. Naming** — rename terse identifiers (`pvMode`, `effFlats`, `iv`,
-  `sig`, `chg`, ...) now that files are small.
-- [ ] **7. TypeScript** — migrate incrementally, types as documentation.
-- [ ] **8. Feature flags** — provider-agnostic (Vercel Flags SDK), so a Statsig
+- [x] **2. UI primitives**: shared presentational components to `components/`.
+- [x] **3. State layer**: eight focused contexts under `state/` (Toast,
+  Settings, AuthSync, Library, Progress, Selection, Playback, plus the Fretboard
+  and Readout publish slots), nested outermost-to-inner. No god context, no new
+  dependency. Views publish their neck config and readout line to the shell
+  through the two slots rather than the shell branching on `mode`.
+- [x] **4. Views**: all 19 `mode` views extracted to `views/*.jsx`, one at a
+  time. `useChordVoicings` (the shared voicing engine) and `neckPositions`
+  (shared marks helper) landed here to serve Chord/Arp/Strum/Prog.
+- [x] **5. Hooks**: the two large imperative clusters became hooks +
+  components: `useTour`/`TourOverlay` and `useRoutineRunner`/`RoutineHud`. Share
+  encode/decode deduped into `lib/share`. Routing, analytics and Supabase sync
+  stay in the shell by design: each is bound to `setMode`, the analytics refs
+  and every Selection setter, so a hook would only add prop-drilling.
+- [x] **6. Naming**: renamed the one opaque shell identifier (`pvMode` ->
+  `landingMode`). Domain abbreviations (`iv`, `pc`, `midis`) are idiomatic and
+  now consistent within each small module, so they stay.
+- [ ] **7. TypeScript**: migrate incrementally, types as documentation.
+- [ ] **8. Feature flags**: provider-agnostic (Vercel Flags SDK), so a Statsig
   backend stays an option. Only after 0-7.
 
 ## Target layout
