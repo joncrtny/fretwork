@@ -15,7 +15,7 @@ import { useSettings } from "../state/SettingsContext.tsx";
 import { useSelection } from "../state/SelectionContext.tsx";
 import { usePlayback } from "../state/PlaybackContext.jsx";
 import { useLibrary } from "../state/LibraryContext.tsx";
-import { useProgress } from "../state/ProgressContext.jsx";
+import { useProgress } from "../state/ProgressContext.tsx";
 import { usePublishFretboard } from "../state/FretboardContext.tsx";
 import { usePublishReadout } from "../state/ReadoutContext.tsx";
 import { useChordVoicings } from "../hooks/useChordVoicings.js";

@@ -26,7 +26,7 @@ import { ToastProvider, useToast } from "./state/ToastContext.tsx";
 import { SettingsProvider, useSettings } from "./state/SettingsContext.tsx";
 import { AuthSyncProvider, useAuthSync } from "./state/AuthSyncContext.tsx";
 import { LibraryProvider, useLibrary } from "./state/LibraryContext.tsx";
-import { ProgressProvider, useProgress } from "./state/ProgressContext.jsx";
+import { ProgressProvider, useProgress } from "./state/ProgressContext.tsx";
 import { SelectionProvider, useSelection } from "./state/SelectionContext.tsx";
 import { PlaybackProvider, usePlayback } from "./state/PlaybackContext.jsx";
 import { FaqView } from "./views/FaqView.jsx";

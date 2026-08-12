@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ctx, pluck, playClick } from "../audio.ts";
 import { useSettings } from "./SettingsContext.tsx";
-import { useProgress } from "./ProgressContext.jsx";
+import { useProgress } from "./ProgressContext.tsx";
 
 /* The audio scheduler and every piece of "is something sounding" state, owned
    together because stopPlayback must reset all of it regardless of which view

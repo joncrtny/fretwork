@@ -5,7 +5,7 @@ import { track } from "../lib/analytics.ts";
 import { Field } from "../components/Field.jsx";
 import { Seg } from "../components/Seg.jsx";
 import { useSettings } from "../state/SettingsContext.tsx";
-import { useProgress } from "../state/ProgressContext.jsx";
+import { useProgress } from "../state/ProgressContext.tsx";
 import { usePublishReadout } from "../state/ReadoutContext.tsx";
 
 /* Ear training: hear an interval or chord type and name it, or pick one and

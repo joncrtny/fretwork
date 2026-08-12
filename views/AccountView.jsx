@@ -8,7 +8,7 @@ import { usernameProblem } from "../lib/username.ts";
 import { isNetErr } from "../lib/utils.ts";
 import { useAuthSync } from "../state/AuthSyncContext.tsx";
 import { useLibrary } from "../state/LibraryContext.tsx";
-import { useProgress } from "../state/ProgressContext.jsx";
+import { useProgress } from "../state/ProgressContext.tsx";
 import { useToast } from "../state/ToastContext.tsx";
 
 /* The account view: username-only sign in / create account over Supabase,

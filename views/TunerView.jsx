@@ -5,7 +5,7 @@ import { track } from "../lib/analytics.ts";
 import { Field } from "../components/Field.jsx";
 import { KeyPicker } from "../components/KeyPicker.jsx";
 import { useSettings } from "../state/SettingsContext.tsx";
-import { useProgress } from "../state/ProgressContext.jsx";
+import { useProgress } from "../state/ProgressContext.tsx";
 import { usePlayback } from "../state/PlaybackContext.jsx";
 
 /* The tuner: a microphone tuner (autocorrelation pitch detection, needle and

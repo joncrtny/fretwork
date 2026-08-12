@@ -1,6 +1,6 @@
 import { PRACTICE_MODES } from "../theory.ts";
 import { BADGES, badgeTier } from "../gamify.js";
-import { useProgress } from "../state/ProgressContext.jsx";
+import { useProgress } from "../state/ProgressContext.tsx";
 import { useAuthSync } from "../state/AuthSyncContext.tsx";
 
 /* The practice log: level ring, points, badges, streak scoreboard, the

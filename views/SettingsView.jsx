@@ -2,7 +2,7 @@ import { track } from "../lib/analytics.ts";
 import { Seg } from "../components/Seg.jsx";
 import { Field } from "../components/Field.jsx";
 import { useSettings } from "../state/SettingsContext.tsx";
-import { useProgress } from "../state/ProgressContext.jsx";
+import { useProgress } from "../state/ProgressContext.tsx";
 
 /* Settings: fretboard display, chord-shape rules, appearance and accessibility
    preferences. A pure Settings consumer, plus one Progress write: the Simple

@@ -1,4 +1,15 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+  type MutableRefObject,
+  type ReactNode,
+} from "react";
 import { store } from "../lib/store.ts";
 import { track } from "../lib/analytics.ts";
 import { supabase } from "../lib/supabase.ts";
@@ -9,32 +20,96 @@ import { useAuthSync } from "./AuthSyncContext.tsx";
 /* Gamification and practice progress: the durable counters behind points,
    levels and badges, the practice log, their derived stats, the celebrate
    popup, and the cloud merge/push for the gamify column. */
-const ProgressContext = createContext(null);
 
-export function ProgressProvider({ children }) {
+export interface GamifyCounters {
+  earCorrect: number;
+  earStreakInterval: number;
+  earStreakChord: number;
+  tourTaken: number;
+  triedSimple: number;
+  tunings: string[];
+  metronomeSeconds: number;
+  chordChangesTotal: number;
+  chordChangeBest: number;
+  bestDayStreak: number;
+  [k: string]: number | string[]; // extra/dynamic counters, and interop with mergeGamify
+}
+export interface Gamify {
+  counters: GamifyCounters;
+  acked: Record<string, number>; // badge id or "__level" to the tier/level already celebrated
+}
+export interface PracticeDay {
+  total: number; // seconds
+  byMode: Record<string, number>;
+}
+export type PracticeLog = Record<string, PracticeDay>; // "YYYY-MM-DD" to that day
+
+export interface Celebrate {
+  type: "badge" | "badges" | "level";
+  level?: number;
+  name?: string;
+  tier?: number;
+  tiers?: number;
+  count?: number;
+}
+
+export interface PracticeStats {
+  streak: number;
+  week: { k: string; total: number; label: string }[];
+  weekTotal: number;
+  allTime: number;
+  modeRows: [string, number][];
+  maxDay: number;
+  todayTotal: number;
+}
+
+type SavePracticeLog = (next: PracticeLog) => void;
+
+export interface ProgressValue {
+  gamify: Gamify;
+  setGamify: Dispatch<SetStateAction<Gamify>>;
+  practiceLog: PracticeLog;
+  setPracticeLog: Dispatch<SetStateAction<PracticeLog>>;
+  celebrate: Celebrate | null;
+  setCelebrate: Dispatch<SetStateAction<Celebrate | null>>;
+  practiceStats: PracticeStats;
+  gStats: Record<string, number>;
+  gPoints: number;
+  gLevel: ReturnType<typeof levelProgress>;
+  lastActiveRef: MutableRefObject<number>;
+  savePracticeLog: MutableRefObject<SavePracticeLog | null>;
+  gamifyReadyRef: MutableRefObject<boolean>;
+  progressHydrated: boolean;
+}
+
+const ProgressContext = createContext<ProgressValue | null>(null);
+
+const EMPTY_GAMIFY: Gamify = {
+  counters: {
+    earCorrect: 0,
+    earStreakInterval: 0,
+    earStreakChord: 0,
+    tourTaken: 0,
+    triedSimple: 0,
+    tunings: [],
+    metronomeSeconds: 0,
+    chordChangesTotal: 0,
+    chordChangeBest: 0,
+    bestDayStreak: 0,
+  },
+  acked: {},
+};
+
+export function ProgressProvider({ children }: { children: ReactNode }) {
   const { authUser, progressSynced, syncField, keepaliveGamify } = useAuthSync();
-  const [practiceLog, setPracticeLog] = useState({}); // { 'YYYY-MM-DD': { total, byMode: {} } }
+  const [practiceLog, setPracticeLog] = useState<PracticeLog>({});
   const lastActiveRef = useRef(Date.now());
   /* gamification: durable counters that feed points/level/badges, plus `acked`
      (which badge tiers and level have already been celebrated so we do not
      re-toast or re-fire GA on reload). Practice minutes come from practiceLog. */
-  const [gamify, setGamify] = useState({
-    counters: {
-      earCorrect: 0,
-      earStreakInterval: 0,
-      earStreakChord: 0,
-      tourTaken: 0,
-      triedSimple: 0,
-      tunings: [],
-      metronomeSeconds: 0,
-      chordChangesTotal: 0,
-      chordChangeBest: 0,
-      bestDayStreak: 0,
-    },
-    acked: {},
-  });
+  const [gamify, setGamify] = useState<Gamify>(EMPTY_GAMIFY);
   const gamifyReadyRef = useRef(false);
-  const [celebrate, setCelebrate] = useState(null); // { type:'badge'|'level', ... } shown as a reward popup
+  const [celebrate, setCelebrate] = useState<Celebrate | null>(null); // shown as a reward popup
   const [progressHydrated, setProgressHydrated] = useState(false);
 
   useEffect(() => {
@@ -54,8 +129,8 @@ export function ProgressProvider({ children }) {
           if (v && typeof v === "object" && !Array.isArray(v)) {
             /* max-merge so this cannot clobber a sign-in merge that raced ahead */
             setPracticeLog((cur) => {
-              const merged = { ...cur };
-              for (const [k, dv] of Object.entries(v)) if (!merged[k] || dv.total > merged[k].total) merged[k] = dv;
+              const merged: PracticeLog = { ...cur };
+              for (const [k, dv] of Object.entries(v)) if (!merged[k] || (dv as PracticeDay).total > merged[k].total) merged[k] = dv as PracticeDay;
               return merged;
             });
           }
@@ -69,7 +144,7 @@ export function ProgressProvider({ children }) {
           const v = JSON.parse(r.value);
           if (v && typeof v === "object") {
             /* max-merge so a counter bumped before this async load resolves is not clobbered */
-            setGamify((g) => mergeGamify(g, v));
+            setGamify((g) => mergeGamify(g, v) as Gamify);
           }
         }
       } catch (e) {
@@ -90,9 +165,9 @@ export function ProgressProvider({ children }) {
 
   /* persisting the practice log needs the latest syncField without re-running
      the ticker effect, so it lives behind a ref */
-  const savePracticeLog = useRef(null);
+  const savePracticeLog = useRef<SavePracticeLog | null>(null);
   useEffect(() => {
-    savePracticeLog.current = (next) => {
+    savePracticeLog.current = (next: PracticeLog) => {
       store.set("fretboard:practicelog", JSON.stringify(next)).catch(() => {});
       syncField("practice_log", next);
     };
@@ -137,7 +212,7 @@ export function ProgressProvider({ children }) {
     (async () => {
       try {
         const { data, error } = await supabase.from("user_data").select("gamify").eq("user_id", authUser.id).maybeSingle();
-        if (!cancelled && !error && data && data.gamify) setGamify((local) => mergeGamify(local, data.gamify));
+        if (!cancelled && !error && data && data.gamify) setGamify((local) => mergeGamify(local, data.gamify) as Gamify);
       } catch (e) {
         /* the gamify column may not exist yet */
       } finally {
@@ -150,7 +225,7 @@ export function ProgressProvider({ children }) {
   }, [authUser && authUser.id]);
 
   /* derived practice stats */
-  const practiceStats = useMemo(() => {
+  const practiceStats = useMemo<PracticeStats>(() => {
     const days = Object.keys(practiceLog).sort();
     const today = localDay(new Date());
     let streak = 0;
@@ -163,30 +238,30 @@ export function ProgressProvider({ children }) {
         continue; // today not practised yet: the streak still stands from yesterday
       else break;
     }
-    const week = [];
+    const week: { k: string; total: number; label: string }[] = [];
     for (let i = 13; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const k = localDay(d);
       week.push({ k, total: practiceLog[k] ? practiceLog[k].total : 0, label: d.toLocaleDateString("en-GB", { weekday: "short" }) });
     }
-    const byMode = {};
+    const byMode: Record<string, number> = {};
     let allTime = 0;
     for (const k of days) {
       allTime += practiceLog[k].total;
       for (const [m, sec] of Object.entries(practiceLog[k].byMode || {})) byMode[m] = (byMode[m] || 0) + sec;
     }
     const weekTotal = week.reduce((a, b) => a + b.total, 0);
-    const modeRows = Object.entries(byMode).sort((a, b) => b[1] - a[1]);
+    const modeRows = Object.entries(byMode).sort((a, b) => b[1] - a[1]) as [string, number][];
     const maxDay = Math.max(60, ...week.map((w) => w.total));
     return { streak, week, weekTotal, allTime, modeRows, maxDay, todayTotal: practiceLog[today] ? practiceLog[today].total : 0 };
   }, [practiceLog]);
 
   /* the snapshot the gamification module scores: durable counters plus per-mode
      practice minutes derived from the practice log */
-  const gStats = useMemo(() => {
+  const gStats = useMemo<Record<string, number>>(() => {
     const c = gamify.counters;
-    const byMode = {};
+    const byMode: Record<string, number> = {};
     for (const day of Object.values(practiceLog))
       for (const [m, sec] of Object.entries(day.byMode || {})) byMode[m] = (byMode[m] || 0) + sec;
     return {
@@ -246,7 +321,7 @@ export function ProgressProvider({ children }) {
       return;
     }
     const acked = gamify.acked || {};
-    const newly = [];
+    const newly: { b: (typeof BADGES)[number]; tier: number }[] = [];
     for (const b of BADGES) {
       const t = badgeTier(b, gStats);
       if (t > (acked[b.id] || 0)) newly.push({ b, tier: t });
@@ -263,13 +338,12 @@ export function ProgressProvider({ children }) {
     if (levelUp) track("level_up", { level: gLevel.level });
     /* a proper reward moment: a popup that lingers, not just a fleeting toast */
     if (levelUp) setCelebrate({ type: "level", level: gLevel.level });
-    else if (newly.length === 1)
-      setCelebrate({ type: "badge", name: newly[0].b.name, tier: newly[0].tier, tiers: newly[0].b.tiers.length });
+    else if (newly.length === 1) setCelebrate({ type: "badge", name: newly[0].b.name, tier: newly[0].tier, tiers: newly[0].b.tiers.length });
     else setCelebrate({ type: "badges", count: newly.length });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gStats, gLevel.level, progressHydrated, progressSynced]);
 
-  const value = useMemo(
+  const value = useMemo<ProgressValue>(
     () => ({
       gamify,
       setGamify,
@@ -291,7 +365,7 @@ export function ProgressProvider({ children }) {
   return <ProgressContext.Provider value={value}>{children}</ProgressContext.Provider>;
 }
 
-export function useProgress() {
+export function useProgress(): ProgressValue {
   const v = useContext(ProgressContext);
   if (!v) throw new Error("useProgress must be used inside <ProgressProvider>");
   return v;
