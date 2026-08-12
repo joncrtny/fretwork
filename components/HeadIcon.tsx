@@ -1,6 +1,8 @@
+import type { ReactNode } from "react";
+
 /* small decorative icons for the nav section headings */
-export function HeadIcon({ kind }) {
-  const shapes = {
+export function HeadIcon({ kind }: { kind: string }) {
+  const shapes: Record<string, ReactNode> = {
     learn: <path d="M2 3.5c2-1.2 4-1.2 6 0v9c-2-1.2-4-1.2-6 0zM8 3.5c2-1.2 4-1.2 6 0v9c-2-1.2-4-1.2-6 0z" />,
     practice: (
       <>

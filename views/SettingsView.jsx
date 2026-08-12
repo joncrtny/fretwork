@@ -1,6 +1,6 @@
 import { track } from "../lib/analytics.ts";
-import { Seg } from "../components/Seg.jsx";
-import { Field } from "../components/Field.jsx";
+import { Seg } from "../components/Seg.tsx";
+import { Field } from "../components/Field.tsx";
 import { useSettings } from "../state/SettingsContext.tsx";
 import { useProgress } from "../state/ProgressContext.tsx";
 

@@ -1,8 +1,8 @@
 import { CHANGELOG } from "../data/changelog.ts";
 import { RESOURCES } from "../data/resources.ts";
 import { track } from "../lib/analytics.ts";
-import { DonateButton, SHOW_DONATE } from "../components/DonateButton.jsx";
-import { FeedbackForm } from "../components/FeedbackForm.jsx";
+import { DonateButton, SHOW_DONATE } from "../components/DonateButton.tsx";
+import { FeedbackForm } from "../components/FeedbackForm.tsx";
 
 /* The About page: what Fretwork is, the changelog, data and accessibility
    notes, recommended learning resources, the feedback form and the donate

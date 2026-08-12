@@ -9,17 +9,22 @@ export const DONATE_URL = "https://www.paypal.com/donate/?hosted_button_id=YTQGV
    Support section back */
 export const SHOW_DONATE = false;
 
+interface PayPalWindow {
+  PayPal?: { Donation?: { Button: (cfg: unknown) => { render: (sel: string) => void } } };
+}
+
 export function DonateButton() {
-  const boxRef = useRef(null);
+  const boxRef = useRef<HTMLDivElement | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
+    const w = window as unknown as PayPalWindow;
     let cancelled = false;
     const fail = () => {
       if (!cancelled) setFailed(true);
     };
     const render = () => {
       if (cancelled || !boxRef.current) return;
-      const D = window.PayPal && window.PayPal.Donation;
+      const D = w.PayPal && w.PayPal.Donation;
       if (!D) return fail();
       try {
         boxRef.current.innerHTML = "";
@@ -39,13 +44,13 @@ export function DonateButton() {
         fail();
       }
     };
-    if (window.PayPal) {
+    if (w.PayPal) {
       render();
       return () => {
         cancelled = true;
       };
     }
-    let s = document.getElementById("paypal-donate-sdk");
+    let s = document.getElementById("paypal-donate-sdk") as HTMLScriptElement | null;
     if (!s) {
       s = document.createElement("script");
       s.id = "paypal-donate-sdk";
@@ -56,7 +61,7 @@ export function DonateButton() {
     s.addEventListener("load", render);
     s.addEventListener("error", fail);
     const slow = setTimeout(() => {
-      if (!window.PayPal) fail();
+      if (!w.PayPal) fail();
     }, 6000);
     return () => {
       cancelled = true;

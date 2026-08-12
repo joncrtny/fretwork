@@ -1,14 +1,36 @@
 import { useState, useEffect, useRef } from "react";
 
+interface PickerItem {
+  id: string;
+  name: string;
+  sub?: string;
+}
+interface PickerGroup {
+  label: string;
+  items: PickerItem[];
+}
+
 /* Categorized picker: the same compact pattern as KeyPicker, for entities
    with families. One button, a multi-column panel grouped under headings. */
-export function CatPicker({ value, groups, onChange, label, tip }) {
+export function CatPicker({
+  value,
+  groups,
+  onChange,
+  label,
+  tip,
+}: {
+  value: string;
+  groups: PickerGroup[];
+  onChange: (id: string) => void;
+  label?: string;
+  tip?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [shift, setShift] = useState(0);
   const [up, setUp] = useState(false);
-  const boxRef = useRef(null);
-  const btnRef = useRef(null);
-  const menuRef = useRef(null);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const uid = useRef(`cp${Math.floor(performance.now() * 1000) % 1e9}`);
   useEffect(() => {
     if (!open) return;
@@ -22,10 +44,10 @@ export function CatPicker({ value, groups, onChange, label, tip }) {
       const below = window.innerHeight - b.bottom;
       setUp(below < Math.min(m.height, 320) && b.top > below);
     }
-    const close = (e) => {
-      if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
+    const close = (e: PointerEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
     };
-    const onKey = (e) => {
+    const onKey = (e: KeyboardEvent) => {
       const insidePicker = boxRef.current && boxRef.current.contains(document.activeElement);
       if (e.key === "Escape") {
         setOpen(false);
@@ -35,8 +57,8 @@ export function CatPicker({ value, groups, onChange, label, tip }) {
       /* arrows drive the menu only while focus is actually in this picker */
       if (!insidePicker) return;
       if ((e.key === "ArrowDown" || e.key === "ArrowUp") && menuRef.current) {
-        const opts = [...menuRef.current.querySelectorAll("[role=option]")];
-        const i = opts.indexOf(document.activeElement);
+        const opts = [...menuRef.current.querySelectorAll<HTMLElement>("[role=option]")];
+        const i = opts.indexOf(document.activeElement as HTMLElement);
         const next = e.key === "ArrowDown" ? Math.min(opts.length - 1, i + 1) : Math.max(0, i - 1);
         if (opts[next]) opts[next].focus();
         e.preventDefault();
@@ -56,7 +78,7 @@ export function CatPicker({ value, groups, onChange, label, tip }) {
       ref={boxRef}
       onBlur={(e) => {
         /* keyboard users tabbing out should not leave the panel hanging open */
-        if (open && boxRef.current && !boxRef.current.contains(e.relatedTarget)) setOpen(false);
+        if (open && boxRef.current && !boxRef.current.contains(e.relatedTarget as Node)) setOpen(false);
       }}
     >
       <button

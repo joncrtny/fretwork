@@ -1,5 +1,5 @@
 /* round star button: fills when the current thing is already in the Bank */
-export function StarSave({ saved, onClick, label }) {
+export function StarSave({ saved, onClick, label }: { saved: boolean; onClick: () => void; label: string }) {
   return (
     <button
       type="button"
@@ -27,7 +27,7 @@ export function StarSave({ saved, onClick, label }) {
 
 /* the lightbulb: mark a scale/chord/arpeggio as something you know, which feeds
    the practice-routine builder */
-export function BulbSave({ known, onClick, label }) {
+export function BulbSave({ known, onClick, label }: { known: boolean; onClick: () => void; label: string }) {
   return (
     <button
       type="button"
@@ -55,7 +55,7 @@ export function BulbSave({ known, onClick, label }) {
 }
 
 /* the same "known" toggle, but labelled and prominent at the top of a view */
-export function KnownButton({ known, onClick }) {
+export function KnownButton({ known, onClick }: { known: boolean; onClick: () => void }) {
   return (
     <button type="button" className={`knownbtn ${known ? "on" : ""}`} aria-pressed={known} onClick={onClick}>
       <svg

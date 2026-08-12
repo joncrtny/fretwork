@@ -50,13 +50,13 @@ import { BankView } from "./views/BankView.jsx";
 import { RoutineView } from "./views/RoutineView.jsx";
 import { ProgView } from "./views/ProgView.jsx";
 import { MelodyView } from "./views/MelodyView.jsx";
-import { TourOverlay } from "./components/TourOverlay.jsx";
-import { RoutineHud } from "./components/RoutineHud.jsx";
+import { TourOverlay } from "./components/TourOverlay.tsx";
+import { RoutineHud } from "./components/RoutineHud.tsx";
 import { useTour } from "./hooks/useTour.ts";
 import { useRoutineRunner } from "./hooks/useRoutineRunner.ts";
-import { Seg } from "./components/Seg.jsx";
-import { Field } from "./components/Field.jsx";
-import { HeadIcon } from "./components/HeadIcon.jsx";
+import { Seg } from "./components/Seg.tsx";
+import { Field } from "./components/Field.tsx";
+import { HeadIcon } from "./components/HeadIcon.tsx";
 
 /* The shell: providers, routing and analytics, the nav and drawer, the
    metronome transport, share-link intake, Supabase sync, and the slot fallbacks

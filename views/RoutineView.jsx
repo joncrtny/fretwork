@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Field } from "../components/Field.jsx";
-import { Seg } from "../components/Seg.jsx";
+import { Field } from "../components/Field.tsx";
+import { Seg } from "../components/Seg.tsx";
 import { useLibrary } from "../state/LibraryContext.tsx";
 
 /* Build a practice routine from the things you have marked as known. This is

@@ -1,11 +1,21 @@
 import { useState, useEffect, useRef } from "react";
 import { nameOf } from "../theory.ts";
 
-export function KeyPicker({ value, onChange, flats, tip }) {
+export function KeyPicker({
+  value,
+  onChange,
+  flats,
+  tip,
+}: {
+  value: number;
+  onChange: (pc: number) => void;
+  flats: boolean;
+  tip?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [upK, setUpK] = useState(false);
-  const boxRef = useRef(null);
-  const btnRef = useRef(null);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     if (!open) return;
     if (btnRef.current) {
@@ -14,10 +24,10 @@ export function KeyPicker({ value, onChange, flats, tip }) {
       setUpK(below < 240 && b.top > below);
     }
     /* close on any pointerdown outside this picker, including on another picker */
-    const close = (e) => {
-      if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
+    const close = (e: PointerEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
     };
-    const onKey = (e) => {
+    const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setOpen(false);
         if (btnRef.current) btnRef.current.focus();

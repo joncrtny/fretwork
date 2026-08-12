@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Field } from "./Field.jsx";
+import { useState, type FormEvent } from "react";
+import { Field } from "./Field.tsx";
 import { track } from "../lib/analytics.ts";
 import { supabase, SUPA_URL, SUPA_KEY } from "../lib/supabase.ts";
 
@@ -10,12 +10,12 @@ export function FeedbackForm() {
   const [state, setState] = useState("idle"); // idle | sending | sent | error
   const [trap, setTrap] = useState(""); // honeypot; bots fill it, people never see it
 
-  const submit = async (e) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (trap || !message.trim() || state === "sending") return;
     setState("sending");
     try {
-      let uid = null;
+      let uid: string | null = null;
       let bearer = SUPA_KEY;
       try {
         const { data } = await supabase.auth.getSession();

@@ -1,8 +1,31 @@
+import type { Dispatch, SetStateAction, RefObject } from "react";
+
+interface TourStep {
+  title: string;
+  body: string;
+  target: string | null;
+  before: () => void;
+}
+interface TourRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+interface TourOverlayProps {
+  tour: number;
+  setTour: Dispatch<SetStateAction<number>>;
+  tourRect: TourRect | null;
+  tourCardRef: RefObject<HTMLDivElement>;
+  tourSteps: TourStep[];
+  endTour: () => void;
+}
+
 /* The tour's spotlight and card. Pure presentation over the useTour state:
    it positions the card near the highlighted target (or centres it when the
    target is missing or too tall), traps clicks off the highlight to dismiss,
    and offers Back/Next/Skip/Done. Renders nothing when no tour is running. */
-export function TourOverlay({ tour, setTour, tourRect, tourCardRef, tourSteps, endTour }) {
+export function TourOverlay({ tour, setTour, tourRect, tourCardRef, tourSteps, endTour }: TourOverlayProps) {
   if (tour < 0) return null;
   const step = tourSteps[tour];
   const pad = 6;

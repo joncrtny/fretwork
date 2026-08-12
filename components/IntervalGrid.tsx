@@ -1,6 +1,16 @@
 import { DEG, FUNC_COLOUR, LOWERED, nameOf } from "../theory.ts";
 
-export function IntervalGrid({ root, on, onToggle, flats }) {
+export function IntervalGrid({
+  root,
+  on,
+  onToggle,
+  flats,
+}: {
+  root: number;
+  on: Set<number>;
+  onToggle: (i: number) => void;
+  flats: boolean;
+}) {
   return (
     <div className="ivgrid">
       {DEG.map((d, i) => {

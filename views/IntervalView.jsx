@@ -1,9 +1,9 @@
 import { useCallback, useMemo } from "react";
 import { DEG, FUNC_COLOUR, INTERVAL_PRESETS, nameOf, keyPrefersFlats } from "../theory.ts";
 import { neckPositions } from "../fretboard.jsx";
-import { Field } from "../components/Field.jsx";
-import { KeyPicker } from "../components/KeyPicker.jsx";
-import { IntervalGrid } from "../components/IntervalGrid.jsx";
+import { Field } from "../components/Field.tsx";
+import { KeyPicker } from "../components/KeyPicker.tsx";
+import { IntervalGrid } from "../components/IntervalGrid.tsx";
 import { useSettings } from "../state/SettingsContext.tsx";
 import { useSelection } from "../state/SelectionContext.tsx";
 import { usePlayback } from "../state/PlaybackContext.tsx";

@@ -1,6 +1,16 @@
 import { useNarrow } from "../hooks/useNarrow.ts";
 
-export function Seg({ options, value, onChange, small, responsive = true, ariaLabel }) {
+type SegVal = string | number | boolean;
+interface SegProps {
+  options: { v: SegVal; l: string }[];
+  value: SegVal;
+  onChange: (v: SegVal) => void;
+  small?: boolean;
+  responsive?: boolean;
+  ariaLabel?: string;
+}
+
+export function Seg({ options, value, onChange, small, responsive = true, ariaLabel }: SegProps) {
   const narrow = useNarrow();
   if (responsive && narrow) {
     const idx = options.findIndex((o) => o.v === value);

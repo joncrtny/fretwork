@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Seg } from "../components/Seg.jsx";
-import { Field } from "../components/Field.jsx";
+import { Seg } from "../components/Seg.tsx";
+import { Field } from "../components/Field.tsx";
 import { track } from "../lib/analytics.ts";
 import { store } from "../lib/store.ts";
 import { supabase, FAKE_MAIL, authRedirect } from "../lib/supabase.ts";

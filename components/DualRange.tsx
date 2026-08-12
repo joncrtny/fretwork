@@ -2,22 +2,35 @@ import { useEffect, useRef } from "react";
 
 /* One track, two draggers. Thumbs are buttons: draggable by pointer,
    steppable by arrow keys, and announced as sliders. */
-export function DualRange({ min, max, lo, hi, onChange }) {
-  const trackRef = useRef(null);
-  const dragRef = useRef(null); // "lo" | "hi" | null
-  const clamp = (v) => Math.min(max, Math.max(min, v));
-  const valFromX = (clientX) => {
-    const r = trackRef.current.getBoundingClientRect();
+type Which = "lo" | "hi";
+export function DualRange({
+  min,
+  max,
+  lo,
+  hi,
+  onChange,
+}: {
+  min: number;
+  max: number;
+  lo: number;
+  hi: number;
+  onChange: (r: [number, number]) => void;
+}) {
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<Which | null>(null);
+  const clamp = (v: number) => Math.min(max, Math.max(min, v));
+  const valFromX = (clientX: number) => {
+    const r = trackRef.current!.getBoundingClientRect();
     const t = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
     return Math.round(min + t * (max - min));
   };
-  const move = (which, v) => {
+  const move = (which: Which, v: number) => {
     v = clamp(v);
     if (which === "lo") onChange([Math.min(v, hi - 1), hi]);
     else onChange([lo, Math.max(v, lo + 1)]);
   };
   useEffect(() => {
-    const onMove = (e) => {
+    const onMove = (e: PointerEvent) => {
       if (!dragRef.current) return;
       move(dragRef.current, valFromX(e.clientX));
     };
@@ -34,8 +47,8 @@ export function DualRange({ min, max, lo, hi, onChange }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lo, hi, min, max, onChange]);
-  const pct = (v) => ((v - min) / (max - min)) * 100;
-  const thumb = (which, v, lab) => (
+  const pct = (v: number) => ((v - min) / (max - min)) * 100;
+  const thumb = (which: Which, v: number, lab: string) => (
     <button
       type="button"
       className="drthumb"
@@ -80,7 +93,8 @@ export function DualRange({ min, max, lo, hi, onChange }) {
       ref={trackRef}
       onPointerDown={(e) => {
         if (e.button !== 0) return;
-        if (e.target.closest && e.target.closest(".drthumb")) return;
+        const tgt = e.target as HTMLElement;
+        if (tgt.closest && tgt.closest(".drthumb")) return;
         const v = valFromX(e.clientX);
         const which = Math.abs(v - lo) <= Math.abs(v - hi) ? "lo" : "hi";
         dragRef.current = which;

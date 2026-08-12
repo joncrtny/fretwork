@@ -1,8 +1,25 @@
+interface RoutineSegment {
+  item: { label: string };
+  stretch: boolean;
+}
+interface Routine {
+  phase: "running" | "rate";
+  segments: RoutineSegment[];
+  idx: number;
+  remaining: number;
+}
+interface RoutineHudProps {
+  routine: Routine | null;
+  routineNext: () => void;
+  rateRoutine: (stars: number) => void;
+  stopRoutine: () => void;
+}
+
 /* The floating routine HUD and its end-of-session rating dialog. Presentational
    over useRoutineRunner: while a routine runs it shows the current item and a
    countdown over whichever view the runner has stepped to; at the end it asks
    for a rating that shapes the next routine. Renders nothing when idle. */
-export function RoutineHud({ routine, routineNext, rateRoutine, stopRoutine }) {
+export function RoutineHud({ routine, routineNext, rateRoutine, stopRoutine }: RoutineHudProps) {
   if (!routine) return null;
 
   if (routine.phase === "running") {
