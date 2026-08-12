@@ -17,7 +17,7 @@ import {
   TIME_SIGS,
 } from "./theory.js";
 import { useGeometry, Fretboard } from "./fretboard.jsx";
-import { VIEW_META, pathForMode, modeForPath } from "./lib/routing.js";
+import { VIEW_META, pathForMode, modeForPath } from "./lib/routing.ts";
 import { track } from "./lib/analytics.js";
 import { shareLinkFromParams, decodeShareHash } from "./lib/share.ts";
 import { store } from "./lib/store.js";

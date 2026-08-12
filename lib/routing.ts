@@ -2,7 +2,12 @@
    single page, so GA and Amplitude never see navigation on their own: we send
    a page_view per view change instead, keyed off these. Keep every `mode`
    value covered, or its path falls back to a raw, opaque "/mode". */
-export const VIEW_META = {
+export interface ViewMeta {
+  path: string;
+  title: string;
+}
+
+export const VIEW_META: Record<string, ViewMeta> = {
   chord: { path: "/chords", title: "Chords" },
   scale: { path: "/scales", title: "Scales" },
   arp: { path: "/arpeggios", title: "Arpeggios" },
@@ -28,11 +33,11 @@ export const VIEW_META = {
    bookmarked, shared and crawled as distinct pages. The default view (chord) is
    the site root "/", keeping a single canonical home rather than a "/chords"
    duplicate of it. */
-export function pathForMode(m) {
+export function pathForMode(m: string): string {
   return m === "chord" ? "/" : (VIEW_META[m] && VIEW_META[m].path) || "/";
 }
 
-export function modeForPath(p) {
+export function modeForPath(p: string): string | null {
   if (!p || p === "/") return "chord";
   for (const m in VIEW_META) if (m !== "chord" && VIEW_META[m].path === p) return m;
   return null;

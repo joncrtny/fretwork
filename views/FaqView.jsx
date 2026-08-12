@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { FAQ_SECTIONS, FAQS } from "../data/faq.js";
-import { VIEW_META } from "../lib/routing.js";
+import { VIEW_META } from "../lib/routing.ts";
 
 /* The FAQ: a plain-language beginner's guide, grouped into themed sections,
    with a jump-to-section row and an "open the tool" link on answers that have
