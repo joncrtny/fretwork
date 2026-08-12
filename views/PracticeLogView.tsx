@@ -13,7 +13,7 @@ export function PracticeLogView() {
   return (
     <div className="pane about">
       {(() => {
-        const fmt = (sec) => {
+        const fmt = (sec: number) => {
           const m = Math.round(sec / 60);
           if (m < 60) return `${m} min`;
           return `${Math.floor(m / 60)}h ${m % 60}m`;
@@ -48,7 +48,7 @@ export function PracticeLogView() {
               <h2 className="abouthead">Badges</h2>
               <div className="badgegrid">
                 {[...BADGES]
-                  .sort((a, b) => (badgeTier(b, gStats) > 0) - (badgeTier(a, gStats) > 0))
+                  .sort((a, b) => Number(badgeTier(b, gStats) > 0) - Number(badgeTier(a, gStats) > 0))
                   .map((b) => {
                     const tier = badgeTier(b, gStats);
                     const max = b.tiers.length;

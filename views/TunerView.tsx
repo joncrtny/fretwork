@@ -19,8 +19,14 @@ export function TunerView() {
   const { playNote } = usePlayback();
 
   /* mic tuner: nothing here touches the microphone until the user starts it */
-  const [tuner, setTuner] = useState({ on: false, note: null, cents: 0, freq: 0, error: null });
-  const micRef = useRef(null); // { stream, ctx, raf }
+  const [tuner, setTuner] = useState<{ on: boolean; note: number | null; cents: number; freq: number; error: string | null }>({
+    on: false,
+    note: null,
+    cents: 0,
+    freq: 0,
+    error: null,
+  });
+  const micRef = useRef<{ stream: MediaStream; ctx: AudioContext; raf: number } | null>(null);
   const [capoShape, setCapoShape] = useState(7); // chords you know (G shapes)
   const [capoTarget, setCapoTarget] = useState(9); // key you want to hear (A)
   /* stands in for the old modeRef check inside the getUserMedia await: while
@@ -37,7 +43,7 @@ export function TunerView() {
   }, [settings.noteNames]);
 
   /* autocorrelation pitch detection over a mono buffer */
-  const detectPitch = (buf, sr) => {
+  const detectPitch = (buf: Float32Array, sr: number) => {
     let rms = 0;
     for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
     rms = Math.sqrt(rms / buf.length);
@@ -93,7 +99,7 @@ export function TunerView() {
 
   const startTuner = useCallback(async () => {
     if (micRef.current) return; // already listening: ignore a second press
-    let stream = null;
+    let stream: MediaStream | null = null;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
@@ -103,7 +109,7 @@ export function TunerView() {
         stream.getTracks().forEach((t) => t.stop());
         return;
       }
-      const AC = window.AudioContext || window.webkitAudioContext;
+      const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       const ac = new AC();
       const src = ac.createMediaStreamSource(stream);
       const an = ac.createAnalyser();
@@ -139,7 +145,8 @@ export function TunerView() {
         note: null,
         cents: 0,
         freq: 0,
-        error: e && e.name === "NotAllowedError" ? "Microphone permission was declined." : "Could not access the microphone.",
+        error:
+          e && (e as DOMException).name === "NotAllowedError" ? "Microphone permission was declined." : "Could not access the microphone.",
       });
     }
   }, []);
@@ -154,7 +161,7 @@ export function TunerView() {
     };
   }, [stopTuner]);
 
-  const setTuning = (id) => {
+  const setTuning = (id: string) => {
     const t = TUNINGS.find((x) => x.id === id);
     if (!t) return;
     setSettings((s) => ({ ...s, tuningId: id, midis: t.midi }));
@@ -163,7 +170,7 @@ export function TunerView() {
     }
   };
 
-  const setStringNote = (idx, midi) => {
+  const setStringNote = (idx: number, midi: number) => {
     setSettings((s) => {
       const midis2 = s.midis.slice();
       midis2[idx] = midi;

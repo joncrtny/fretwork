@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Seg } from "../components/Seg.tsx";
 import { Field } from "../components/Field.tsx";
 import { track } from "../lib/analytics.ts";
@@ -31,7 +31,7 @@ export function AccountView() {
   const [linkState, setLinkState] = useState("idle"); // idle | busy | sent | err
   const [newPass, setNewPass] = useState("");
 
-  const doAuth = async (e) => {
+  const doAuth = async (e: FormEvent) => {
     e.preventDefault();
     setAuthErr("");
     const name = authName.trim();
@@ -88,6 +88,7 @@ export function AccountView() {
         metronomeSeconds: 0,
         chordChangesTotal: 0,
         chordChangeBest: 0,
+        bestDayStreak: 0,
       },
       acked: {},
     });
@@ -112,7 +113,7 @@ export function AccountView() {
   };
 
   const [linkErrMsg, setLinkErrMsg] = useState("");
-  const doLinkEmail = async (e) => {
+  const doLinkEmail = async (e: FormEvent) => {
     e.preventDefault();
     const em = linkEmail.trim().toLowerCase();
     if (!/^\S+@\S+\.\S+$/.test(em) || em.endsWith(FAKE_MAIL)) {
@@ -156,7 +157,7 @@ export function AccountView() {
   };
 
   /* recovery redirect lands signed in; the user sets a fresh password */
-  const doSetNewPassword = async (e) => {
+  const doSetNewPassword = async (e: FormEvent) => {
     e.preventDefault();
     if (newPass.length < 8) return setAuthErr("Password needs at least 8 characters.");
     setAuthBusy(true);

@@ -8,7 +8,7 @@ import { FeedbackForm } from "../components/FeedbackForm.tsx";
    notes, recommended learning resources, the feedback form and the donate
    section. `onNavigate(mode)` is the only way out; `startTour` kicks off the
    shell-owned guided tour after navigating to the chord view. */
-export function AboutView({ onNavigate, onStartTour }) {
+export function AboutView({ onNavigate, onStartTour }: { onNavigate: (m: string) => void; onStartTour: () => void }) {
   return (
     <div className="pane about">
       <section className="aboutblock">

@@ -5,7 +5,7 @@ import { VIEW_META } from "../lib/routing.ts";
 /* The FAQ: a plain-language beginner's guide, grouped into themed sections,
    with a jump-to-section row and an "open the tool" link on answers that have
    a matching view. `onNavigate(mode)` is the only way out. */
-export function FaqView({ onNavigate }) {
+export function FaqView({ onNavigate }: { onNavigate: (m: string) => void }) {
   /* Publish FAQPage structured data only while this view is mounted, so the
      markup is present exactly when its questions are in the DOM. Google
      requires FAQ structured data to match content visible on the page, and
@@ -23,7 +23,7 @@ export function FaqView({ onNavigate }) {
         acceptedAnswer: { "@type": "Answer", text: f.a },
       })),
     };
-    let el = document.getElementById("faq-jsonld");
+    let el = document.getElementById("faq-jsonld") as HTMLScriptElement | null;
     if (!el) {
       el = document.createElement("script");
       el.type = "application/ld+json";
