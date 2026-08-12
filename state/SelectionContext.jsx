@@ -15,6 +15,8 @@ export function SelectionProvider({ children }) {
   const [chordId, setChordId] = useState("maj");
   const [voiceIdx, setVoiceIdx] = useState(0);
   const [chordArea, setChordArea] = useState(null);
+  const [arpRoot, setArpRoot] = useState(0);
+  const [arpId, setArpId] = useState("maj");
   const [ivRoot, setIvRoot] = useState(0);
   const [ivOn, setIvOn] = useState(() => new Set([0, 4, 7]));
   const toggleIv = useCallback((i) => {
@@ -43,6 +45,10 @@ export function SelectionProvider({ children }) {
       setVoiceIdx,
       chordArea,
       setChordArea,
+      arpRoot,
+      setArpRoot,
+      arpId,
+      setArpId,
       ivRoot,
       setIvRoot,
       ivOn,
@@ -53,7 +59,7 @@ export function SelectionProvider({ children }) {
       posNonce,
       setPosNonce,
     }),
-    [scaleRoot, scaleId, chordRoot, chordId, voiceIdx, chordArea, ivRoot, ivOn, toggleIv, posNonce],
+    [scaleRoot, scaleId, chordRoot, chordId, voiceIdx, chordArea, arpRoot, arpId, ivRoot, ivOn, toggleIv, posNonce],
   );
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;
 }
