@@ -6,7 +6,7 @@ import { store } from "../lib/store.ts";
 import { supabase, FAKE_MAIL, authRedirect } from "../lib/supabase.ts";
 import { usernameProblem } from "../lib/username.ts";
 import { isNetErr } from "../lib/utils.ts";
-import { useAuthSync } from "../state/AuthSyncContext.jsx";
+import { useAuthSync } from "../state/AuthSyncContext.tsx";
 import { useLibrary } from "../state/LibraryContext.jsx";
 import { useProgress } from "../state/ProgressContext.jsx";
 import { useToast } from "../state/ToastContext.tsx";

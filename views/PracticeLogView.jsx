@@ -1,7 +1,7 @@
 import { PRACTICE_MODES } from "../theory.ts";
 import { BADGES, badgeTier } from "../gamify.js";
 import { useProgress } from "../state/ProgressContext.jsx";
-import { useAuthSync } from "../state/AuthSyncContext.jsx";
+import { useAuthSync } from "../state/AuthSyncContext.tsx";
 
 /* The practice log: level ring, points, badges, streak scoreboard, the
    last-14-days bar chart and the per-activity breakdown, all derived from

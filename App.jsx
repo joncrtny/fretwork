@@ -24,7 +24,7 @@ import { store } from "./lib/store.ts";
 import { supabase } from "./lib/supabase.ts";
 import { ToastProvider, useToast } from "./state/ToastContext.tsx";
 import { SettingsProvider, useSettings } from "./state/SettingsContext.tsx";
-import { AuthSyncProvider, useAuthSync } from "./state/AuthSyncContext.jsx";
+import { AuthSyncProvider, useAuthSync } from "./state/AuthSyncContext.tsx";
 import { LibraryProvider, useLibrary } from "./state/LibraryContext.jsx";
 import { ProgressProvider, useProgress } from "./state/ProgressContext.jsx";
 import { SelectionProvider, useSelection } from "./state/SelectionContext.tsx";

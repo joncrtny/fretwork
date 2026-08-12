@@ -1,27 +1,67 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+  type MutableRefObject,
+  type ReactNode,
+} from "react";
+import type { User } from "@supabase/supabase-js";
 import { supabase, SUPA_URL, SUPA_KEY, FAKE_MAIL } from "../lib/supabase.ts";
 import { useToast } from "./ToastContext.tsx";
 
 /* Auth session and the sync plumbing: who is signed in, the debounced
    field-sync to the user_data row, and the pagehide keepalive flush. Local
    storage stays the source of truth when signed out. */
-const AuthSyncContext = createContext(null);
 
-export function AuthSyncProvider({ children }) {
+type Timer = ReturnType<typeof setTimeout>;
+interface SyncEntry {
+  value: unknown;
+  uid: string;
+  timer?: Timer;
+}
+interface KeepaliveGamify {
+  gamify: unknown;
+  merged: boolean;
+  off: boolean;
+}
+
+export interface AuthSyncValue {
+  authUser: User | null;
+  uname: string | null;
+  linkedEmail: string | null;
+  progressSynced: boolean;
+  setProgressSynced: Dispatch<SetStateAction<boolean>>;
+  recoveryMode: boolean;
+  setRecoveryMode: Dispatch<SetStateAction<boolean>>;
+  syncField: (field: string, value: unknown) => void;
+  flushSync: () => Promise<void>;
+  authTokenRef: MutableRefObject<string | null>;
+  keepaliveGamify: MutableRefObject<KeepaliveGamify>;
+}
+
+const AuthSyncContext = createContext<AuthSyncValue | null>(null);
+
+export function AuthSyncProvider({ children }: { children: ReactNode }) {
   const { setToast } = useToast();
-  const [authUser, setAuthUser] = useState(null);
+  const [authUser, setAuthUser] = useState<User | null>(null);
   /* true once there is nothing left to reconcile: signed out, or the sign-in
      merge has finished. The badge baseline waits for this so a returning player
      on a fresh device is not spammed with toasts for already-earned progress. */
   const [progressSynced, setProgressSynced] = useState(false);
   const [recoveryMode, setRecoveryMode] = useState(false);
-  const syncTimers = useRef({});
-  const authTokenRef = useRef(null);
-  const uidRef = useRef(null);
+  const syncTimers = useRef<Record<string, SyncEntry>>({});
+  const authTokenRef = useRef<string | null>(null);
+  const uidRef = useRef<string | null>(null);
   /* keepalive registry: gamification mirrors written by the progress layer,
      read by the pagehide flush below (the effect closes over mount-time values,
      so it reads refs, not state) */
-  const keepaliveGamify = useRef({ gamify: null, merged: false, off: false });
+  const keepaliveGamify = useRef<KeepaliveGamify>({ gamify: null, merged: false, off: false });
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -49,11 +89,11 @@ export function AuthSyncProvider({ children }) {
   /* push a field to the synced row, debounced; local storage stays the source
      of truth when signed out */
   const syncField = useCallback(
-    (field, value) => {
+    (field: string, value: unknown) => {
       if (!authUser) return;
       const prev = syncTimers.current[field];
       if (prev) clearTimeout(prev.timer);
-      const entry = { value, uid: authUser.id };
+      const entry: SyncEntry = { value, uid: authUser.id };
       entry.timer = setTimeout(() => {
         delete syncTimers.current[field];
         supabase
@@ -121,7 +161,7 @@ export function AuthSyncProvider({ children }) {
     return () => window.removeEventListener("pagehide", onHide);
   }, []);
 
-  const value = useMemo(
+  const value = useMemo<AuthSyncValue>(
     () => ({
       authUser,
       uname,
@@ -140,7 +180,7 @@ export function AuthSyncProvider({ children }) {
   return <AuthSyncContext.Provider value={value}>{children}</AuthSyncContext.Provider>;
 }
 
-export function useAuthSync() {
+export function useAuthSync(): AuthSyncValue {
   const v = useContext(AuthSyncContext);
   if (!v) throw new Error("useAuthSync must be used inside <AuthSyncProvider>");
   return v;

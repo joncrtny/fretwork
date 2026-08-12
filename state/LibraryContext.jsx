@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { store } from "../lib/store.ts";
 import { track } from "../lib/analytics.ts";
 import { useToast } from "./ToastContext.tsx";
-import { useAuthSync } from "./AuthSyncContext.jsx";
+import { useAuthSync } from "./AuthSyncContext.tsx";
 
 /* The user's persisted things: Bank saves, known items, custom progressions,
    melodies, chord-change records and routine ratings. Owns their hydration and
