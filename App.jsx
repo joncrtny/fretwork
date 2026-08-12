@@ -19,6 +19,7 @@ import {
 import { useGeometry, Fretboard } from "./fretboard.jsx";
 import { VIEW_META, pathForMode, modeForPath } from "./lib/routing.js";
 import { track } from "./lib/analytics.js";
+import { shareLinkFromParams, decodeShareHash } from "./lib/share.js";
 import { store } from "./lib/store.js";
 import { supabase } from "./lib/supabase.js";
 import { ToastProvider, useToast } from "./state/ToastContext.jsx";
@@ -57,26 +58,10 @@ import { Seg } from "./components/Seg.jsx";
 import { Field } from "./components/Field.jsx";
 import { HeadIcon } from "./components/HeadIcon.jsx";
 
-/* ============================================================
-   SMALL UI PIECES
-   ============================================================ */
-
-/* ============================================================
-   BANK: star-save and sharing helpers
-   ============================================================ */
-
-/* ============================================================
-   ABOUT: resources, feedback, donate
-   ============================================================ */
-
-/* ============================================================
-   ACCOUNTS: username-only auth over Supabase
-   ============================================================ */
-
-/* ============================================================
-   APP
-   ============================================================ */
-
+/* The shell: providers, routing and analytics, the nav and drawer, the
+   metronome transport, share-link intake, Supabase sync, and the slot fallbacks
+   the two non-publishing views (Bank, Routine) still use. Every actual view is
+   its own module under views/; see docs/REFACTOR.md. */
 function App() {
   const { settings, setSettings, capo, setCapo, midis, n, fretCount, settingsHydrated } = useSettings();
   /* the remaining storage slices hydrated by the effect below; combined with
@@ -171,8 +156,6 @@ function App() {
      back to the mode-branching memo below (still in place for the views whose
      readout reads only shared Selection state) */
   const publishedReadout = useReadout();
-
-  /* one-minute chord change trainer */
 
   const modeRef = useRef("chord");
   const hadShareHashRef = useRef(typeof window !== "undefined" && /^#s=/.test(window.location.hash || ""));
@@ -435,11 +418,7 @@ function App() {
       Object.assign(p, { steps: melSteps.map((st) => (st.rest ? null : [st.s, st.f])), nm: melName.trim() || undefined });
     if (capo) p.capo = capo;
     if (settings.tuningId !== "std" && settings.tuningId !== "custom") p.tun = settings.tuningId;
-    const enc = btoa(encodeURIComponent(JSON.stringify(p)))
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
-    return `${window.location.origin}/#s=${enc}`;
+    return shareLinkFromParams(p);
   }, [
     mode,
     scaleRoot,
@@ -474,16 +453,15 @@ function App() {
   /* apply an incoming share once local state has hydrated */
   useEffect(() => {
     if (!loaded) return;
-    const mt = window.location.hash.match(/^#s=([A-Za-z0-9_-]+)$/);
-    if (!mt) return;
+    if (!/^#s=[A-Za-z0-9_-]+$/.test(window.location.hash || "")) return;
     /* This runs only on share loads, where the [mode] mount effect deliberately
        skips its landing emit. So this effect owns the share view's page_view,
        set from pvMode and fired even if the link is malformed (falls back to
        the current view) so a share load never records zero page_views. */
     let pvMode = mode;
     try {
-      const pad = mt[1].length % 4 === 0 ? "" : "=".repeat(4 - (mt[1].length % 4));
-      const p = JSON.parse(decodeURIComponent(atob(mt[1].replace(/-/g, "+").replace(/_/g, "/") + pad)));
+      const p = decodeShareHash(window.location.hash);
+      if (!p) throw new Error("bad share hash");
       const pc = (v) => Number.isInteger(v) && v >= 0 && v < 12;
       if (p.m === "scale" && pc(p.r) && SCALES.some((x) => x.id === p.id)) {
         setScaleRoot(p.r);
