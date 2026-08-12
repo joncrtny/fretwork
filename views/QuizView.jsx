@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SCALES, CHORDS, SIMPLE_SCALES, SIMPLE_CHORDS, DEG, nameOf, keyPrefersFlats } from "../theory.ts";
-import { CHORD_GROUPS, SCALE_GROUPS } from "../data/groups.js";
+import { CHORD_GROUPS, SCALE_GROUPS } from "../data/groups.ts";
 import { groupItems } from "../lib/utils.ts";
 import { track } from "../lib/analytics.ts";
 import { store } from "../lib/store.ts";

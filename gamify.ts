@@ -13,7 +13,34 @@
 /* Each badge is a family of tiers. `metric` names the field on the stats
    snapshot; `tiers` are the thresholds; `unit` labels them; `icon` picks a
    glyph in the UI. tier 0 = not earned, else 1..tiers.length. */
-export const BADGES = [
+interface Badge {
+  id: string;
+  name: string;
+  icon: string;
+  metric: string;
+  unit: string;
+  tiers: number[];
+  blurb: string;
+}
+interface Counters {
+  earCorrect?: number;
+  earStreakInterval?: number;
+  earStreakChord?: number;
+  tourTaken?: number;
+  triedSimple?: number;
+  tunings?: string[];
+  metronomeSeconds?: number;
+  chordChangesTotal?: number;
+  chordChangeBest?: number;
+  bestDayStreak?: number;
+}
+interface GamifyLike {
+  counters?: Counters;
+  acked?: Record<string, number>;
+}
+type Stats = Record<string, number>;
+
+export const BADGES: Badge[] = [
   {
     id: "ear_interval",
     name: "Interval ear",
@@ -102,18 +129,18 @@ export const BADGES = [
 const POINTS_PER_TIER = 100;
 
 /* highest tier reached for a badge given the stats (0 = none) */
-export function badgeTier(badge, stats) {
+export function badgeTier(badge: Badge, stats?: Stats): number {
   const v = (stats && stats[badge.metric]) || 0;
   let tier = 0;
   for (let i = 0; i < badge.tiers.length; i++) if (v >= badge.tiers[i]) tier = i + 1;
   return tier;
 }
 
-export function totalTiers(stats) {
+export function totalTiers(stats?: Stats): number {
   return BADGES.reduce((sum, b) => sum + badgeTier(b, stats), 0);
 }
 
-export function pointsFor(stats) {
+export function pointsFor(stats?: Stats): number {
   if (!stats) return 0;
   const practiceMin = (stats.practiceSeconds || 0) / 60;
   return (
@@ -124,11 +151,11 @@ export function pointsFor(stats) {
 /* points needed to have reached level L. threshold(1)=0, (2)=100, (3)=300,
    (4)=600, (5)=1000 ... gaps of 100, 200, 300 ... so early levels come fast
    and later ones take longer. */
-export function levelThreshold(L) {
+export function levelThreshold(L: number): number {
   return 50 * L * (L - 1);
 }
 
-export function levelFor(points) {
+export function levelFor(points: number): number {
   let L = 1;
   while (levelThreshold(L + 1) <= points) L++;
   return L;
@@ -137,10 +164,11 @@ export function levelFor(points) {
 /* merge a server copy into the local one without losing progress: take the
    higher value for each cumulative counter, the union of tried tunings, and the
    highest acknowledged tier per badge. Idempotent, so repeated syncs are safe. */
-export function mergeGamify(a, b) {
+export function mergeGamify(a: GamifyLike, b: unknown): GamifyLike {
+  const bo = (b || {}) as GamifyLike;
   if (!b || typeof b !== "object") return a;
-  const ac = (a && a.counters) || {};
-  const bc = b.counters || {};
+  const ac: Counters = (a && a.counters) || {};
+  const bc: Counters = bo.counters || {};
   const counters = {
     earCorrect: Math.max(ac.earCorrect || 0, bc.earCorrect || 0),
     earStreakInterval: Math.max(ac.earStreakInterval || 0, bc.earStreakInterval || 0),
@@ -154,11 +182,11 @@ export function mergeGamify(a, b) {
     bestDayStreak: Math.max(ac.bestDayStreak || 0, bc.bestDayStreak || 0),
   };
   const acked = { ...((a && a.acked) || {}) };
-  for (const [k, v] of Object.entries(b.acked || {})) acked[k] = Math.max(acked[k] || 0, v || 0);
+  for (const [k, v] of Object.entries(bo.acked || {})) acked[k] = Math.max(acked[k] || 0, v || 0);
   return { counters, acked };
 }
 
-export function levelProgress(points) {
+export function levelProgress(points: number) {
   const level = levelFor(points);
   const cur = levelThreshold(level);
   const next = levelThreshold(level + 1);

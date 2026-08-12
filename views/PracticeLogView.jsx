@@ -1,5 +1,5 @@
 import { PRACTICE_MODES } from "../theory.ts";
-import { BADGES, badgeTier } from "../gamify.js";
+import { BADGES, badgeTier } from "../gamify.ts";
 import { useProgress } from "../state/ProgressContext.tsx";
 import { useAuthSync } from "../state/AuthSyncContext.tsx";
 

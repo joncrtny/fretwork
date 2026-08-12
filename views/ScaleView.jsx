@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SCALES, SIMPLE_SCALES, DEG, FUNC_COLOUR, nameOf, keyPrefersFlats } from "../theory.ts";
-import { SCALE_GROUPS } from "../data/groups.js";
+import { SCALE_GROUPS } from "../data/groups.ts";
 import { groupItems } from "../lib/utils.ts";
 import { track } from "../lib/analytics.ts";
 import { neckPositions } from "../fretboard.jsx";

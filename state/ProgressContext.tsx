@@ -13,7 +13,7 @@ import {
 import { store } from "../lib/store.ts";
 import { track } from "../lib/analytics.ts";
 import { supabase } from "../lib/supabase.ts";
-import { BADGES, badgeTier, pointsFor, levelProgress, mergeGamify } from "../gamify.js";
+import { BADGES, badgeTier, pointsFor, levelProgress, mergeGamify } from "../gamify.ts";
 import { localDay } from "../theory.ts";
 import { useAuthSync } from "./AuthSyncContext.tsx";
 
