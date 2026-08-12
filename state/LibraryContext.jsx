@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { store } from "../lib/store.js";
-import { track } from "../lib/analytics.js";
+import { store } from "../lib/store.ts";
+import { track } from "../lib/analytics.ts";
 import { useToast } from "./ToastContext.jsx";
 import { useAuthSync } from "./AuthSyncContext.jsx";
 

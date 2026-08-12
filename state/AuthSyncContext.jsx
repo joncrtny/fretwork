@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { supabase, SUPA_URL, SUPA_KEY, FAKE_MAIL } from "../lib/supabase.js";
+import { supabase, SUPA_URL, SUPA_KEY, FAKE_MAIL } from "../lib/supabase.ts";
 import { useToast } from "./ToastContext.jsx";
 
 /* Auth session and the sync plumbing: who is signed in, the debounced

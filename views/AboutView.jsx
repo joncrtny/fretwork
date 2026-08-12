@@ -1,6 +1,6 @@
 import { CHANGELOG } from "../data/changelog.js";
 import { RESOURCES } from "../data/resources.js";
-import { track } from "../lib/analytics.js";
+import { track } from "../lib/analytics.ts";
 import { DonateButton, SHOW_DONATE } from "../components/DonateButton.jsx";
 import { FeedbackForm } from "../components/FeedbackForm.jsx";
 

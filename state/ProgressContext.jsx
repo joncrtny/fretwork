@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { store } from "../lib/store.js";
-import { track } from "../lib/analytics.js";
-import { supabase } from "../lib/supabase.js";
+import { store } from "../lib/store.ts";
+import { track } from "../lib/analytics.ts";
+import { supabase } from "../lib/supabase.ts";
 import { BADGES, badgeTier, pointsFor, levelProgress, mergeGamify } from "../gamify.js";
 import { localDay } from "../theory.js";
 import { useAuthSync } from "./AuthSyncContext.jsx";

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { store } from "../lib/store.js";
-import { track } from "../lib/analytics.js";
+import { store } from "../lib/store.ts";
+import { track } from "../lib/analytics.ts";
 
 /* The guided tour: a spotlight-and-card walkthrough of the neck and the nav.
    It drives the shell (opening the drawer, switching view, clearing panels) as

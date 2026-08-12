@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Field } from "./Field.jsx";
-import { track } from "../lib/analytics.js";
-import { supabase, SUPA_URL, SUPA_KEY } from "../lib/supabase.js";
+import { track } from "../lib/analytics.ts";
+import { supabase, SUPA_URL, SUPA_KEY } from "../lib/supabase.ts";
 
 /* Feedback form posting straight to the Supabase feedback table */
 export function FeedbackForm() {

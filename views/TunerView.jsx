@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nameOf, TUNINGS } from "../theory.js";
-import { nearestStringTarget } from "../lib/utils.js";
-import { track } from "../lib/analytics.js";
+import { nearestStringTarget } from "../lib/utils.ts";
+import { track } from "../lib/analytics.ts";
 import { Field } from "../components/Field.jsx";
 import { KeyPicker } from "../components/KeyPicker.jsx";
 import { useSettings } from "../state/SettingsContext.jsx";

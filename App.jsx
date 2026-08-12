@@ -18,10 +18,10 @@ import {
 } from "./theory.js";
 import { useGeometry, Fretboard } from "./fretboard.jsx";
 import { VIEW_META, pathForMode, modeForPath } from "./lib/routing.ts";
-import { track } from "./lib/analytics.js";
+import { track } from "./lib/analytics.ts";
 import { shareLinkFromParams, decodeShareHash } from "./lib/share.ts";
-import { store } from "./lib/store.js";
-import { supabase } from "./lib/supabase.js";
+import { store } from "./lib/store.ts";
+import { supabase } from "./lib/supabase.ts";
 import { ToastProvider, useToast } from "./state/ToastContext.jsx";
 import { SettingsProvider, useSettings } from "./state/SettingsContext.jsx";
 import { AuthSyncProvider, useAuthSync } from "./state/AuthSyncContext.jsx";

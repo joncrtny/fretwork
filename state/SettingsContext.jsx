@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { TUNINGS, keyPrefersFlats } from "../theory.js";
-import { store } from "../lib/store.js";
+import { store } from "../lib/store.ts";
 
 /* Settings, appearance and instrument state: the user's preferences plus what
    the neck physically is (tuning/midis, fret count, capo). Owns its own

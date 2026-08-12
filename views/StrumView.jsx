@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CHORDS, SIMPLE_CHORDS, STRUM_PATTERNS, nameOf, keyPrefersFlats } from "../theory.js";
 import { CHORD_GROUPS } from "../data/groups.js";
-import { groupItems } from "../lib/utils.js";
+import { groupItems } from "../lib/utils.ts";
 import { ctx, playClick } from "../audio.js";
 import { ChordDiagram } from "../fretboard.jsx";
 import { Field } from "../components/Field.jsx";

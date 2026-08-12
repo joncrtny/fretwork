@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CHORDS, SIMPLE_CHORDS, nameOf, keyPrefersFlats } from "../theory.js";
 import { CHORD_GROUPS } from "../data/groups.js";
-import { groupItems } from "../lib/utils.js";
-import { track } from "../lib/analytics.js";
+import { groupItems } from "../lib/utils.ts";
+import { track } from "../lib/analytics.ts";
 import { ctx, pluck, playClick } from "../audio.js";
 import { findVoicings } from "../voicings.js";
 import { ChordDiagram } from "../fretboard.jsx";

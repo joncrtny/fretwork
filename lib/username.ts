@@ -38,7 +38,7 @@ export const BLOCKED_STEMS = [
   "hitler",
 ];
 
-export const LEET = {
+export const LEET: Record<string, string> = {
   4: "a",
   "@": "a",
   8: "b",
@@ -55,7 +55,7 @@ export const LEET = {
   2: "z",
 };
 
-export function usernameProblem(u) {
+export function usernameProblem(u: string): string | null {
   if (!USERNAME_RE.test(u)) return "Usernames are 3 to 20 letters, numbers or underscores.";
   const lower = u.toLowerCase();
   const leeted = lower

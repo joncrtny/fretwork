@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Seg } from "../components/Seg.jsx";
 import { Field } from "../components/Field.jsx";
-import { track } from "../lib/analytics.js";
-import { store } from "../lib/store.js";
-import { supabase, FAKE_MAIL, authRedirect } from "../lib/supabase.js";
-import { usernameProblem } from "../lib/username.js";
-import { isNetErr } from "../lib/utils.js";
+import { track } from "../lib/analytics.ts";
+import { store } from "../lib/store.ts";
+import { supabase, FAKE_MAIL, authRedirect } from "../lib/supabase.ts";
+import { usernameProblem } from "../lib/username.ts";
+import { isNetErr } from "../lib/utils.ts";
 import { useAuthSync } from "../state/AuthSyncContext.jsx";
 import { useLibrary } from "../state/LibraryContext.jsx";
 import { useProgress } from "../state/ProgressContext.jsx";

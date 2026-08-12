@@ -19,7 +19,7 @@ export const FAKE_MAIL = "@u.fretwork-practice.app";
    The target must also be on Supabase's Redirect URLs allowlist. */
 export const CANONICAL_URL = "https://www.fretwork-practice.app";
 
-export const authRedirect = () => {
+export const authRedirect = (): string => {
   if (typeof window === "undefined") return CANONICAL_URL;
   const h = window.location.hostname;
   return h === "localhost" || h === "127.0.0.1" ? window.location.origin : CANONICAL_URL;

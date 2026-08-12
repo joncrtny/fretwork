@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CHORDS, EAR_INTERVALS, EAR_INTERVALS_SIMPLE, EAR_CHORDS, EAR_CHORDS_SIMPLE } from "../theory.js";
 import { pluck, blip } from "../audio.js";
-import { track } from "../lib/analytics.js";
+import { track } from "../lib/analytics.ts";
 import { Field } from "../components/Field.jsx";
 import { Seg } from "../components/Seg.jsx";
 import { useSettings } from "../state/SettingsContext.jsx";

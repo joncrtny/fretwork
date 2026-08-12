@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { track } from "../lib/analytics.js";
+import { track } from "../lib/analytics.ts";
 
 /* PayPal hosted donate button, injected only when About is open. If the SDK
    cannot load or render (offline, blocked scripts), fall back to a plain link. */

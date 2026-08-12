@@ -18,7 +18,14 @@ export const GA_RESERVED = new Set([
   "gclid",
 ]);
 
-export function gaSafeParams(params) {
+type Params = Record<string, unknown>;
+
+interface AnalyticsWindow {
+  gtag?: (command: string, name: string, params: Params) => void;
+  amplitude?: { track: (name: string, params: Params) => void };
+}
+
+export function gaSafeParams(params?: Params): Params {
   if (!params || typeof params !== "object") return params || {};
   let out = params;
   for (const k of Object.keys(params)) {
@@ -31,15 +38,16 @@ export function gaSafeParams(params) {
   return out;
 }
 
-export function track(name, params) {
+export function track(name: string, params?: Params): void {
+  const w = typeof window !== "undefined" ? (window as unknown as AnalyticsWindow) : null;
   try {
     /* GA4 gets campaign-safe params; Amplitude keeps the original names */
-    if (typeof window !== "undefined" && typeof window.gtag === "function") window.gtag("event", name, gaSafeParams(params));
+    if (w && typeof w.gtag === "function") w.gtag("event", name, gaSafeParams(params));
   } catch (e) {
     /* analytics must never break the app */
   }
   try {
-    if (typeof window !== "undefined" && window.amplitude) window.amplitude.track(name, params || {});
+    if (w && w.amplitude) w.amplitude.track(name, params || {});
   } catch (e) {
     /* analytics must never break the app */
   }
