@@ -53,6 +53,7 @@ import { AboutView } from "./views/AboutView.jsx";
 import { AccountView } from "./views/AccountView.jsx";
 import { TunerView } from "./views/TunerView.jsx";
 import { FretboardProvider, useFretboardConfig } from "./state/FretboardContext.jsx";
+import { ReadoutProvider, useReadout } from "./state/ReadoutContext.jsx";
 import { IntervalView } from "./views/IntervalView.jsx";
 import { ScaleView } from "./views/ScaleView.jsx";
 import { ArpView } from "./views/ArpView.jsx";
@@ -255,6 +256,10 @@ function App() {
   /* the active view can publish the neck's per-mode config; null = use the
      shell fallbacks below (still in place until every fretboard view is moved) */
   const fbConfig = useFretboardConfig();
+  /* the active view's readout line, if it publishes one; else the shell falls
+     back to the mode-branching memo below (still in place for the views whose
+     readout reads only shared Selection state) */
+  const publishedReadout = useReadout();
 
   /* one-minute chord change trainer */
   const [chg, setChg] = useState({
@@ -2166,7 +2171,7 @@ function App() {
           </div>
           <div className="readout" aria-live="polite" role="heading" aria-level="2">
             <span className="rdot" />
-            {readout}
+            {publishedReadout != null ? publishedReadout : readout}
           </div>
           {shareable && (
             <button className="gear sharebtn" onClick={doShare} data-tip="Copy a link to this exact view" aria-label="Copy share link">
@@ -4040,7 +4045,9 @@ export default function FretworkApp() {
               <SelectionProvider>
                 <PlaybackProvider>
                   <FretboardProvider>
-                    <App />
+                    <ReadoutProvider>
+                      <App />
+                    </ReadoutProvider>
                   </FretboardProvider>
                 </PlaybackProvider>
               </SelectionProvider>
