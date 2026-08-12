@@ -94,7 +94,9 @@ const CID_KEY = "fretwork:cid";
 const ADMIN_KEY = "fretwork:flags-admin";
 
 function coerce(v: string): FlagValue {
-  if (v === "on" || v === "true" || v === "1") return true;
+  /* a bare param (?ff_key with no =) reads as presence, i.e. on, to match how
+     ?flags enables the panel; never leak the raw "" into a typed flag */
+  if (v === "" || v === "on" || v === "true" || v === "1") return true;
   if (v === "off" || v === "false" || v === "0") return false;
   const n = Number(v);
   return v.trim() !== "" && Number.isFinite(n) ? n : v;
@@ -120,8 +122,23 @@ export function readOverrides(): Record<string, FlagValue> {
   return out;
 }
 
+/* The keys forced by ?ff_<key>= params on the current URL. These win over the
+   localStorage layer in readOverrides, so the panel must show them read-only:
+   writeOverride cannot move them. */
+export function urlForcedKeys(): Set<string> {
+  const out = new Set<string>();
+  if (typeof window === "undefined") return out;
+  try {
+    const q = new URLSearchParams(window.location.search);
+    for (const [k] of q) if (k.startsWith(URL_PREFIX)) out.add(k.slice(URL_PREFIX.length));
+  } catch {
+    /* no URL access: ignore */
+  }
+  return out;
+}
+
 /* Set (or, with null, clear) a device-local override. Only ever touches the
-   localStorage layer; URL overrides are read-only. */
+   localStorage layer; URL overrides are read-only (see urlForcedKeys). */
 export function writeOverride(key: string, value: FlagValue | null): void {
   if (typeof window === "undefined") return;
   let cur: Record<string, FlagValue>;

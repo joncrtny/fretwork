@@ -32,7 +32,9 @@ export function FlagsProvider({ adapter = staticAdapter, children }: { adapter?:
   const [remote, setRemote] = useState<Record<string, FlagValue>>({});
   const [overrides, setOverrides] = useState<Record<string, FlagValue>>(() => readOverrides());
 
-  /* pull remote values once; never block render on it */
+  /* pull remote values once; never block render on it. The key list is empty by
+     design: backends of this shape (Statsig, Edge Config) pull the whole flag
+     set as a datafile rather than by named key, so an adapter resolves them all. */
   useEffect(() => {
     let cancelled = false;
     Promise.resolve(adapter.resolve([], ctx))

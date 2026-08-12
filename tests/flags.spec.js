@@ -54,4 +54,25 @@ test("?flags reveals the dev flags panel with the flag listed", async ({ page })
   await expect(page.locator(".chassis")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Feature flags" })).toBeVisible({ timeout: 5000 });
   await expect(page.getByText("simple-default", { exact: false })).toBeVisible();
+  // the flag toggle carries an accessible name (Field cannot borrow it here,
+  // because the Field wraps the Seg plus a conditional Reset button)
+  await expect(page.getByRole("group", { name: "simple-default" })).toBeVisible();
+});
+
+test("a bare ?ff_ param reads as on, not an empty falsy value", async ({ page }) => {
+  // ?ff_simple-default (no =) must keep Simple mode on for a first-run visitor,
+  // matching how a bare ?flags enables the panel. The old bug forced it off.
+  await page.goto("/?ff_simple-default", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".chassis")).toBeVisible();
+  await expect(page.locator(".simpletoggle")).toHaveAttribute("aria-checked", "true", { timeout: 5000 });
+});
+
+test("a URL-forced flag is shown read-only, with no dead controls", async ({ page }) => {
+  await page.goto("/settings?flags&ff_simple-default=off", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".chassis")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Feature flags" })).toBeVisible({ timeout: 5000 });
+  // read-only note instead of a toggle that localStorage could not move
+  await expect(page.getByText(/forced by a \?ff_ link/)).toBeVisible();
+  await expect(page.getByRole("group", { name: "simple-default" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Reset simple-default/ })).toHaveCount(0);
 });
