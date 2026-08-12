@@ -54,6 +54,7 @@ import { EarView } from "./views/EarView.jsx";
 import { ChangesView } from "./views/ChangesView.jsx";
 import { StrumView } from "./views/StrumView.jsx";
 import { BankView } from "./views/BankView.jsx";
+import { RoutineView } from "./views/RoutineView.jsx";
 import { Seg } from "./components/Seg.jsx";
 import { Field } from "./components/Field.jsx";
 import { KeyPicker } from "./components/KeyPicker.jsx";
@@ -96,7 +97,6 @@ function App() {
     setMelodies,
     chgRecords,
     setChgRecords,
-    toggleKnown,
     saveToBank,
     saveCustomProgs,
     saveMelodies,
@@ -199,8 +199,9 @@ function App() {
   const [melLoop, setMelLoop] = useState(false); // repeat the melody until Stop
 
   /* "things you know": items the player has marked with the lightbulb, plus the
-     last star rating a practice routine gave each, which weights future routines */
-  const [routineDur, setRoutineDur] = useState(10); // minutes
+     last star rating a practice routine gave each, which weights future routines.
+     routineDur (the length picker) lives in RoutineView; the runner state stays
+     here because its HUD floats over whichever view the routine is stepping through */
   const [routine, setRoutine] = useState(null); // null | { phase:'running'|'rate', segments:[{item,seconds,stretch}], idx, remaining, duration }
 
   const [flash, setFlash] = useState(null);
@@ -1019,10 +1020,10 @@ function App() {
     return { sig: `k-${kind}:${root}:${nextId}`, kind, root, id: nextId, label, isStretch: true };
   };
 
-  const buildRoutine = () => {
+  const buildRoutine = (dur) => {
     if (!known.length) return;
     stopPlayback();
-    const totalSec = routineDur * 60;
+    const totalSec = dur * 60;
     const stretch = pickStretch(known);
     /* practise the shaky ones (low past rating) for longer, then one stretch */
     const list = [...known];
@@ -1039,8 +1040,8 @@ function App() {
       seconds: Math.max(30, Math.round((totalSec * weights[i]) / wSum)),
       stretch: !!it.isStretch,
     }));
-    track("routine_start", { minutes: routineDur, items: segments.length });
-    setRoutine({ phase: "running", segments, idx: 0, remaining: segments[0].seconds, duration: routineDur });
+    track("routine_start", { minutes: dur, items: segments.length });
+    setRoutine({ phase: "running", segments, idx: 0, remaining: segments[0].seconds, duration: dur });
   };
 
   const routineNext = () => {
@@ -1977,60 +1978,7 @@ function App() {
 
           {mode === "arp" && <ArpView carryKey={carryKey} />}
 
-          {mode === "routine" && (
-            <div className="pane">
-              <p className="note">
-                Mark scales, chords and arpeggios you know with the lightbulb, then build a short routine here. Fretwork practises the ones
-                you rated shaky for longer and adds one new "stretch" item. Rate the session afterwards to shape the next one.
-              </p>
-              {known.length === 0 ? (
-                <p className="empty">
-                  Nothing marked yet. On the Scales, Chords or Arpeggios views, tap the lightbulb next to the star to mark something you
-                  know, then come back to build a routine.
-                </p>
-              ) : (
-                <>
-                  <div className="row wrap actions">
-                    <Field label="How long?">
-                      <Seg
-                        small
-                        ariaLabel="Routine length"
-                        options={[
-                          { v: 5, l: "5 min" },
-                          { v: 10, l: "10 min" },
-                          { v: 15, l: "15 min" },
-                          { v: 20, l: "20 min" },
-                        ]}
-                        value={routineDur}
-                        onChange={setRoutineDur}
-                      />
-                    </Field>
-                    <button className="btn primary" onClick={buildRoutine}>
-                      Build and start
-                    </button>
-                  </div>
-                  <p className="note">
-                    You know {known.length} thing{known.length === 1 ? "" : "s"}. Your {routineDur} minute routine will run through{" "}
-                    {known.length === 1 ? "it" : "them"} plus one new stretch to grow into.
-                  </p>
-                  <Field label="Things you know">
-                    <div className="knownlist">
-                      {known.map((k) => (
-                        <div className="knownitem" key={k.sig}>
-                          <span className="knowndot" aria-hidden="true" />
-                          <b>{k.label}</b>
-                          {routineRatings[k.sig] ? <em className="knownrate">{"★".repeat(routineRatings[k.sig])}</em> : null}
-                          <button className="mini" aria-label={`Forget ${k.label}`} onClick={() => toggleKnown(k)}>
-                            {"✕"}
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </Field>
-                </>
-              )}
-            </div>
-          )}
+          {mode === "routine" && <RoutineView onBuild={buildRoutine} />}
 
           {mode === "strum" && <StrumView />}
 
