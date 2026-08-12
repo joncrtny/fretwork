@@ -1,6 +1,7 @@
 import { track } from "../lib/analytics.ts";
 import { Seg } from "../components/Seg.tsx";
 import { Field } from "../components/Field.tsx";
+import { FlagsPanel } from "../components/FlagsPanel.tsx";
 import { useSettings } from "../state/SettingsContext.tsx";
 import { useProgress } from "../state/ProgressContext.tsx";
 
@@ -206,6 +207,8 @@ export function SettingsView() {
         </Field>
       </div>
       <p className="note">The system reduced-motion preference is always respected. These controls apply on top of it.</p>
+
+      <FlagsPanel />
     </div>
   );
 }

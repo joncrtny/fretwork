@@ -11,6 +11,8 @@ import {
 } from "react";
 import { TUNINGS, keyPrefersFlats } from "../theory.ts";
 import { store } from "../lib/store.ts";
+import { useFlag } from "./FlagsContext.tsx";
+import { simpleDefault } from "../flags.ts";
 
 /* Settings, appearance and instrument state: the user's preferences plus what
    the neck physically is (tuning/midis, fret count, capo). Owns its own
@@ -83,11 +85,14 @@ export interface SettingsValue {
 const SettingsContext = createContext<SettingsValue | null>(null);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  /* start brand-new visitors in Simple mode (no settings saved yet). Read
-     synchronously so a mount-time persist cannot mask first run. */
+  /* start brand-new visitors in Simple mode, unless the simple-default flag says
+     otherwise. Read synchronously (the flag resolves offline) so a mount-time
+     persist cannot mask first run. Returning visitors ignore this: their saved
+     settings win at hydration. */
+  const simpleOnFirstRun = useFlag(simpleDefault);
   const [settings, setSettings] = useState<Settings>(() => {
     const firstRun = typeof window !== "undefined" && !window.localStorage.getItem("fretboard:settings");
-    return firstRun ? { ...DEFAULT_SETTINGS, simple: true } : DEFAULT_SETTINGS;
+    return firstRun ? { ...DEFAULT_SETTINGS, simple: simpleOnFirstRun } : DEFAULT_SETTINGS;
   });
   const [capo, setCapo] = useState(0);
   const [settingsHydrated, setSettingsHydrated] = useState(false);

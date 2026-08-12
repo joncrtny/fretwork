@@ -37,6 +37,7 @@ import { AccountView } from "./views/AccountView.tsx";
 import { TunerView } from "./views/TunerView.tsx";
 import { FretboardProvider, useFretboardConfig } from "./state/FretboardContext.tsx";
 import { ReadoutProvider, useReadout } from "./state/ReadoutContext.tsx";
+import { FlagsProvider } from "./state/FlagsContext.tsx";
 import { IntervalView } from "./views/IntervalView.tsx";
 import { ScaleView } from "./views/ScaleView.tsx";
 import { ArpView } from "./views/ArpView.tsx";
@@ -1129,24 +1130,26 @@ function App() {
    here as it is extracted (see docs/REFACTOR-BLUEPRINT.md). */
 export default function FretworkApp() {
   return (
-    <ToastProvider>
-      <SettingsProvider>
-        <AuthSyncProvider>
-          <LibraryProvider>
-            <ProgressProvider>
-              <SelectionProvider>
-                <PlaybackProvider>
-                  <FretboardProvider>
-                    <ReadoutProvider>
-                      <App />
-                    </ReadoutProvider>
-                  </FretboardProvider>
-                </PlaybackProvider>
-              </SelectionProvider>
-            </ProgressProvider>
-          </LibraryProvider>
-        </AuthSyncProvider>
-      </SettingsProvider>
-    </ToastProvider>
+    <FlagsProvider>
+      <ToastProvider>
+        <SettingsProvider>
+          <AuthSyncProvider>
+            <LibraryProvider>
+              <ProgressProvider>
+                <SelectionProvider>
+                  <PlaybackProvider>
+                    <FretboardProvider>
+                      <ReadoutProvider>
+                        <App />
+                      </ReadoutProvider>
+                    </FretboardProvider>
+                  </PlaybackProvider>
+                </SelectionProvider>
+              </ProgressProvider>
+            </LibraryProvider>
+          </AuthSyncProvider>
+        </SettingsProvider>
+      </ToastProvider>
+    </FlagsProvider>
   );
 }
