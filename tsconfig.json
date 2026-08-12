@@ -21,10 +21,13 @@
     "allowJs": true,
     "checkJs": false,
 
-    /* types as documentation: strict, so a migrated module's types are real */
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    /* Pragmatic finish (Phase 7, option B): the shared core (lib, state, hooks,
+       components, theory, audio, gamify, data) was written under strict and
+       keeps its explicit types as documentation. The leaf layer (views,
+       fretboard, voicings, App) migrated with lighter types, so strict null
+       checks and implicit-any are off here to keep that layer moving without
+       churn. Re-tightening to strict is a later, isolated pass. */
+    "strict": false,
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src", "*.jsx", "*.ts", "*.tsx", "views", "state", "hooks", "components", "lib", "data"],

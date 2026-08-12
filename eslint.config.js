@@ -7,7 +7,7 @@ import globals from "globals";
 /* Flat ESLint config. The high-value rules for this codebase are the React
    hooks rules (real bugs) and no-undef; stylistic noise is left to Prettier
    (eslint-config-prettier turns off conflicting rules). Rules likely to be
-   noisy on the legacy App.jsx are warnings, not errors, so CI stays meaningful
+   noisy on the legacy App.tsx are warnings, not errors, so CI stays meaningful
    and green while the refactor proceeds. */
 export default [
   { ignores: ["dist/**", "node_modules/**", "test-results/**", "playwright-report/**", ".vercel/**"] },
@@ -49,6 +49,9 @@ export default [
       "react-hooks/exhaustive-deps": "warn",
       "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrors: "none" }],
+      /* the leaf layer (views, fretboard, App) migrated pragmatically; an
+         occasional any there is a deliberate tradeoff, not a build-breaker */
+      "@typescript-eslint/no-explicit-any": "warn",
       "no-empty": ["warn", { allowEmptyCatch: true }],
       "no-useless-assignment": "warn",
     },

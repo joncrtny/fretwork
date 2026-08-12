@@ -18,7 +18,7 @@ export interface BankItem {
   kind: string;
   root: number;
   label: string;
-  [k: string]: unknown;
+  [k: string]: any; // kind-varying extras (voicing, midis, capo, ...): loose by design
 }
 /* something marked known with the lightbulb, feeding the practice routine */
 export interface KnownItem {

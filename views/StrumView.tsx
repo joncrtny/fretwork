@@ -3,7 +3,7 @@ import { CHORDS, SIMPLE_CHORDS, STRUM_PATTERNS, nameOf, keyPrefersFlats } from "
 import { CHORD_GROUPS } from "../data/groups.ts";
 import { groupItems } from "../lib/utils.ts";
 import { ctx, playClick } from "../audio.ts";
-import { ChordDiagram } from "../fretboard.jsx";
+import { ChordDiagram } from "../fretboard.tsx";
 import { Field } from "../components/Field.tsx";
 import { KeyPicker } from "../components/KeyPicker.tsx";
 import { CatPicker } from "../components/CatPicker.tsx";

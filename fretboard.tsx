@@ -547,7 +547,21 @@ function describeVoicing(voicing, midis, flats) {
   return parts.join("; ") + "." + barre;
 }
 
-export function ChordDiagram({ voicing, midis, rootPc, capo, selected, onSelect, flats, showDegrees, title, caption, lefty }) {
+interface ChordDiagramProps {
+  voicing: any;
+  midis: number[];
+  rootPc: number;
+  capo: number;
+  flats: boolean;
+  showDegrees?: boolean;
+  selected?: boolean;
+  onSelect?: (voicing?: any) => void;
+  title?: string;
+  caption?: string;
+  lefty?: boolean;
+}
+
+export function ChordDiagram({ voicing, midis, rootPc, capo, selected, onSelect, flats, showDegrees, title, caption, lefty }: ChordDiagramProps) {
   /* standard chord diagrams put the low E on the left; a left-handed player mirrors it */
   const colToString = (i) => (lefty ? midis.length - 1 - i : i);
   const n = midis.length;

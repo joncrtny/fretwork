@@ -1,19 +1,18 @@
 import { useNarrow } from "../hooks/useNarrow.ts";
 
 type SegVal = string | number | boolean;
-interface SegProps<T extends SegVal> {
-  options: { v: T; l: string }[];
-  value: T;
-  onChange: (v: T) => void;
+interface SegProps {
+  options: { v: SegVal; l: string }[];
+  value: SegVal;
+  /* deliberately loose so both inline arrows and bare state setters
+     (onChange={setArpDir}) pass without a cast at every call site */
+  onChange: (v: any) => void;
   small?: boolean;
   responsive?: boolean;
   ariaLabel?: string;
 }
 
-/* generic over the value type, so a caller's onChange receives exactly the type
-   it stores (a Settings union, a boolean toggle, a numeric span) rather than a
-   loose union it would then have to cast */
-export function Seg<T extends SegVal>({ options, value, onChange, small, responsive = true, ariaLabel }: SegProps<T>) {
+export function Seg({ options, value, onChange, small, responsive = true, ariaLabel }: SegProps) {
   const narrow = useNarrow();
   if (responsive && narrow) {
     const idx = options.findIndex((o) => o.v === value);

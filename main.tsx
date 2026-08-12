@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import * as amplitude from "@amplitude/analytics-browser";
-import App from "./App.jsx";
+import App from "./App.tsx";
 import "./index.css";
 
 /* Amplitude ingestion key: public by design, same pattern as the Supabase
@@ -17,9 +17,9 @@ const AMPLITUDE_KEY = import.meta.env.VITE_AMPLITUDE_API_KEY || "8f37f29448f9a0f
 const isLocalHost = typeof location !== "undefined" && (location.hostname === "localhost" || location.hostname === "127.0.0.1");
 if (import.meta.env.PROD && AMPLITUDE_KEY && !isLocalHost) {
   amplitude.init(AMPLITUDE_KEY, { autocapture: true });
-  /* expose the initialised singleton so App.jsx can forward custom events and
+  /* expose the initialised singleton so App.tsx can forward custom events and
      in-app screen views. Only on a real deployment, so dev/preview stay clean. */
-  window.amplitude = amplitude;
+  (window as any).amplitude = amplitude;
 }
 
 createRoot(document.getElementById("root")).render(

@@ -29,6 +29,7 @@ export interface Progression {
   note: string;
   tonality: "major" | "minor";
   bars: string[]; // roman-numeral keys into ROMAN
+  sections?: Record<string, string>; // custom progressions carry section markers
 }
 export interface EarInterval {
   v: number; // semitones

@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { CHORDS, PROGRESSIONS } from "../theory.ts";
 import { track } from "../lib/analytics.ts";
 import { shareLinkFromParams } from "../lib/share.ts";
-import { ChordDiagram } from "../fretboard.jsx";
+import { ChordDiagram } from "../fretboard.tsx";
 import { useSettings } from "../state/SettingsContext.tsx";
 import { useLibrary } from "../state/LibraryContext.tsx";
 import { useToast } from "../state/ToastContext.tsx";
@@ -24,8 +24,8 @@ export function BankView({ onOpen }) {
   const { setToast } = useToast();
 
   const shareBankItem = useCallback(
-    async (item) => {
-      const p = {};
+    async (item: any) => {
+      const p: Record<string, any> = {};
       if (item.kind === "chord") Object.assign(p, { m: "chord", r: item.root, id: item.chordId });
       else if (item.kind === "scale") Object.assign(p, { m: "scale", r: item.root, id: item.scaleId });
       else if (item.kind === "arp") Object.assign(p, { m: "arp", r: item.root, id: item.arpId });

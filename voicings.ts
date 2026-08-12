@@ -4,7 +4,7 @@
    fingerings across the neck. Pure: no React, no shared state.
    ========================================================== */
 
-export function findVoicings(rootPc, intervals, midis, fretCount, capo, opt) {
+export function findVoicings(rootPc: number, intervals: number[], midis: number[], fretCount: number, capo: number, opt: any) {
   const SPAN = opt.span;
   const chordPcs = [...new Set(intervals.map((i) => (rootPc + i + 144) % 12))];
   const chordSet = new Set(chordPcs);

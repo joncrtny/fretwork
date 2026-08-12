@@ -3,7 +3,7 @@ import { CHORDS, SIMPLE_CHORDS, DEG, FUNC_COLOUR, nameOf, keyPrefersFlats } from
 import { CHORD_GROUPS } from "../data/groups.ts";
 import { groupItems } from "../lib/utils.ts";
 import { track } from "../lib/analytics.ts";
-import { neckPositions } from "../fretboard.jsx";
+import { neckPositions } from "../fretboard.tsx";
 import { Field } from "../components/Field.tsx";
 import { Seg } from "../components/Seg.tsx";
 import { KeyPicker } from "../components/KeyPicker.tsx";

@@ -19,8 +19,10 @@ import type { MelodyNote } from "../theory.ts";
    payload (position, exact voicing) that the target view consumes once on
    mount; posNonce forces that consumption even for a same-position restore. */
 
-/* a slot on the melody timeline: a note, or a rest */
-export type MelodyStep = MelodyNote | { rest: true };
+/* a slot on the melody timeline: a note ({s, f}) or a rest ({rest: true}). Kept
+   as one open shape rather than a discriminated union so the melody editor can
+   read .rest/.s/.f without narrowing at every access (pragmatic, option B). */
+export type MelodyStep = { s?: number; f?: number; rest?: boolean };
 
 /* the custom-progression editor payload */
 export interface ProgBuilder {

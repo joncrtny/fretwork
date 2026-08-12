@@ -18,7 +18,7 @@ export function FinderView({ onNavigate }) {
   const { setChordRoot, setChordId } = useSelection();
   const { playNote } = usePlayback();
 
-  const [finderSel, setFinderSel] = useState(new Set()); // "s:f" positions tapped in the chord finder
+  const [finderSel, setFinderSel] = useState<Set<string>>(new Set()); // "s:f" positions tapped in the chord finder
 
   /* chord finder: turn the tapped positions into pitch classes and name any chords that fit */
   const finderInfo = useMemo(() => {

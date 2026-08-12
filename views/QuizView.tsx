@@ -33,7 +33,20 @@ export function QuizView({ setFlash }) {
   const scaleDef = SCALES.find((s) => s.id === scaleId) || SCALES[0];
   const chordDef = CHORDS.find((c) => c.id === chordId) || CHORDS[0];
 
-  const [quiz, setQuiz] = useState({
+  const [quiz, setQuiz] = useState<{
+    source: string;
+    difficulty: number;
+    range: number[];
+    hidden: Set<string> | null;
+    found: Set<string>;
+    correct: number;
+    wrong: number;
+    streak: number;
+    best: number;
+    rounds: number;
+    done: boolean;
+    target?: any;
+  }>({
     source: "scale",
     difficulty: 0.35,
     range: [0, 12],

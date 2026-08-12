@@ -118,7 +118,7 @@ export function MelodyView({ setFlash }) {
 
   const transposeMelody = useCallback(
     (delta) => {
-      const moved = melSteps.map((st) => (st.rest ? st : { s: st.s, f: st.f + delta }));
+      const moved: { s?: number; f?: number; rest?: boolean }[] = melSteps.map((st) => (st.rest ? st : { s: st.s, f: st.f + delta }));
       if (moved.some((st) => !st.rest && (st.f < 0 || st.f > fretCount))) {
         setToast("That transposition falls off the neck");
         return;

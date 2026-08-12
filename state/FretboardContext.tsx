@@ -26,15 +26,17 @@ export interface FretboardBarre {
 /* the per-mode fields a view owns; Settings-derived props (fretCount, midis,
    geo, capo) stay direct on the shell's <Fretboard>. */
 export interface FretboardConfig {
-  marks: Map<string, NeckMark>;
+  /* marks is keyed "string:fret" and holds NeckMark values; kept loose (Map)
+     so views can build it with new Map() without a generic annotation */
+  marks: Map<string, NeckMark> | Map<string, any>;
   onCell: (s: number, f: number, midi: number) => void;
   flats: boolean;
   labelMode: string;
   colourMode: string;
   barre: FretboardBarre | null;
-  ghosts: Set<string> | null;
+  ghosts: Set<any> | null;
   quizActive: boolean;
-  quizRange: [number, number] | undefined;
+  quizRange: number[] | undefined;
 }
 
 interface FretboardCtxValue {

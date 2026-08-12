@@ -4,7 +4,7 @@ import { CHORD_GROUPS } from "../data/groups.ts";
 import { groupItems } from "../lib/utils.ts";
 import { track } from "../lib/analytics.ts";
 import { pluck } from "../audio.ts";
-import { neckPositions, ChordDiagram } from "../fretboard.jsx";
+import { neckPositions, ChordDiagram } from "../fretboard.tsx";
 import { Field } from "../components/Field.tsx";
 import { Seg } from "../components/Seg.tsx";
 import { KeyPicker } from "../components/KeyPicker.tsx";

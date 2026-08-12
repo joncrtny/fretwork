@@ -16,7 +16,7 @@ import {
   MEL_MAX_BARS,
   TIME_SIGS,
 } from "./theory.ts";
-import { useGeometry, Fretboard } from "./fretboard.jsx";
+import { useGeometry, Fretboard } from "./fretboard.tsx";
 import { VIEW_META, pathForMode, modeForPath } from "./lib/routing.ts";
 import { track } from "./lib/analytics.ts";
 import { shareLinkFromParams, decodeShareHash } from "./lib/share.ts";
@@ -37,19 +37,19 @@ import { AccountView } from "./views/AccountView.tsx";
 import { TunerView } from "./views/TunerView.tsx";
 import { FretboardProvider, useFretboardConfig } from "./state/FretboardContext.tsx";
 import { ReadoutProvider, useReadout } from "./state/ReadoutContext.tsx";
-import { IntervalView } from "./views/IntervalView.jsx";
-import { ScaleView } from "./views/ScaleView.jsx";
-import { ArpView } from "./views/ArpView.jsx";
-import { ChordView } from "./views/ChordView.jsx";
-import { FinderView } from "./views/FinderView.jsx";
-import { QuizView } from "./views/QuizView.jsx";
-import { EarView } from "./views/EarView.jsx";
-import { ChangesView } from "./views/ChangesView.jsx";
-import { StrumView } from "./views/StrumView.jsx";
-import { BankView } from "./views/BankView.jsx";
-import { RoutineView } from "./views/RoutineView.jsx";
-import { ProgView } from "./views/ProgView.jsx";
-import { MelodyView } from "./views/MelodyView.jsx";
+import { IntervalView } from "./views/IntervalView.tsx";
+import { ScaleView } from "./views/ScaleView.tsx";
+import { ArpView } from "./views/ArpView.tsx";
+import { ChordView } from "./views/ChordView.tsx";
+import { FinderView } from "./views/FinderView.tsx";
+import { QuizView } from "./views/QuizView.tsx";
+import { EarView } from "./views/EarView.tsx";
+import { ChangesView } from "./views/ChangesView.tsx";
+import { StrumView } from "./views/StrumView.tsx";
+import { BankView } from "./views/BankView.tsx";
+import { RoutineView } from "./views/RoutineView.tsx";
+import { ProgView } from "./views/ProgView.tsx";
+import { MelodyView } from "./views/MelodyView.tsx";
 import { TourOverlay } from "./components/TourOverlay.tsx";
 import { RoutineHud } from "./components/RoutineHud.tsx";
 import { useTour } from "./hooks/useTour.ts";
@@ -189,14 +189,14 @@ function App() {
     const loc = window.location.origin + path;
     const referrer = lastPVRef.current ? window.location.origin + lastPVRef.current : document.referrer || undefined;
     lastPVRef.current = path;
+    const w = window as any;
     try {
-      if (typeof window.gtag === "function")
-        window.gtag("event", "page_view", { page_title: title, page_location: loc, page_referrer: referrer });
+      if (typeof w.gtag === "function") w.gtag("event", "page_view", { page_title: title, page_location: loc, page_referrer: referrer });
     } catch (e) {
       /* analytics must never break the app */
     }
     try {
-      if (window.amplitude) window.amplitude.track("screen_view", { screen: m, path, title });
+      if (w.amplitude) w.amplitude.track("screen_view", { screen: m, path, title });
     } catch (e) {
       /* analytics must never break the app */
     }
@@ -258,7 +258,7 @@ function App() {
             const merged = { ...local };
             let localWonADay = false;
             for (const [k, v] of Object.entries(data.practice_log)) {
-              if (!merged[k] || v.total > merged[k].total) merged[k] = v;
+              if (!merged[k] || (v as any).total > merged[k].total) merged[k] = v as any;
             }
             for (const k of Object.keys(local))
               if (!data.practice_log[k] || local[k].total > (data.practice_log[k].total || 0)) localWonADay = true;
@@ -405,7 +405,7 @@ function App() {
 
   /* ---- share links: current view encoded in the URL hash ---- */
   const buildShareLink = useCallback(() => {
-    const p = { m: mode };
+    const p: Record<string, any> = { m: mode };
     if (mode === "scale") Object.assign(p, { r: scaleRoot, id: scaleId });
     else if (mode === "arp") Object.assign(p, { r: arpRoot, id: arpId });
     else if (mode === "chord") Object.assign(p, { r: chordRoot, id: chordId });
@@ -654,7 +654,7 @@ function App() {
     setMode(targetMode);
   };
 
-  const navItem = (id, label, extra) => (
+  const navItem = (id, label, extra = null) => (
     <button
       className={`dnav ${mode === id ? "on" : ""}`}
       aria-current={mode === id ? "page" : undefined}
@@ -692,7 +692,11 @@ function App() {
 
   return (
     <div className={`app ${settings.dark ? "dark" : ""} ${settings.highContrast ? "hc" : ""} ${settings.lowMotion ? "lowmotion" : ""}`}>
-      <nav className={`drawer ${drawer ? "open" : ""}`} aria-label="Main menu" inert={drawer ? undefined : ""}>
+      <nav
+        className={`drawer ${drawer ? "open" : ""}`}
+        aria-label="Main menu"
+        {...({ inert: drawer ? undefined : "" } as any) /* inert absent from React 18 types; keep the boolean-attr idiom */}
+      >
         <div className="dinner">
           <button
             className={`simpletoggle ${settings.simple ? "on" : ""}`}
@@ -851,7 +855,7 @@ function App() {
             <span className="mark" aria-hidden="true" />
             <h1>Fretwork</h1>
           </div>
-          <div className="readout" aria-live="polite" role="heading" aria-level="2">
+          <div className="readout" aria-live="polite" role="heading" aria-level={2}>
             <span className="rdot" />
             {publishedReadout != null ? publishedReadout : readout}
           </div>
