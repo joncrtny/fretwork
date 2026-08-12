@@ -204,3 +204,27 @@ Every INPUT 1 identifier now has exactly one home: Settings (settings, setSettin
   deliberate decision.
 - **Readout case**: `.readout` uppercases via CSS; tests must read textContent,
   not innerText (documented in views-learn.spec.js).
+
+---
+
+## Phase 4 in practice (discovered during execution)
+
+The fretboard slot (state/FretboardContext.jsx) and the header-readout slot are
+BOTH needed, and they gate which views can move when:
+
+- A view can move as soon as everything its neck AND its readout depend on is
+  reachable from a context. Interval moved with only the fretboard slot because
+  its readout reads ivRoot/ivOn from SelectionContext.
+- Scale, Arp, Chord are the same: their readout reads scaleRoot/chordRoot/
+  arpRoot (Selection), so they can move on the fretboard slot alone. Their neck
+  marks use view-local scalePos/arpPos/arpDir, which move into the view.
+- Finder, Quiz, Melody, Changes, Prog have readouts that depend on view-LOCAL
+  state (finderInfo, quiz, melKeyHint, chg, builder). They need the
+  header-readout slot (a useHeaderReadout(text) publish, identical pattern to
+  usePublishFretboard) before they can move, or their readout breaks.
+
+Recommended remaining order: Scale, Arp, Chord (fretboard slot only) -> add the
+readout slot -> Finder, Quiz, Melody, Changes, Prog -> Bank, Routine, Ear,
+Strum. neckPositions (fretboard.jsx) is the shared marks helper for all of them.
+
+Gotcha banked: Fretboard reads `ghosts` as a Set (ghosts.has), never an array.
