@@ -12,7 +12,7 @@ import { StarSave } from "../components/SaveButtons.jsx";
 import { KnownButton } from "../components/SaveButtons.jsx";
 import { useSettings } from "../state/SettingsContext.tsx";
 import { useSelection } from "../state/SelectionContext.tsx";
-import { usePlayback } from "../state/PlaybackContext.jsx";
+import { usePlayback } from "../state/PlaybackContext.tsx";
 import { useLibrary } from "../state/LibraryContext.tsx";
 import { usePublishFretboard } from "../state/FretboardContext.tsx";
 

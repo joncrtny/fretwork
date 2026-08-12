@@ -5,7 +5,7 @@ import { Field } from "../components/Field.jsx";
 import { Seg } from "../components/Seg.jsx";
 import { useSettings } from "../state/SettingsContext.tsx";
 import { useSelection } from "../state/SelectionContext.tsx";
-import { usePlayback } from "../state/PlaybackContext.jsx";
+import { usePlayback } from "../state/PlaybackContext.tsx";
 import { useLibrary } from "../state/LibraryContext.tsx";
 import { useToast } from "../state/ToastContext.tsx";
 import { usePublishFretboard } from "../state/FretboardContext.tsx";

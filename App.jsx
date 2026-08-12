@@ -28,7 +28,7 @@ import { AuthSyncProvider, useAuthSync } from "./state/AuthSyncContext.tsx";
 import { LibraryProvider, useLibrary } from "./state/LibraryContext.tsx";
 import { ProgressProvider, useProgress } from "./state/ProgressContext.tsx";
 import { SelectionProvider, useSelection } from "./state/SelectionContext.tsx";
-import { PlaybackProvider, usePlayback } from "./state/PlaybackContext.jsx";
+import { PlaybackProvider, usePlayback } from "./state/PlaybackContext.tsx";
 import { FaqView } from "./views/FaqView.jsx";
 import { SettingsView } from "./views/SettingsView.jsx";
 import { PracticeLogView } from "./views/PracticeLogView.jsx";

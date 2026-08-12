@@ -4,7 +4,7 @@ import { track } from "../lib/analytics.ts";
 import { Field } from "../components/Field.jsx";
 import { useSettings } from "../state/SettingsContext.tsx";
 import { useSelection } from "../state/SelectionContext.tsx";
-import { usePlayback } from "../state/PlaybackContext.jsx";
+import { usePlayback } from "../state/PlaybackContext.tsx";
 import { usePublishFretboard } from "../state/FretboardContext.tsx";
 import { usePublishReadout } from "../state/ReadoutContext.tsx";
 

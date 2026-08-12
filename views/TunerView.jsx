@@ -6,7 +6,7 @@ import { Field } from "../components/Field.jsx";
 import { KeyPicker } from "../components/KeyPicker.jsx";
 import { useSettings } from "../state/SettingsContext.tsx";
 import { useProgress } from "../state/ProgressContext.tsx";
-import { usePlayback } from "../state/PlaybackContext.jsx";
+import { usePlayback } from "../state/PlaybackContext.tsx";
 
 /* The tuner: a microphone tuner (autocorrelation pitch detection, needle and
    closest-string hint), the string-by-string tuning editor with preset

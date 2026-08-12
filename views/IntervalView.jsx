@@ -6,7 +6,7 @@ import { KeyPicker } from "../components/KeyPicker.jsx";
 import { IntervalGrid } from "../components/IntervalGrid.jsx";
 import { useSettings } from "../state/SettingsContext.tsx";
 import { useSelection } from "../state/SelectionContext.tsx";
-import { usePlayback } from "../state/PlaybackContext.jsx";
+import { usePlayback } from "../state/PlaybackContext.tsx";
 import { usePublishFretboard } from "../state/FretboardContext.tsx";
 
 const EMPTY = new Set(); // Fretboard reads ghosts as a Set (ghosts.has(...))

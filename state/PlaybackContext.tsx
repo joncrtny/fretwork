@@ -1,4 +1,16 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+  type MutableRefObject,
+  type ReactNode,
+} from "react";
 import { ctx, pluck, playClick } from "../audio.ts";
 import { useSettings } from "./SettingsContext.tsx";
 import { useProgress } from "./ProgressContext.tsx";
@@ -7,26 +19,52 @@ import { useProgress } from "./ProgressContext.tsx";
    together because stopPlayback must reset all of it regardless of which view
    scheduled it. The per-view schedulers (playScale, strum loops, melody
    playback) live with their views on top of these primitives. */
-const PlaybackContext = createContext(null);
 
-export function PlaybackProvider({ children }) {
+type Timer = ReturnType<typeof setTimeout>;
+
+export interface PlaybackValue {
+  playing: number | null;
+  setPlaying: Dispatch<SetStateAction<number | null>>;
+  progPlaying: boolean;
+  setProgPlaying: Dispatch<SetStateAction<boolean>>;
+  melPlayIdx: number | null;
+  setMelPlayIdx: Dispatch<SetStateAction<number | null>>;
+  strumOn: boolean;
+  setStrumOn: Dispatch<SetStateAction<boolean>>;
+  strumStep: number | null;
+  setStrumStep: Dispatch<SetStateAction<number | null>>;
+  metroOn: boolean;
+  setMetroOn: Dispatch<SetStateAction<boolean>>;
+  beat: number;
+  playTimers: MutableRefObject<Timer[]>;
+  strumLoopRef: MutableRefObject<boolean>;
+  scheduleStrumRef: MutableRefObject<() => void>;
+  melLoopRef: MutableRefObject<boolean>;
+  playMelodyRef: MutableRefObject<() => void>;
+  playNote: (midi: number, when?: number, gain?: number) => void;
+  stopPlayback: () => void;
+}
+
+const PlaybackContext = createContext<PlaybackValue | null>(null);
+
+export function PlaybackProvider({ children }: { children: ReactNode }) {
   const { settings } = useSettings();
   const { lastActiveRef, setGamify } = useProgress();
-  const [playing, setPlaying] = useState(null); // scale/arp degree highlight
+  const [playing, setPlaying] = useState<number | null>(null); // scale/arp degree highlight
   const [progPlaying, setProgPlaying] = useState(false);
-  const [melPlayIdx, setMelPlayIdx] = useState(null);
-  const [strumStep, setStrumStep] = useState(null); // current eighth slot during playback
+  const [melPlayIdx, setMelPlayIdx] = useState<number | null>(null);
+  const [strumStep, setStrumStep] = useState<number | null>(null); // current eighth slot during playback
   const [strumOn, setStrumOn] = useState(false);
   const [metroOn, setMetroOn] = useState(false);
   const [beat, setBeat] = useState(-1);
-  const playTimers = useRef([]);
+  const playTimers = useRef<Timer[]>([]);
   const strumLoopRef = useRef(false);
-  const scheduleStrumRef = useRef(() => {});
+  const scheduleStrumRef = useRef<() => void>(() => {});
   const melLoopRef = useRef(false);
-  const playMelodyRef = useRef(() => {});
+  const playMelodyRef = useRef<() => void>(() => {});
 
   const playNote = useCallback(
-    (midi, when = 0, gain = 0.5) => {
+    (midi: number, when = 0, gain = 0.5) => {
       lastActiveRef.current = Date.now(); // playing a note counts as active practice
       if (settings.sound) pluck(midi, when, gain);
     },
@@ -67,9 +105,9 @@ export function PlaybackProvider({ children }) {
     /* quieter clicks inside each beat; swing pushes the off-beat to the back
        of the beat. Simple mode plays plain quarters: its panel hides the
        subdivision control, so the setting must not act invisibly. */
-    const SUBS = { 2: [0.5], swing: [2 / 3], 3: [1 / 3, 2 / 3], 4: [0.25, 0.5, 0.75] };
+    const SUBS: Record<string, number[]> = { 2: [0.5], swing: [2 / 3], 3: [1 / 3, 2 / 3], 4: [0.25, 0.5, 0.75] };
     const subs = settings.simple ? [] : SUBS[settings.subdiv] || [];
-    const beatTimers = [];
+    const beatTimers: Timer[] = [];
     const id = setInterval(() => {
       const now = ctx();
       if (!now) return;
@@ -103,7 +141,7 @@ export function PlaybackProvider({ children }) {
     return () => clearInterval(id);
   }, [metroOn, setGamify]);
 
-  const value = useMemo(
+  const value = useMemo<PlaybackValue>(
     () => ({
       playing,
       setPlaying,
@@ -131,7 +169,7 @@ export function PlaybackProvider({ children }) {
   return <PlaybackContext.Provider value={value}>{children}</PlaybackContext.Provider>;
 }
 
-export function usePlayback() {
+export function usePlayback(): PlaybackValue {
   const v = useContext(PlaybackContext);
   if (!v) throw new Error("usePlayback must be used inside <PlaybackProvider>");
   return v;
