@@ -30,6 +30,6 @@
     "strict": false,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "*.jsx", "*.ts", "*.tsx", "views", "state", "hooks", "components", "lib", "data"],
+  "include": ["src"],
   "exclude": ["node_modules", "dist", "scripts", "tests"]
 }
