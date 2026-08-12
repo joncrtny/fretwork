@@ -16,6 +16,22 @@ const TAPER = 0.976;
 const LANE_TOP = 10;
 const LANE_H = 24;
 
+/* every neck position whose interval-from-root is in ivSet, from the capo up.
+   Pure neck geometry, shared by the views that light up scale/interval/arp
+   tones. Returns { s, f, pc, semis }. */
+export function neckPositions(rootPc, ivSet, midis, n, fretCount, capo, from = 0, to = fretCount) {
+  const out = [];
+  const hi = Math.min(to, fretCount);
+  for (let s = 0; s < n; s++) {
+    for (let f = Math.max(from, capo); f <= hi; f++) {
+      const pc = (midis[s] + f) % 12;
+      const semis = (pc - rootPc + 24) % 12;
+      if (ivSet.has(semis)) out.push({ s, f, pc, semis });
+    }
+  }
+  return out;
+}
+
 export function useGeometry(fretCount, stringCount, zoom, leftHanded) {
   return useMemo(() => {
     const w0 = FRET0_W * zoom;

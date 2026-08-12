@@ -27,7 +27,6 @@ import {
   MEL_MAX_BARS,
   STRUM_PATTERNS,
   simpleList,
-  INTERVAL_PRESETS,
   TIME_SIGS,
   FUNC_COLOUR,
   SCALE_ORDER,
@@ -54,6 +53,7 @@ import { AboutView } from "./views/AboutView.jsx";
 import { AccountView } from "./views/AccountView.jsx";
 import { TunerView } from "./views/TunerView.jsx";
 import { FretboardProvider, useFretboardConfig } from "./state/FretboardContext.jsx";
+import { IntervalView } from "./views/IntervalView.jsx";
 import { CHORD_GROUPS, SCALE_GROUPS } from "./data/groups.js";
 import { Seg } from "./components/Seg.jsx";
 import { Field } from "./components/Field.jsx";
@@ -848,10 +848,6 @@ function App() {
         const state = outside ? "dim" : playing != null ? (p.semis === playing ? "lit" : "dim") : null;
         add(p.s, p.f, p.pc, p.semis, "scale", state);
       }
-    }
-
-    if (mode === "interval") {
-      for (const p of positionsFor(ivRoot, ivOn)) add(p.s, p.f, p.pc, p.semis, "interval");
     }
 
     if (mode === "chord") {
@@ -3170,77 +3166,7 @@ function App() {
             </div>
           )}
 
-          {mode === "interval" && (
-            <div className="pane">
-              <p className="panelead">
-                See how each interval sits against the root across the fretboard, so the distances between notes become familiar.
-              </p>
-              <Field label="Root">
-                <KeyPicker value={ivRoot} onChange={setIvRoot} flats={effFlats} />
-              </Field>
-              {settings.simple ? (
-                <Field label="Show">
-                  <div className="posrow">
-                    {INTERVAL_PRESETS.map((pr) => {
-                      const on = pr.iv.length === ivOn.size && pr.iv.every((i) => ivOn.has(i));
-                      return (
-                        <button
-                          key={pr.id}
-                          className={`poschip wide ${on ? "on" : ""}`}
-                          aria-pressed={on}
-                          onClick={() => setIvOn(new Set(pr.iv))}
-                        >
-                          {pr.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </Field>
-              ) : (
-                <Field label="Intervals from the root">
-                  <IntervalGrid root={ivRoot} on={ivOn} onToggle={toggleIv} flats={effFlats} />
-                </Field>
-              )}
-
-              <div className="degrees">
-                {[...ivOn]
-                  .sort((a, b) => a - b)
-                  .map((i) => (
-                    <span key={i} className="chip" style={{ borderLeftColor: FUNC_COLOUR[i] }}>
-                      <b style={{ color: FUNC_COLOUR[i] }}>{DEG[i]}</b>
-                      {nameOf(ivRoot + i, effFlats)}
-                    </span>
-                  ))}
-              </div>
-              {!settings.simple && (
-                <div className="row wrap">
-                  {[
-                    { l: "Root only", iv: [0] },
-                    { l: "Major triad", iv: [0, 4, 7] },
-                    { l: "Minor triad", iv: [0, 3, 7] },
-                    { l: "Dominant 7th", iv: [0, 4, 7, 10] },
-                    { l: "All twelve", iv: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
-                  ].map((pr) => {
-                    const on = pr.iv.length === ivOn.size && pr.iv.every((i) => ivOn.has(i));
-                    return (
-                      <button
-                        key={pr.l}
-                        className={`btn ghost ${on ? "sel" : ""}`}
-                        aria-pressed={on}
-                        onClick={() => setIvOn(new Set(pr.iv))}
-                      >
-                        {pr.l}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              <p className="note" hidden={settings.simple}>
-                Filled dots are natural degrees. Rings are flattened ones. Colour groups intervals by function: seconds, thirds, fourths,
-                fifths, sixths, sevenths.
-              </p>
-            </div>
-          )}
+          {mode === "interval" && <IntervalView />}
 
           {mode === "quiz" && (
             <div className="pane">
