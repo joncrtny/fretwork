@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useLayoutEffect, useEffect } from "react";
+import { createContext, useContext, useState, useCallback, useLayoutEffect, useEffect, type ReactNode } from "react";
 
 /* The header readout (the line under the title that summarises what is on
    screen: "C major · 7 notes", "Chord finder · Em", and so on) sits in a fixed
@@ -8,25 +8,30 @@ import { createContext, useContext, useState, useCallback, useLayoutEffect, useE
    here and the shell renders it. Same "publish a slot to the shell" pattern as
    FretboardContext; views whose readout reads only shared Selection state can
    skip it and let the shell's fallback compute the line. */
-const ReadoutCtx = createContext(null);
+interface ReadoutCtxValue {
+  text: string | null;
+  publish: (next: string | null) => void;
+}
 
-export function ReadoutProvider({ children }) {
-  const [text, setText] = useState(null);
+const ReadoutCtx = createContext<ReadoutCtxValue>({ text: null, publish: () => {} });
+
+export function ReadoutProvider({ children }: { children: ReactNode }) {
+  const [text, setText] = useState<string | null>(null);
   /* bail out when the line is unchanged so a view publishing on every render
      cannot loop; the value is a plain string, compared by ===. */
-  const publish = useCallback((next) => {
+  const publish = useCallback((next: string | null) => {
     setText((prev) => (prev === next ? prev : next));
   }, []);
   return <ReadoutCtx.Provider value={{ text, publish }}>{children}</ReadoutCtx.Provider>;
 }
 
 /* shell: the active view's readout line, or null when no view has published */
-export function useReadout() {
+export function useReadout(): string | null {
   return useContext(ReadoutCtx).text;
 }
 
 /* view: publish this view's readout while mounted, clear on unmount */
-export function usePublishReadout(text) {
+export function usePublishReadout(text: string | null): void {
   const { publish } = useContext(ReadoutCtx);
   useLayoutEffect(() => {
     publish(text);

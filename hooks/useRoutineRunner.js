@@ -4,7 +4,7 @@ import { track } from "../lib/analytics.ts";
 import { useSelection } from "../state/SelectionContext.jsx";
 import { useLibrary } from "../state/LibraryContext.jsx";
 import { usePlayback } from "../state/PlaybackContext.jsx";
-import { useToast } from "../state/ToastContext.jsx";
+import { useToast } from "../state/ToastContext.tsx";
 
 /* The practice-routine runner: once RoutineView hands over a duration, this
    builds a weighted set of segments from what you know (the shaky ones get

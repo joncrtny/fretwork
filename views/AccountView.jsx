@@ -9,7 +9,7 @@ import { isNetErr } from "../lib/utils.ts";
 import { useAuthSync } from "../state/AuthSyncContext.jsx";
 import { useLibrary } from "../state/LibraryContext.jsx";
 import { useProgress } from "../state/ProgressContext.jsx";
-import { useToast } from "../state/ToastContext.jsx";
+import { useToast } from "../state/ToastContext.tsx";
 
 /* The account view: username-only sign in / create account over Supabase,
    optional email linking for recovery, password reset, and sign out (which

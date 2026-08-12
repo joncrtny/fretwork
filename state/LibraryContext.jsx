@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { store } from "../lib/store.ts";
 import { track } from "../lib/analytics.ts";
-import { useToast } from "./ToastContext.jsx";
+import { useToast } from "./ToastContext.tsx";
 import { useAuthSync } from "./AuthSyncContext.jsx";
 
 /* The user's persisted things: Bank saves, known items, custom progressions,

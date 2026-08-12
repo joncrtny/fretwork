@@ -12,9 +12,9 @@ import { useSettings } from "../state/SettingsContext.jsx";
 import { useSelection } from "../state/SelectionContext.jsx";
 import { usePlayback } from "../state/PlaybackContext.jsx";
 import { useLibrary } from "../state/LibraryContext.jsx";
-import { useToast } from "../state/ToastContext.jsx";
-import { usePublishFretboard } from "../state/FretboardContext.jsx";
-import { usePublishReadout } from "../state/ReadoutContext.jsx";
+import { useToast } from "../state/ToastContext.tsx";
+import { usePublishFretboard } from "../state/FretboardContext.tsx";
+import { usePublishReadout } from "../state/ReadoutContext.tsx";
 
 const EMPTY = new Set();
 

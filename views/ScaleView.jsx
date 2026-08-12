@@ -14,7 +14,7 @@ import { useSettings } from "../state/SettingsContext.jsx";
 import { useSelection } from "../state/SelectionContext.jsx";
 import { usePlayback } from "../state/PlaybackContext.jsx";
 import { useLibrary } from "../state/LibraryContext.jsx";
-import { usePublishFretboard } from "../state/FretboardContext.jsx";
+import { usePublishFretboard } from "../state/FretboardContext.tsx";
 
 const EMPTY = new Set();
 

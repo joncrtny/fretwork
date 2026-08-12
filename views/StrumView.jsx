@@ -10,8 +10,8 @@ import { CatPicker } from "../components/CatPicker.jsx";
 import { useSettings } from "../state/SettingsContext.jsx";
 import { useSelection } from "../state/SelectionContext.jsx";
 import { usePlayback } from "../state/PlaybackContext.jsx";
-import { usePublishFretboard } from "../state/FretboardContext.jsx";
-import { usePublishReadout } from "../state/ReadoutContext.jsx";
+import { usePublishFretboard } from "../state/FretboardContext.tsx";
+import { usePublishReadout } from "../state/ReadoutContext.tsx";
 import { useChordVoicings } from "../hooks/useChordVoicings.js";
 
 const EMPTY = new Set();

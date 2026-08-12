@@ -16,8 +16,8 @@ import { useSelection } from "../state/SelectionContext.jsx";
 import { usePlayback } from "../state/PlaybackContext.jsx";
 import { useLibrary } from "../state/LibraryContext.jsx";
 import { useProgress } from "../state/ProgressContext.jsx";
-import { usePublishFretboard } from "../state/FretboardContext.jsx";
-import { usePublishReadout } from "../state/ReadoutContext.jsx";
+import { usePublishFretboard } from "../state/FretboardContext.tsx";
+import { usePublishReadout } from "../state/ReadoutContext.tsx";
 import { useChordVoicings } from "../hooks/useChordVoicings.js";
 
 /* Chords: playable shapes for any chord in any key, with a diagram per shape,

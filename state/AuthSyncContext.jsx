@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase, SUPA_URL, SUPA_KEY, FAKE_MAIL } from "../lib/supabase.ts";
-import { useToast } from "./ToastContext.jsx";
+import { useToast } from "./ToastContext.tsx";
 
 /* Auth session and the sync plumbing: who is signed in, the debounced
    field-sync to the user_data row, and the pagehide keepalive flush. Local

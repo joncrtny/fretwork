@@ -6,7 +6,7 @@ import { Field } from "../components/Field.jsx";
 import { Seg } from "../components/Seg.jsx";
 import { useSettings } from "../state/SettingsContext.jsx";
 import { useProgress } from "../state/ProgressContext.jsx";
-import { usePublishReadout } from "../state/ReadoutContext.jsx";
+import { usePublishReadout } from "../state/ReadoutContext.tsx";
 
 /* Ear training: hear an interval or chord type and name it, or pick one and
    hear it. No neck, so it publishes only the readout. State is local and dies

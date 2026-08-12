@@ -5,7 +5,7 @@ import { shareLinkFromParams } from "../lib/share.ts";
 import { ChordDiagram } from "../fretboard.jsx";
 import { useSettings } from "../state/SettingsContext.jsx";
 import { useLibrary } from "../state/LibraryContext.jsx";
-import { useToast } from "../state/ToastContext.jsx";
+import { useToast } from "../state/ToastContext.tsx";
 
 const GROUPS = [
   { kind: "chord", label: "Chords" },

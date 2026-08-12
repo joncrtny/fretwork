@@ -13,8 +13,8 @@ import { CatPicker } from "../components/CatPicker.jsx";
 import { useSettings } from "../state/SettingsContext.jsx";
 import { useLibrary } from "../state/LibraryContext.jsx";
 import { useProgress } from "../state/ProgressContext.jsx";
-import { useToast } from "../state/ToastContext.jsx";
-import { usePublishReadout } from "../state/ReadoutContext.jsx";
+import { useToast } from "../state/ToastContext.tsx";
+import { usePublishReadout } from "../state/ReadoutContext.tsx";
 
 const chgKey = (chords) =>
   chords
