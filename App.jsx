@@ -57,6 +57,7 @@ import { useChordVoicings } from "./hooks/useChordVoicings.js";
 import { IntervalView } from "./views/IntervalView.jsx";
 import { ScaleView } from "./views/ScaleView.jsx";
 import { ArpView } from "./views/ArpView.jsx";
+import { ChordView } from "./views/ChordView.jsx";
 import { CHORD_GROUPS, SCALE_GROUPS } from "./data/groups.js";
 import { Seg } from "./components/Seg.jsx";
 import { Field } from "./components/Field.jsx";
@@ -64,7 +65,6 @@ import { IntervalGrid } from "./components/IntervalGrid.jsx";
 import { KeyPicker } from "./components/KeyPicker.jsx";
 import { CatPicker } from "./components/CatPicker.jsx";
 import { DualRange } from "./components/DualRange.jsx";
-import { StarSave, KnownButton } from "./components/SaveButtons.jsx";
 import { HeadIcon } from "./components/HeadIcon.jsx";
 
 /* ============================================================
@@ -161,9 +161,6 @@ function App() {
     setChordRoot,
     chordId,
     setChordId,
-    voiceIdx,
-    setVoiceIdx,
-    chordArea,
     setChordArea,
     arpRoot,
     setArpRoot,
@@ -200,8 +197,8 @@ function App() {
     stopPlayback,
   } = usePlayback();
 
-  const [showAllTones, setShowAllTones] = useState(true);
-  const [chordLabel, setChordLabel] = useState("finger");
+  /* prog's neck label until ProgView owns its own; Chord's label moved with it */
+  const [chordLabel] = useState("finger");
 
   const [progRoot, setProgRoot] = useState(0);
   const [progId, setProgId] = useState("p1564");
@@ -514,8 +511,9 @@ function App() {
     }
   }, [settings.simple, strumPatId]);
 
-  /* chord/strum share one voicing engine; only the mode on screen computes */
-  const { vopt, chordAreas, shownVoicings, activeVoicing } = useChordVoicings(mode === "chord" || mode === "strum");
+  /* chord/strum share one voicing engine; ChordView owns its own call, so the
+     shell only needs the strum shape (and vopt for the chord-changes trainer) */
+  const { vopt, activeVoicing } = useChordVoicings(mode === "strum");
 
   const progDef = useMemo(() => {
     const preset = PROGRESSIONS.find((p) => p.id === progId);
@@ -761,17 +759,6 @@ function App() {
       map.set(`${s}:${f}`, { pc, semis, tone, state: state || "on", finger: finger == null ? null : finger });
     };
 
-    if (mode === "chord") {
-      if (activeVoicing) {
-        for (let s = 0; s < n; s++) {
-          const f = activeVoicing.frets[s];
-          if (f === null) continue;
-          const pc = (midis[s] + f) % 12;
-          add(s, f, pc, (pc - chordRoot + 24) % 12, "chord", null, activeVoicing.fingering[s]);
-        }
-      }
-    }
-
     if (mode === "prog" && activeProg && activeProgVoicing) {
       for (let s2 = 0; s2 < n; s2++) {
         const f = activeProgVoicing.frets[s2];
@@ -848,14 +835,6 @@ function App() {
     finderSel,
     finderInfo,
   ]);
-
-  const ghosts = useMemo(() => {
-    if (mode !== "chord" || !showAllTones) return null;
-    const set = new Set(chordDef.iv.map((i) => i % 12));
-    const g = new Set();
-    for (const p of positionsFor(chordRoot, set)) g.add(`${p.s}:${p.f}`);
-    return g;
-  }, [mode, showAllTones, chordDef, chordRoot, positionsFor]);
 
   /* ---- quiz ---- */
   const quizTargetSet = useCallback(() => {
@@ -994,17 +973,6 @@ function App() {
     const t = setTimeout(() => setFlash(null), 480);
     return () => clearTimeout(t);
   }, [flash]);
-
-  const strumVoicing = useCallback(() => {
-    if (!activeVoicing) return;
-    let i = 0;
-    for (let s = 0; s < n; s++) {
-      const f = activeVoicing.frets[s];
-      if (f === null) continue;
-      playNote(midis[s] + f, i * 0.035);
-      i++;
-    }
-  }, [activeVoicing, midis, n, playNote]);
 
   /* one strum of the current chord: down runs low string to high, up reverses */
   const strumChord = useCallback(
@@ -1544,7 +1512,6 @@ function App() {
   /* ---- readout ---- */
   const readout = useMemo(() => {
     if (mode === "scale") return `${nameOf(scaleRoot, effFlats)} ${scaleDef.name} · ${scaleDef.iv.length} notes`;
-    if (mode === "chord") return `${nameOf(chordRoot, effFlats)}${chordDef.suffix || ""} · ${shownVoicings.length} voicings`;
     if (mode === "prog") return `${nameOf(progRoot, effFlats)} \u00b7 ${progDef.name} \u00b7 ${progDef.bars.length} bars`;
     if (mode === "bank") return `Bank \u00b7 ${bank.length} saved`;
     if (mode === "interval")
@@ -1595,7 +1562,6 @@ function App() {
     chordDef,
     ivRoot,
     ivOn,
-    shownVoicings.length,
     effFlats,
     quiz,
     progRoot,
@@ -2284,17 +2250,17 @@ function App() {
                 marks={fbConfig ? fbConfig.marks : marks}
                 onCell={fbConfig ? fbConfig.onCell : onCell}
                 flats={fbConfig ? fbConfig.flats : effFlats}
-                labelMode={fbConfig ? fbConfig.labelMode : mode === "chord" || mode === "prog" ? chordLabel : settings.labelMode}
+                labelMode={fbConfig ? fbConfig.labelMode : mode === "prog" ? chordLabel : settings.labelMode}
                 colourMode={fbConfig ? fbConfig.colourMode : mode === "interval" ? "interval" : settings.colourMode}
                 barre={
                   fbConfig
                     ? fbConfig.barre
                     : (() => {
-                        const v = mode === "chord" ? activeVoicing : mode === "prog" ? activeProgVoicing : null;
+                        const v = mode === "prog" ? activeProgVoicing : null;
                         return v && v.barreFret != null ? { fret: v.barreFret, from: v.barreFrom, to: v.barreTo } : null;
                       })()
                 }
-                ghosts={fbConfig ? fbConfig.ghosts : ghosts}
+                ghosts={fbConfig ? fbConfig.ghosts : null}
                 quizRange={fbConfig ? fbConfig.quizRange : quiz.range}
                 quizActive={fbConfig ? fbConfig.quizActive : mode === "quiz"}
               />
@@ -2313,180 +2279,7 @@ function App() {
         <main className="panel" key={mode}>
           {mode === "scale" && <ScaleView carryKey={carryKey} />}
 
-          {mode === "chord" && (
-            <div className="pane">
-              <p className="panelead">Find playable shapes for any chord in any key, then hear and save the ones you want to learn.</p>
-              <div className="knownrow">
-                <KnownButton
-                  known={known.some((k) => k.sig === `k-chord:${chordRoot}:${chordId}`)}
-                  onClick={() =>
-                    toggleKnown({
-                      sig: `k-chord:${chordRoot}:${chordId}`,
-                      kind: "chord",
-                      root: chordRoot,
-                      id: chordId,
-                      label: `${nameOf(chordRoot, effFlats)}${chordDef.suffix}`,
-                    })
-                  }
-                />
-              </div>
-              {shownVoicings.length === 0 ? (
-                <p className="empty">
-                  No playable shape for {nameOf(chordRoot, effFlats)}
-                  {chordDef.suffix} in this tuning at this stretch. In Settings, widen Chord stretch or turn on Inversions.
-                </p>
-              ) : (
-                <div className="voicings">
-                  {shownVoicings.map((v, i) => {
-                    const vsig = `chord:${chordRoot}:${chordId}:${v.key || ""}`;
-                    const label = `${nameOf(chordRoot, effFlats)}${chordDef.suffix} shape ${i + 1}`;
-                    return (
-                      <div key={v.key} className="voicewrap">
-                        <ChordDiagram
-                          voicing={v}
-                          lefty={settings.leftHanded}
-                          midis={midis}
-                          rootPc={chordRoot}
-                          capo={capo}
-                          flats={effFlats}
-                          showDegrees={settings.labelMode === "degree"}
-                          selected={i === Math.min(voiceIdx, shownVoicings.length - 1)}
-                          onSelect={() => {
-                            lastActiveRef.current = Date.now();
-                            setVoiceIdx(i);
-                            if (settings.sound) {
-                              let j = 0;
-                              for (let st = 0; st < n; st++) {
-                                const f = v.frets[st];
-                                if (f === null) continue;
-                                pluck(midis[st] + f, j * 0.035);
-                                j++;
-                              }
-                            }
-                          }}
-                        />
-                        <span className="voicestar">
-                          <StarSave
-                            label={label}
-                            saved={bank.some((b) => b.sig === vsig)}
-                            onClick={() =>
-                              saveToBank({
-                                id: `b${Date.now()}`,
-                                sig: vsig,
-                                kind: "chord",
-                                root: chordRoot,
-                                chordId,
-                                voicing: v,
-                                midis,
-                                capo,
-                                tun: settings.tuningId,
-                                label,
-                              })
-                            }
-                          />
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {!settings.simple && chordAreas.length > 1 && (
-                <Field label="Neck area">
-                  <div className="posrow">
-                    <button
-                      className={`poschip ${chordArea == null ? "on" : ""}`}
-                      onClick={() => setChordArea(null)}
-                      data-tip="Every shape, all the way up the neck"
-                    >
-                      Anywhere
-                    </button>
-                    {chordAreas.map((f) => (
-                      <button
-                        key={f}
-                        className={`poschip ${chordArea === f ? "on" : ""}`}
-                        onClick={() => setChordArea(f)}
-                        data-tip={f === capo ? "Shapes using open strings" : `Shapes starting at fret ${f}`}
-                      >
-                        {f === capo ? "Open" : f}
-                      </button>
-                    ))}
-                  </div>
-                </Field>
-              )}
-
-              <p className="note">
-                Numbers on the dots are fingers: 1 index, 2 middle, 3 ring, 4 little. A dark bar means one finger lies flat across those
-                strings.
-              </p>
-
-              <div className="row wrap">
-                <Field label="Root">
-                  <KeyPicker value={chordRoot} onChange={setChordRoot} flats={effFlats} />
-                </Field>
-                <Field label="Chord">
-                  <CatPicker
-                    value={chordId}
-                    onChange={setChordId}
-                    label="Chord type"
-                    groups={groupItems(CHORD_GROUPS, CHORDS, SIMPLE_CHORDS, settings.simple, chordId)}
-                  />
-                </Field>
-                <button
-                  className="btn primary"
-                  onClick={() => {
-                    track("strum_chord", { chord: chordId });
-                    strumVoicing();
-                  }}
-                  disabled={!activeVoicing}
-                  data-tip="Hear the selected shape"
-                >
-                  Strum
-                </button>
-              </div>
-
-              <div className="keyjump">
-                <span className="note">In {nameOf(chordRoot, effFlats)}:</span>
-                <button className="jumpchip" onClick={() => carryKey("scale", chordRoot)}>
-                  Scale
-                </button>
-                <button className="jumpchip" onClick={() => carryKey("arp", chordRoot)}>
-                  Arpeggio
-                </button>
-                <button className="jumpchip" onClick={() => carryKey("strum", chordRoot)}>
-                  Strum along
-                </button>
-              </div>
-
-              {!settings.simple && (
-                <div className="optrow">
-                  <Field label="Neck shows">
-                    <Seg
-                      small
-                      options={[
-                        { v: "finger", l: "Fingers" },
-                        { v: "name", l: "Notes" },
-                        { v: "degree", l: "Degrees" },
-                      ]}
-                      value={chordLabel}
-                      onChange={setChordLabel}
-                    />
-                  </Field>
-                  <Field label="Other tones">
-                    <Seg
-                      small
-                      options={[
-                        { v: true, l: "Ghost" },
-                        { v: false, l: "Hide" },
-                      ]}
-                      value={showAllTones}
-                      onChange={setShowAllTones}
-                    />
-                  </Field>
-                </div>
-              )}
-            </div>
-          )}
+          {mode === "chord" && <ChordView carryKey={carryKey} />}
 
           {mode === "prog" && (
             <div className="pane">
