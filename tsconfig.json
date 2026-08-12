@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "useDefineForClassFields": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+
+    /* incremental migration: .jsx/.js and .ts/.tsx coexist. Only files renamed
+       to .ts/.tsx are type-checked; the remaining .jsx keeps shipping untouched
+       until it is migrated. Vite (esbuild) does the transpiling. */
+    "allowJs": true,
+    "checkJs": false,
+
+    /* types as documentation: strict, so a migrated module's types are real */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src", "*.jsx", "*.ts", "*.tsx", "views", "state", "hooks", "components", "lib", "data"],
+  "exclude": ["node_modules", "dist", "scripts", "tests"]
+}

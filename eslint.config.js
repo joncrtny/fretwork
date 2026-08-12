@@ -1,4 +1,5 @@
 import js from "@eslint/js";
+import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 import prettier from "eslint-config-prettier";
 import globals from "globals";
@@ -27,6 +28,28 @@ export default [
       "no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrors: "none" }],
       "no-empty": ["warn", { allowEmptyCatch: true }],
       // a code smell to clean up in the naming/cleanup phase, not a build-breaker
+      "no-useless-assignment": "warn",
+    },
+  },
+  /* TypeScript files (migrated incrementally): the recommended type-aware-lite
+     rules plus the same React-hooks and warn-level house rules as the JS block,
+     with the TS-flavour no-unused-vars so type-only imports are understood. */
+  ...tseslint.configs.recommended.map((c) => ({ ...c, files: ["**/*.{ts,tsx}"] })),
+  {
+    files: ["**/*.{ts,tsx}"],
+    languageOptions: {
+      ecmaVersion: 2023,
+      sourceType: "module",
+      parserOptions: { ecmaFeatures: { jsx: true } },
+      globals: { ...globals.browser },
+    },
+    plugins: { "react-hooks": reactHooks },
+    rules: {
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrors: "none" }],
+      "no-empty": ["warn", { allowEmptyCatch: true }],
       "no-useless-assignment": "warn",
     },
   },

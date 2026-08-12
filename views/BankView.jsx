@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { CHORDS, PROGRESSIONS } from "../theory.js";
 import { track } from "../lib/analytics.js";
-import { shareLinkFromParams } from "../lib/share.js";
+import { shareLinkFromParams } from "../lib/share.ts";
 import { ChordDiagram } from "../fretboard.jsx";
 import { useSettings } from "../state/SettingsContext.jsx";
 import { useLibrary } from "../state/LibraryContext.jsx";

@@ -19,7 +19,7 @@ import {
 import { useGeometry, Fretboard } from "./fretboard.jsx";
 import { VIEW_META, pathForMode, modeForPath } from "./lib/routing.js";
 import { track } from "./lib/analytics.js";
-import { shareLinkFromParams, decodeShareHash } from "./lib/share.js";
+import { shareLinkFromParams, decodeShareHash } from "./lib/share.ts";
 import { store } from "./lib/store.js";
 import { supabase } from "./lib/supabase.js";
 import { ToastProvider, useToast } from "./state/ToastContext.jsx";
