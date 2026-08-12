@@ -61,21 +61,31 @@ module; state lives in eight focused contexts, not one god object.
 - [x] **6. Naming**: renamed the one opaque shell identifier (`pvMode` ->
   `landingMode`). Domain abbreviations (`iv`, `pc`, `midis`) are idiomatic and
   now consistent within each small module, so they stay.
-- [ ] **7. TypeScript**: migrate incrementally, types as documentation.
+- [x] **7. TypeScript**: migrated incrementally, types as documentation. All
+  source is now `.ts`/`.tsx` (62 files) and lives under `src/`. The shared core
+  (`theory.ts`, `lib/`, the contexts) is strict; the leaf layer (views,
+  `App.tsx`, `fretboard.tsx`) is `strict: false` so the UI migrated without
+  churn while the domain model stays self-documenting. `allowJs` +
+  `checkJs: false` let the one remaining `.js` (`data/faq.js`, imported by the
+  node prerender script) stay JS. typecheck, build, lint and 113 tests green.
 - [ ] **8. Feature flags**: provider-agnostic (Vercel Flags SDK), so a Statsig
   backend stays an option. Only after 0-7.
 
-## Target layout
+## Achieved layout
+
+All source lives under `src/`; the repo root holds only configs, `index.html`,
+`docs/`, `scripts/`, `tests/` and `public/`.
 
 ```
-main.jsx, App.jsx (thin shell), index.css
-lib/        routing.js, analytics.js, share.js, utils.js, supabase.js
-data/       faq.js, changelog.js, resources.js
-components/ Seg, Field, KeyPicker, CatPicker, DualRange, IntervalGrid,
-            StarSave, BulbSave, KnownButton, HeadIcon, FeedbackForm, DonateButton
-shell/      Nav, Header, MetronomePanel, Toast, Tour, modals
-state/      AppContext.jsx
-hooks/      useAuth, useSync, useMetronome, useGamify, usePractice, useRouting
-views/      ChordView, ScaleView, ... (~19)
-theory.js, voicings.js, audio.js, gamify.js, fretboard.jsx (existing)
+src/
+  main.tsx, App.tsx (thin shell), index.css
+  theory.ts, voicings.ts, audio.ts, gamify.ts, fretboard.tsx
+  lib/        routing, analytics, share, utils, store, supabase (.ts)
+  data/       faq.js (kept .js for the prerender script), groups, ... 
+  components/ Seg, Field, KeyPicker, CatPicker, DualRange, IntervalGrid,
+              SaveButtons, HeadIcon, TourOverlay, RoutineHud, ... (.tsx)
+  state/      Toast, Settings, AuthSync, Library, Progress, Selection,
+              Playback + Fretboard/Readout publish slots (.tsx)
+  hooks/      useChordVoicings, useTour, useRoutineRunner, useNarrow (.ts)
+  views/      ChordView, ScaleView, ... (19 views, .tsx)
 ```
