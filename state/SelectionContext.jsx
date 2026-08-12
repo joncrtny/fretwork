@@ -17,6 +17,9 @@ export function SelectionProvider({ children }) {
   const [chordArea, setChordArea] = useState(null);
   const [arpRoot, setArpRoot] = useState(0);
   const [arpId, setArpId] = useState("maj");
+  const [progRoot, setProgRoot] = useState(0);
+  const [progId, setProgId] = useState("p1564");
+  const [builder, setBuilder] = useState({ bars: [], name: "", sections: {} }); // the custom-progression editor payload
   const [ivRoot, setIvRoot] = useState(0);
   const [ivOn, setIvOn] = useState(() => new Set([0, 4, 7]));
   const toggleIv = useCallback((i) => {
@@ -49,6 +52,12 @@ export function SelectionProvider({ children }) {
       setArpRoot,
       arpId,
       setArpId,
+      progRoot,
+      setProgRoot,
+      progId,
+      setProgId,
+      builder,
+      setBuilder,
       ivRoot,
       setIvRoot,
       ivOn,
@@ -59,7 +68,23 @@ export function SelectionProvider({ children }) {
       posNonce,
       setPosNonce,
     }),
-    [scaleRoot, scaleId, chordRoot, chordId, voiceIdx, chordArea, arpRoot, arpId, ivRoot, ivOn, toggleIv, posNonce],
+    [
+      scaleRoot,
+      scaleId,
+      chordRoot,
+      chordId,
+      voiceIdx,
+      chordArea,
+      arpRoot,
+      arpId,
+      progRoot,
+      progId,
+      builder,
+      ivRoot,
+      ivOn,
+      toggleIv,
+      posNonce,
+    ],
   );
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;
 }

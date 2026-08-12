@@ -1,6 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { pluck } from "./audio.js";
-import { findVoicings } from "./voicings.js";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   DEG,
   nameOf,
@@ -11,20 +9,17 @@ import {
   PRACTICE_MODES,
   localDay,
   parseTab,
-  MINOR_STARTS,
   ROMAN,
   PROGRESSIONS,
-  SIMPLE_PROGS,
   SIMPLE_HIDDEN,
   CAT_OF,
   MEL_SLOTS,
   MEL_MAX_BARS,
-  simpleList,
   TIME_SIGS,
   SCALE_ORDER,
   CHORD_ORDER,
 } from "./theory.js";
-import { useGeometry, Fretboard, ChordDiagram } from "./fretboard.jsx";
+import { useGeometry, Fretboard } from "./fretboard.jsx";
 import { VIEW_META, pathForMode, modeForPath } from "./lib/routing.js";
 import { track } from "./lib/analytics.js";
 import { store } from "./lib/store.js";
@@ -55,10 +50,9 @@ import { ChangesView } from "./views/ChangesView.jsx";
 import { StrumView } from "./views/StrumView.jsx";
 import { BankView } from "./views/BankView.jsx";
 import { RoutineView } from "./views/RoutineView.jsx";
+import { ProgView } from "./views/ProgView.jsx";
 import { Seg } from "./components/Seg.jsx";
 import { Field } from "./components/Field.jsx";
-import { KeyPicker } from "./components/KeyPicker.jsx";
-import { CatPicker } from "./components/CatPicker.jsx";
 import { HeadIcon } from "./components/HeadIcon.jsx";
 
 /* ============================================================
@@ -97,8 +91,6 @@ function App() {
     setMelodies,
     chgRecords,
     setChgRecords,
-    saveToBank,
-    saveCustomProgs,
     saveMelodies,
     saveRoutineRatings,
     libraryHydrated,
@@ -157,6 +149,11 @@ function App() {
     setArpRoot,
     arpId,
     setArpId,
+    progRoot,
+    setProgRoot,
+    progId,
+    setProgId,
+    setBuilder,
     ivRoot,
     setIvRoot,
     ivOn,
@@ -165,29 +162,8 @@ function App() {
     restoreVoiceRef,
     setPosNonce,
   } = useSelection();
-  const {
-    progPlaying,
-    setProgPlaying,
-    melPlayIdx,
-    setMelPlayIdx,
-    metroOn,
-    setMetroOn,
-    beat,
-    playTimers,
-    melLoopRef,
-    playMelodyRef,
-    playNote,
-    stopPlayback,
-  } = usePlayback();
-
-  /* prog's neck label until ProgView owns its own; Chord's label moved with it */
-  const [chordLabel] = useState("finger");
-
-  const [progRoot, setProgRoot] = useState(0);
-  const [progId, setProgId] = useState("p1564");
-  const [progIdx, setProgIdx] = useState(0);
-  const [builder, setBuilder] = useState({ bars: [], name: "", sections: {} });
-  const [builderKeyQual, setBuilderKeyQual] = useState("major"); // major/minor, for the "add by chord name" picker
+  const { melPlayIdx, setMelPlayIdx, metroOn, setMetroOn, beat, playTimers, melLoopRef, playMelodyRef, playNote, stopPlayback } =
+    usePlayback();
 
   const [melSteps, setMelSteps] = useState([]); // [{s, f}]
   const [melName, setMelName] = useState("");
@@ -407,25 +383,6 @@ function App() {
   const chordDef = CHORDS.find((c) => c.id === chordId) || CHORDS[0];
   const arpDef = CHORDS.find((c) => c.id === arpId) || CHORDS[0];
 
-  const progDef = useMemo(() => {
-    const preset = PROGRESSIONS.find((p) => p.id === progId);
-    if (preset) return preset;
-    const saved = customProgs.find((p) => p.id === progId);
-    if (saved) return saved;
-    if (progId === "custom") {
-      const minorish = MINOR_STARTS.has(builder.bars[0]);
-      return {
-        id: "custom",
-        name: builder.name.trim() || "Custom",
-        note: "Build your own",
-        tonality: minorish ? "minor" : "major",
-        bars: builder.bars,
-        sections: builder.sections,
-      };
-    }
-    return PROGRESSIONS[0];
-  }, [progId, customProgs, builder]);
-
   /* accumulate practice time: count a tick only when the tab is visible, the
      view is a practice activity, and the player actually did something musical
      recently (played a note, strummed, ran the metronome or a drill). Merely
@@ -464,60 +421,6 @@ function App() {
     [melSteps, fretCount, setToast],
   );
 
-  const progChords = useMemo(
-    () =>
-      progDef.bars.map((rn) => {
-        const entry = ROMAN[rn] || [0, "maj"];
-        const def = CHORDS.find((c) => c.id === entry[1]) || CHORDS[0];
-        return { roman: rn, rootPc: (progRoot + entry[0]) % 12, chordId: entry[1], def };
-      }),
-    [progDef, progRoot],
-  );
-
-  const progVoicings = useMemo(() => {
-    if (mode !== "prog") return [];
-    const cache = new Map();
-    return progChords.map((c) => {
-      const key = `${c.rootPc}:${c.chordId}`;
-      if (!cache.has(key)) {
-        const v = findVoicings(c.rootPc, c.def.iv, midis, fretCount, capo, { span: 4, inversions: false, barres: true });
-        cache.set(key, v[0] || null);
-      }
-      return cache.get(key);
-    });
-  }, [mode, progChords, midis, fretCount, capo]);
-
-  useEffect(() => {
-    setProgIdx(0);
-  }, [progId, progRoot]);
-
-  const activeProg = progChords[Math.min(progIdx, progChords.length - 1)] || null;
-
-  /* collapse runs of identical bars, so a 12-bar blues reads as three charts
-     with bar counts rather than twelve repeats */
-  const progGroups = useMemo(() => {
-    const sections = progDef.sections || {};
-    const out = [];
-    progChords.forEach((c, i) => {
-      const last = out[out.length - 1];
-      const sec = sections[i];
-      if (last && !sec && progChords[last.start].roman === c.roman) last.count += 1;
-      else out.push({ start: i, count: 1, section: sec || null });
-    });
-    return out;
-  }, [progChords, progDef]);
-
-  /* split the collapsed groups into named song sections */
-  const songBlocks = useMemo(() => {
-    const blocks = [];
-    progGroups.forEach((g) => {
-      if (g.section || blocks.length === 0) blocks.push({ name: g.section || null, groups: [g] });
-      else blocks[blocks.length - 1].groups.push(g);
-    });
-    return blocks;
-  }, [progGroups]);
-  const hasSections = progGroups.some((g) => g.section);
-
   /* which major key covers the melody's notes best */
   const melKeyHint = useMemo(() => {
     if (!melSteps.length) return null;
@@ -542,28 +445,16 @@ function App() {
     if (mode === "scale") return keyPrefersFlats(scaleRoot, scaleDef.iv);
     if (mode === "chord" || mode === "bank") return keyPrefersFlats(chordRoot, chordDef.iv);
     if (mode === "arp") return keyPrefersFlats(arpRoot, arpDef.iv);
-    if (mode === "prog") return keyPrefersFlats(progRoot, progDef.tonality === "minor" ? [3] : [4]);
     if (mode === "interval") return keyPrefersFlats(ivRoot, ivOn);
     if (mode === "melody") return melKeyHint ? keyPrefersFlats(melKeyHint.root, [0, 2, 4, 5, 7, 9, 11]) : false;
     return false;
-  }, [settings.noteNames, mode, scaleRoot, scaleDef, chordRoot, chordDef, progRoot, progDef, ivRoot, ivOn, melKeyHint, arpRoot, arpDef]);
-
-  const activeProgVoicing = progVoicings[Math.min(progIdx, progVoicings.length - 1)] || null;
+  }, [settings.noteNames, mode, scaleRoot, scaleDef, chordRoot, chordDef, ivRoot, ivOn, melKeyHint, arpRoot, arpDef]);
 
   const marks = useMemo(() => {
     const map = new Map();
     const add = (s, f, pc, semis, tone, state, finger) => {
       map.set(`${s}:${f}`, { pc, semis, tone, state: state || "on", finger: finger == null ? null : finger });
     };
-
-    if (mode === "prog" && activeProg && activeProgVoicing) {
-      for (let s2 = 0; s2 < n; s2++) {
-        const f = activeProgVoicing.frets[s2];
-        if (f === null) continue;
-        const pc = (midis[s2] + f) % 12;
-        add(s2, f, pc, (pc - activeProg.rootPc + 24) % 12, "chord", null, activeProgVoicing.fingering[s2]);
-      }
-    }
 
     if (mode === "melody") {
       /* the neck is just the note picker now: highlight the note sitting on the
@@ -582,7 +473,7 @@ function App() {
     }
 
     return map;
-  }, [mode, midis, n, activeProg, activeProgVoicing, melSteps, melPlayIdx, melCursor, melKeyHint]);
+  }, [mode, midis, n, melSteps, melPlayIdx, melCursor, melKeyHint]);
 
   /* ---- quiz ---- */
   const onCell = useCallback(
@@ -651,27 +542,6 @@ function App() {
     }
     setMelImport(true);
   }, [doImportTab, setToast]);
-
-  const playProgression = useCallback(() => {
-    stopPlayback();
-    if (!progChords.length) return;
-    setProgPlaying(true);
-    const barSec = (60 / settings.bpm) * settings.beats;
-    playTimers.current.push(setTimeout(() => setProgPlaying(false), progChords.length * barSec * 1000));
-    progChords.forEach((c, i) => {
-      const v = progVoicings[i];
-      if (v) {
-        let j = 0;
-        for (let st = 0; st < n; st++) {
-          const f = v.frets[st];
-          if (f === null) continue;
-          playNote(midis[st] + f, i * barSec + j * 0.028);
-          j++;
-        }
-      }
-      playTimers.current.push(setTimeout(() => setProgIdx(i), i * barSec * 1000));
-    });
-  }, [stopPlayback, settings.bpm, settings.beats, progChords, progVoicings, midis, n, playNote, playTimers, setProgPlaying]);
 
   const scheduleMelody = useCallback(() => {
     if (!melSteps.some((st) => st && !st.rest)) return;
@@ -914,7 +784,6 @@ function App() {
   /* ---- readout ---- */
   const readout = useMemo(() => {
     if (mode === "scale") return `${nameOf(scaleRoot, effFlats)} ${scaleDef.name} · ${scaleDef.iv.length} notes`;
-    if (mode === "prog") return `${nameOf(progRoot, effFlats)} \u00b7 ${progDef.name} \u00b7 ${progDef.bars.length} bars`;
     if (mode === "bank") return `Bank \u00b7 ${bank.length} saved`;
     if (mode === "interval")
       return `${nameOf(ivRoot, effFlats)} root · ${[...ivOn]
@@ -948,8 +817,6 @@ function App() {
     ivRoot,
     ivOn,
     effFlats,
-    progRoot,
-    progDef,
     bank.length,
     authUser,
     uname,
@@ -1105,40 +972,6 @@ function App() {
   /* app-like nav: on a phone, choosing anything closes the drawer. On desktop the
      drawer is a persistent sidebar, so it stays put. Focus moves to the burger
      before the drawer goes inert, so it is never stranded on a hidden control. */
-  const renderProgDiagram = (g) => {
-    const i = g.start;
-    const c = progChords[i];
-    if (!progVoicings[i]) return null;
-    return (
-      <ChordDiagram
-        key={i}
-        voicing={progVoicings[i]}
-        lefty={settings.leftHanded}
-        midis={midis}
-        rootPc={c.rootPc}
-        capo={capo}
-        flats={effFlats}
-        showDegrees={false}
-        selected={progIdx >= i && progIdx < i + g.count}
-        title={`${nameOf(c.rootPc, effFlats)}${c.def.suffix}`}
-        caption={g.count > 1 ? `${c.roman} · ${g.count} bars` : c.roman}
-        onSelect={() => {
-          setProgIdx(i);
-          const v = progVoicings[i];
-          if (v && settings.sound) {
-            let j = 0;
-            for (let st = 0; st < n; st++) {
-              const f = v.frets[st];
-              if (f === null) continue;
-              pluck(midis[st] + f, j * 0.03);
-              j++;
-            }
-          }
-        }}
-      />
-    );
-  };
-
   /* live-app guided tour: each step sets up the real view, then spotlights it */
   const tourSteps = [
     {
@@ -1626,16 +1459,9 @@ function App() {
                 marks={fbConfig ? fbConfig.marks : marks}
                 onCell={fbConfig ? fbConfig.onCell : onCell}
                 flats={fbConfig ? fbConfig.flats : effFlats}
-                labelMode={fbConfig ? fbConfig.labelMode : mode === "prog" ? chordLabel : settings.labelMode}
-                colourMode={fbConfig ? fbConfig.colourMode : mode === "interval" ? "interval" : settings.colourMode}
-                barre={
-                  fbConfig
-                    ? fbConfig.barre
-                    : (() => {
-                        const v = mode === "prog" ? activeProgVoicing : null;
-                        return v && v.barreFret != null ? { fret: v.barreFret, from: v.barreFrom, to: v.barreTo } : null;
-                      })()
-                }
+                labelMode={fbConfig ? fbConfig.labelMode : settings.labelMode}
+                colourMode={fbConfig ? fbConfig.colourMode : settings.colourMode}
+                barre={fbConfig ? fbConfig.barre : null}
                 ghosts={fbConfig ? fbConfig.ghosts : null}
                 quizRange={fbConfig ? fbConfig.quizRange : undefined}
                 quizActive={fbConfig ? fbConfig.quizActive : false}
@@ -1657,294 +1483,7 @@ function App() {
 
           {mode === "chord" && <ChordView carryKey={carryKey} />}
 
-          {mode === "prog" && (
-            <div className="pane">
-              <p className="panelead">
-                Play through common chord progressions in any key, seeing every chord shape as the sequence moves along.
-              </p>
-              {progVoicings.some(Boolean) ? (
-                hasSections ? (
-                  <div className="songsheet">
-                    {songBlocks.map((blk, bi) => (
-                      <div className="songsec" key={bi}>
-                        {blk.name && <p className="secname">{blk.name}</p>}
-                        <div className="voicings">{blk.groups.map(renderProgDiagram)}</div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="voicings">{progGroups.map(renderProgDiagram)}</div>
-                )
-              ) : (
-                <p className="empty">No playable shapes for this progression in the current tuning.</p>
-              )}
-
-              <div className="row wrap actions">
-                <button
-                  className={`btn primary ${progPlaying ? "live" : ""}`}
-                  onClick={progPlaying ? stopPlayback : playProgression}
-                  disabled={!progChords.length}
-                >
-                  {progPlaying ? "Stop" : "Preview"}
-                </button>
-                <span className="actspacer" aria-hidden="true" />
-                <button
-                  className="btn ghost iconbtn"
-                  onClick={() =>
-                    saveToBank({
-                      id: `b${Date.now()}`,
-                      sig: `prog:${progRoot}:${progId}:${progDef.bars.join(",")}`,
-                      kind: "prog",
-                      root: progRoot,
-                      progId,
-                      bars: progDef.bars,
-                      sections: progDef.sections,
-                      name: progDef.name,
-                      label: `${nameOf(progRoot, effFlats)} \u00b7 ${progDef.name}`,
-                    })
-                  }
-                >
-                  <svg
-                    viewBox="0 0 24 24"
-                    width="14"
-                    height="14"
-                    fill={bank.some((b) => b.sig === `prog:${progRoot}:${progId}:${progDef.bars.join(",")}`) ? "currentColor" : "none"}
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M12 3.2l2.6 5.7 6.2.6-4.7 4.2 1.4 6.1L12 16.8 6.5 19.8l1.4-6.1L3.2 9.5l6.2-.6z" />
-                  </svg>
-                  Save to Bank
-                </button>
-                <button
-                  className="btn ghost iconbtn"
-                  onClick={() => {
-                    const c = progChords[progIdx];
-                    if (!c) return;
-                    setChordRoot(c.rootPc);
-                    setChordId(c.chordId);
-                    setMode("chord");
-                  }}
-                >
-                  <svg
-                    viewBox="0 0 16 16"
-                    width="13"
-                    height="13"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M6 3h7v7M13 3L7 9M6 13H3V3" />
-                  </svg>
-                  Open in chords
-                </button>
-              </div>
-
-              <div className="row wrap">
-                <Field label="Key">
-                  <KeyPicker value={progRoot} onChange={setProgRoot} flats={effFlats} />
-                </Field>
-                <Field label="Progression">
-                  <CatPicker
-                    value={progId}
-                    onChange={setProgId}
-                    label="Progression"
-                    groups={[
-                      ...["major", "minor"].map((t) => ({
-                        label: t === "major" ? "Major keys" : "Minor keys",
-                        items: simpleList(PROGRESSIONS, SIMPLE_PROGS, settings.simple, progId)
-                          .filter((x) => x.tonality === t)
-                          .map((x) => ({ id: x.id, name: x.name, sub: x.note })),
-                      })),
-                      ...(customProgs.length
-                        ? [
-                            {
-                              label: "Your progressions",
-                              items: customProgs.map((x) => ({ id: x.id, name: x.name, sub: `${x.bars.length} bars` })),
-                            },
-                          ]
-                        : []),
-                      { label: "Build", items: [{ id: "custom", name: "Custom progression", sub: "Choose your own chords, bar by bar" }] },
-                    ]}
-                  />
-                </Field>
-              </div>
-
-              {progId === "custom" && (
-                <div className="builderbox">
-                  <Field label={`Bars \u00b7 ${builder.bars.length}`}>
-                    <div className="barstrip">
-                      {builder.bars.length === 0 && (
-                        <span className="note">
-                          Tap chords below to add bars. The same chord can repeat as many times as the song needs.
-                        </span>
-                      )}
-                      {builder.bars.map((b, i) => (
-                        <React.Fragment key={i}>
-                          {builder.sections && builder.sections[i] && (
-                            <button
-                              className="secchip"
-                              onClick={() =>
-                                setBuilder((bl) => {
-                                  const sc = { ...bl.sections };
-                                  delete sc[i];
-                                  return { ...bl, sections: sc };
-                                })
-                              }
-                              data-tip="Remove this section marker"
-                            >
-                              {builder.sections[i]}
-                            </button>
-                          )}
-                          <button
-                            className="barchip"
-                            onClick={() =>
-                              setBuilder((bl) => {
-                                const sections = {};
-                                Object.entries(bl.sections || {}).forEach(([k, v]) => {
-                                  const idx = +k;
-                                  if (idx < i) sections[idx] = v;
-                                  else if (idx > i) sections[idx - 1] = v;
-                                });
-                                return { ...bl, bars: bl.bars.filter((_, j) => j !== i), sections };
-                              })
-                            }
-                            aria-label={`Remove bar ${i + 1}, ${b}`}
-                          >
-                            {b}
-                            <span aria-hidden="true">{"\u00d7"}</span>
-                          </button>
-                        </React.Fragment>
-                      ))}
-                    </div>
-                  </Field>
-                  <Field label="Song sections (optional)">
-                    <div className="posrow">
-                      {["Intro", "Verse", "Chorus", "Bridge", "Solo", "Outro"].map((sec) => (
-                        <button
-                          key={sec}
-                          className="poschip"
-                          onClick={() => setBuilder((bl) => ({ ...bl, sections: { ...bl.sections, [bl.bars.length]: sec } }))}
-                          data-tip={`Start a ${sec} section at the next bar`}
-                        >
-                          + {sec}
-                        </button>
-                      ))}
-                    </div>
-                  </Field>
-                  <Field label="Add chords by name in this key">
-                    <Seg
-                      small
-                      ariaLabel="Key type for the chord names"
-                      options={[
-                        { v: "major", l: "Major key" },
-                        { v: "minor", l: "Minor key" },
-                      ]}
-                      value={builderKeyQual}
-                      onChange={setBuilderKeyQual}
-                    />
-                    <p className="note keyhint">
-                      These are the chords that belong to{" "}
-                      {nameOf(progRoot, keyPrefersFlats(progRoot, builderKeyQual === "minor" ? [3] : [4]))} {builderKeyQual}. Tap one to add
-                      it.
-                    </p>
-                    <div className="romangrid">
-                      {(builderKeyQual === "minor"
-                        ? ["i", "ii°", "III", "iv", "v", "VI", "VII"]
-                        : ["I", "ii", "iii", "IV", "V", "vi", "vii°"]
-                      ).map((rn) => {
-                        const [off, q] = ROMAN[rn];
-                        const cd = CHORDS.find((c) => c.id === q);
-                        const nmFlats = keyPrefersFlats(progRoot, builderKeyQual === "minor" ? [3] : [4]);
-                        const nm = nameOf((progRoot + off) % 12, nmFlats) + (cd ? cd.suffix : "");
-                        return (
-                          <button
-                            key={rn}
-                            className="key chordkey"
-                            data-tip={`${rn} in the key of ${nameOf(progRoot, nmFlats)} ${builderKeyQual}`}
-                            onClick={() => setBuilder((bl) => ({ ...bl, bars: [...bl.bars, rn] }))}
-                          >
-                            {nm}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </Field>
-                  <Field label="Or add by Roman numeral (advanced)">
-                    <div className="romangrid">
-                      {Object.keys(ROMAN).map((rn) => (
-                        <button key={rn} className="key" onClick={() => setBuilder((bl) => ({ ...bl, bars: [...bl.bars, rn] }))}>
-                          {rn}
-                        </button>
-                      ))}
-                    </div>
-                  </Field>
-                  <div className="row wrap">
-                    <Field id="progname" label="Name">
-                      <input
-                        id="progname"
-                        type="text"
-                        value={builder.name}
-                        maxLength={40}
-                        placeholder="My song"
-                        onChange={(e) => setBuilder((bl) => ({ ...bl, name: e.target.value }))}
-                      />
-                    </Field>
-                    <button
-                      className="btn primary"
-                      disabled={!builder.bars.length || !builder.name.trim()}
-                      onClick={() => {
-                        const def = {
-                          id: `c${Date.now()}`,
-                          name: builder.name.trim(),
-                          note: "Custom",
-                          tonality: MINOR_STARTS.has(builder.bars[0]) ? "minor" : "major",
-                          bars: builder.bars,
-                          sections: builder.sections,
-                        };
-                        saveCustomProgs([...customProgs, def]);
-                        setProgId(def.id);
-                        setBuilder({ bars: [], name: "", sections: {} });
-                        track("custom_prog_save", { bars: def.bars.length });
-                        setToast("Progression saved");
-                      }}
-                    >
-                      Save progression
-                    </button>
-                    <button
-                      className="btn ghost"
-                      disabled={!builder.bars.length}
-                      onClick={() => setBuilder((bl) => ({ ...bl, bars: [], sections: {} }))}
-                    >
-                      Clear
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {customProgs.some((p) => p.id === progId) && (
-                <div className="row">
-                  <button
-                    className="btn ghost danger"
-                    onClick={() => {
-                      saveCustomProgs(customProgs.filter((p) => p.id !== progId));
-                      setProgId("p1564");
-                      setToast("Progression deleted");
-                    }}
-                  >
-                    Delete this progression
-                  </button>
-                </div>
-              )}
-
-              <p className="note">Preview follows the metronome tempo, one bar per chord.</p>
-            </div>
-          )}
+          {mode === "prog" && <ProgView onNavigate={setMode} />}
 
           {mode === "bank" && <BankView onOpen={openBankItem} />}
 
